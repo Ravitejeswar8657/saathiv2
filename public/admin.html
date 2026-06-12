@@ -40,6 +40,19 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
 .btn-approve-brief:hover:not(:disabled){background:#0d6357}
 .btn-send{background:var(--rust);color:#fff;box-shadow:0 10px 15px -3px rgba(180,83,9,0.3);font-size:16px;font-weight:800;padding:18px}
 .btn-send:hover:not(:disabled){background:#92400e}
+.btn-wa-send{background:#25D366;color:#fff;font-size:12px;padding:8px 14px;border-radius:8px;border:none;cursor:pointer;font-weight:600;transition:0.2s}
+.btn-wa-send:hover{background:#128C7E}
+.btn-wa-send:disabled{background:var(--muted);cursor:not-allowed}
+.wa-response-row{padding:16px;border:2px solid #25D366;border-radius:12px;margin-bottom:12px;background:#f0fdf4}
+.wa-response-row .badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700}
+.badge-approved{background:var(--teal-l);color:var(--teal)}
+.badge-rejected{background:#fef2f2;color:#991b1b}
+.btn-confirm{padding:8px 16px;border-radius:8px;font-weight:700;cursor:pointer;border:none;font-size:13px;transition:0.2s}
+.btn-confirm-approve{background:var(--teal);color:#fff}
+.btn-confirm-reject{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+.live-news-item{padding:14px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--white)}
+.live-news-item a{color:var(--rust);text-decoration:none;font-weight:600;font-size:14px}
+.live-news-item a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -55,8 +68,14 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
       <div class="section-title">⚖️ Pending Approvals (Letters & TTD)</div>
       <div id="pending-list"></div>
 
-      <div class="section-title" style="margin-top:40px">📰 Field Intelligence (Latest News)</div>
+      <div class="section-title" style="margin-top:40px">📲 MP WhatsApp Responses (Awaiting Confirmation)</div>
+      <div id="wa-responses-list"></div>
+
+      <div class="section-title" style="margin-top:40px">📰 Field Intelligence (Submitted News)</div>
       <div id="news-list"></div>
+
+      <div class="section-title" style="margin-top:40px">🌐 Live News (Palanadu / Narasaraopet)</div>
+      <div id="live-news-list"></div>
     </div>
 
     <div class="right-col">
@@ -99,13 +118,38 @@ async function loadData() {
         <div style="font-size:12px;color:var(--muted)">For ${iss.contact_name} (${iss.mandal})</div>
         <div style="font-size:13px;margin-top:6px">${iss.description}</div>
       </div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-approve" onclick="actionIssue('${iss.contact_id}','${iss.id}','approved')">Approve</button>
         <button class="btn btn-reject" onclick="actionIssue('${iss.contact_id}','${iss.id}','rejected')">Reject</button>
+        <button class="btn-wa-send" onclick="sendApprovalToWA('${iss.contact_id}','${iss.id}',this)">📲 Send to MP</button>
       </div>
     </div>`;
   });
   document.getElementById('pending-list').innerHTML = h1;
+
+  // Load WhatsApp responses
+  const r3 = await fetch('/api/wa-responses');
+  const d3 = await r3.json();
+  let h3 = '';
+  if (d3.responses.length === 0) h3 = '<p style="color:var(--muted);font-size:13px">No pending MP responses.</p>';
+  d3.responses.forEach(resp => {
+    h3 += `
+    <div class="wa-response-row">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <span class="badge ${resp.mp_response === 'approved' ? 'badge-approved' : 'badge-rejected'}">${resp.mp_response.toUpperCase()}</span>
+          <span style="font-weight:700;margin-left:8px">${resp.issue_type}</span>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">For ${resp.contact_name} · MP replied: "${resp.mp_message}"</div>
+          <div style="font-size:11px;color:var(--muted)">${new Date(resp.responded_at).toLocaleString('en-IN')}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-confirm btn-confirm-approve" onclick="confirmWAResponse('${resp.issue_id}','approved')">Confirm Approve</button>
+          <button class="btn-confirm btn-confirm-reject" onclick="confirmWAResponse('${resp.issue_id}','rejected')">Confirm Reject</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('wa-responses-list').innerHTML = h3;
 
   // Load News & Brief Preview
   const r2 = await fetch('/api/dashboard');
@@ -221,9 +265,60 @@ async function checkWAStatus() {
   }
 }
 
+async function sendApprovalToWA(contact_id, issue_id, btn) {
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const r = await fetch('/api/send-approval-request', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ contact_id, issue_id })
+    });
+    const data = await r.json();
+    btn.textContent = data.log.status === 'sent' ? '✅ Sent' : '📋 Previewed';
+    btn.style.background = 'var(--teal)';
+  } catch(e) {
+    btn.textContent = '❌ Failed';
+    btn.disabled = false;
+  }
+}
+
+async function confirmWAResponse(issue_id, action) {
+  const r = await fetch('/api/wa-response/confirm', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ issue_id, action })
+  });
+  if (r.ok) loadData();
+}
+
+async function loadLiveNews() {
+  try {
+    const r = await fetch('/api/live-news');
+    const data = await r.json();
+    let html = '';
+    if (!data.news || data.news.length === 0) {
+      html = '<p style="color:var(--muted);font-size:13px">No live news available.</p>';
+    } else {
+      data.news.slice(0, 10).forEach(n => {
+        const date = n.pubDate ? new Date(n.pubDate).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
+        html += `
+        <div class="live-news-item">
+          <a href="${n.link}" target="_blank">${n.title}</a>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${n.source} · ${date}</div>
+        </div>`;
+      });
+    }
+    document.getElementById('live-news-list').innerHTML = html;
+  } catch(e) {
+    document.getElementById('live-news-list').innerHTML = '<p style="color:var(--muted);font-size:13px">Failed to load live news.</p>';
+  }
+}
+
 loadData();
+loadLiveNews();
 checkWAStatus();
 setInterval(checkWAStatus, 5000);
+setInterval(loadLiveNews, 5 * 60 * 1000);
 </script>
 </body>
 </html>

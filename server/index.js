@@ -63,6 +63,113 @@ function recomputeBrief(db) {
   return db;
 }
 
+// ── Google News RSS cache ──────────────────────────────────────────────────
+let newsCache = { data: null, fetchedAt: 0 };
+const NEWS_CACHE_MS = 15 * 60 * 1000; // 15 minutes
+
+async function fetchGoogleNews() {
+  const now = Date.now();
+  if (newsCache.data && (now - newsCache.fetchedAt) < NEWS_CACHE_MS) {
+    return newsCache.data;
+  }
+  const url = 'https://news.google.com/rss/search?q=Palanadu+OR+Narasaraopet+OR+Palnadu&hl=en-IN&gl=IN&ceid=IN:en';
+  const resp = await fetch(url);
+  const xml = await resp.text();
+
+  // Simple regex XML parsing for <item> blocks
+  const items = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const block = match[1];
+    const title = block.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1')?.trim() || '';
+    const link = block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim() || '';
+    const pubDate = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() || '';
+    const source = block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1')?.trim() || '';
+    items.push({ title, link, pubDate, source });
+  }
+
+  newsCache = { data: items, fetchedAt: now };
+  return items;
+}
+
+// ── WhatsApp incoming message handler registration ─────────────────────────
+(async () => {
+  try {
+    const wa = await import('./whatsapp.js');
+    wa.setOnIncomingMessage(async ({ action, identifier, rawText, sender }) => {
+      const db = readDB();
+      if (!db.wa_responses) db.wa_responses = [];
+
+      // Resolve identifier: could be "ISS..." or a number (index in pending list)
+      let issueId = null;
+      let contactId = null;
+      let contactName = '';
+      let issueType = '';
+
+      if (identifier.toUpperCase().startsWith('ISS')) {
+        issueId = identifier.toUpperCase();
+      } else {
+        // Try as a 1-based index into pending list
+        const num = parseInt(identifier, 10);
+        if (!isNaN(num) && num > 0) {
+          const pending = [];
+          db.contacts.forEach(c => {
+            (c.issues || []).forEach(iss => {
+              if (iss.status === 'pending') {
+                pending.push({ issue_id: iss.id, contact_id: c.id, contact_name: c.name, issue_type: iss.type });
+              }
+            });
+          });
+          if (num <= pending.length) {
+            const p = pending[num - 1];
+            issueId = p.issue_id;
+            contactId = p.contact_id;
+            contactName = p.contact_name;
+            issueType = p.issue_type;
+          }
+        }
+      }
+
+      // If we have an issue ID but no contact info yet, look it up
+      if (issueId && !contactId) {
+        for (const c of db.contacts) {
+          const iss = (c.issues || []).find(i => i.id === issueId);
+          if (iss) {
+            contactId = c.id;
+            contactName = c.name;
+            issueType = iss.type;
+            break;
+          }
+        }
+      }
+
+      if (!issueId) {
+        console.log(`WhatsApp: Could not resolve identifier "${identifier}" from MP message`);
+        return;
+      }
+
+      const responseEntry = {
+        issue_id: issueId,
+        contact_id: contactId || 'unknown',
+        contact_name: contactName || 'unknown',
+        issue_type: issueType || 'unknown',
+        mp_response: action,
+        mp_message: rawText,
+        responded_at: new Date().toISOString(),
+        confirmed: false,
+      };
+
+      db.wa_responses.push(responseEntry);
+      writeDB(db);
+      console.log(`WhatsApp: MP ${action} ${issueId} — stored for admin confirmation`);
+    });
+    console.log('✓ WhatsApp incoming message handler registered');
+  } catch (e) {
+    console.log('WhatsApp incoming handler setup deferred:', e.message);
+  }
+})();
+
 // ── WhatsApp ────────────────────────────────────────────────────────────────
 async function sendWhatsAppBrief(brief, news) {
   const lines = [
@@ -343,6 +450,100 @@ app.get('/api/wa-status', async (req, res) => {
   } catch (e) {
     res.json({ connected: false, hasQR: false, qr: null, error: e.message });
   }
+});
+
+// ── Google News RSS ────────────────────────────────────────────────────────
+app.get('/api/live-news', async (req, res) => {
+  try {
+    const items = await fetchGoogleNews();
+    res.json({ news: items, cached: (Date.now() - newsCache.fetchedAt) < 1000 ? false : true });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch news', detail: e.message });
+  }
+});
+
+// ── WhatsApp response routes ───────────────────────────────────────────────
+app.get('/api/wa-responses', (req, res) => {
+  const db = readDB();
+  const unconfirmed = (db.wa_responses || []).filter(r => !r.confirmed);
+  res.json({ responses: unconfirmed });
+});
+
+app.post('/api/wa-response/confirm', (req, res) => {
+  const { issue_id, action } = req.body;
+  if (!issue_id || !action) return res.status(400).json({ error: 'issue_id and action required' });
+  if (!['approved', 'rejected'].includes(action)) return res.status(400).json({ error: 'action must be approved or rejected' });
+
+  const db = readDB();
+  if (!db.wa_responses) return res.status(404).json({ error: 'No WA responses found' });
+
+  const respIdx = db.wa_responses.findIndex(r => r.issue_id === issue_id && !r.confirmed);
+  if (respIdx === -1) return res.status(404).json({ error: 'No unconfirmed response for this issue' });
+
+  // Mark as confirmed
+  db.wa_responses[respIdx].confirmed = true;
+  db.wa_responses[respIdx].confirmed_at = new Date().toISOString();
+
+  // Update the actual issue status
+  let updated = false;
+  for (const c of db.contacts) {
+    const iss = (c.issues || []).find(i => i.id === issue_id);
+    if (iss) {
+      iss.status = action;
+      iss.resolved_at = new Date().toISOString();
+      updated = true;
+      break;
+    }
+  }
+
+  writeDB(db);
+  res.json({ ok: true, issue_updated: updated });
+});
+
+app.post('/api/send-approval-request', async (req, res) => {
+  const { contact_id, issue_id } = req.body;
+  if (!contact_id || !issue_id) return res.status(400).json({ error: 'contact_id and issue_id required' });
+
+  const db = readDB();
+  const contact = db.contacts.find(c => c.id === contact_id);
+  if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+  const issue = (contact.issues || []).find(i => i.id === issue_id);
+  if (!issue) return res.status(404).json({ error: 'Issue not found' });
+
+  const message = [
+    `🔔 *Approval Request*`,
+    ``,
+    `*Type:* ${issue.type}`,
+    `*For:* ${contact.name} (${contact.mandal})`,
+    `*Details:* ${issue.description || 'No details provided'}`,
+    ``,
+    `Reply: *approve ${issue_id}* or *reject ${issue_id}*`,
+  ].join('\n');
+
+  const logEntry = {
+    sent_at: new Date().toISOString(),
+    to: '919652345570',
+    type: 'approval_request',
+    issue_id,
+    contact_id,
+    contact_name: contact.name,
+    status: 'pending',
+  };
+
+  try {
+    const wa = await import('./whatsapp.js');
+    await wa.default(message, '919652345570');
+    logEntry.status = 'sent';
+  } catch (e) {
+    logEntry.status = e.message.includes('QR') || e.message.includes('not connected')
+      ? 'preview_only' : 'error';
+    logEntry.note = e.message;
+  }
+
+  db.whatsapp_log = [logEntry, ...(db.whatsapp_log || [])].slice(0, 50);
+  writeDB(db);
+  res.json({ ok: true, log: logEntry, message_preview: message });
 });
 
 // Health check for Railway
