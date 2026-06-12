@@ -56,9 +56,10 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
       <div class="section-title">📱 WhatsApp Connection</div>
       <div class="card" id="wa-status-card">
         <div id="wa-status-info" style="font-size: 13px; margin-bottom: 10px;">Checking status...</div>
-        <div id="wa-qr-container" style="display: none; text-align: center;">
-          <p style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">Scan this QR with WhatsApp to link</p>
-          <div id="wa-qr-code" style="background: white; padding: 10px; display: inline-block; border-radius: 8px;"></div>
+        <div id="wa-qr-container" style="display: none; text-align: center; background: #fff; padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+          <p style="font-size: 13px; font-weight: 600; color: var(--rust); margin-bottom: 10px;">Scan QR with WhatsApp</p>
+          <canvas id="wa-qr-canvas" style="max-width: 100%; height: auto;"></canvas>
+          <p style="font-size: 11px; color: var(--muted); margin-top: 10px;">QR updates automatically</p>
         </div>
       </div>
 
@@ -141,24 +142,28 @@ async function approveAndSend() {
 }
 
 async function checkWAStatus() {
-  const r = await fetch('/api/wa-status');
-  const data = await r.json();
-  const info = document.getElementById('wa-status-info');
-  const qrContainer = document.getElementById('wa-qr-container');
-  const qrCanvas = document.getElementById('wa-qr-code');
+  try {
+    const r = await fetch('/api/wa-status');
+    const data = await r.json();
+    const info = document.getElementById('wa-status-info');
+    const qrContainer = document.getElementById('wa-qr-container');
+    const qrCanvas = document.getElementById('wa-qr-canvas');
 
-  if (data.connected) {
-    info.innerHTML = '<span style="color: var(--teal); font-weight: 700;">✅ Connected</span>';
-    qrContainer.style.display = 'none';
-  } else if (data.qr) {
-    info.innerHTML = '<span style="color: var(--rust); font-weight: 700;">🟡 Needs Login</span>';
-    qrContainer.style.display = 'block';
-    QRCode.toCanvas(qrCanvas, data.qr, { width: 200 }, (error) => {
-      if (error) console.error(error);
-    });
-  } else {
-    info.innerHTML = '<span style="color: var(--muted);">⏳ Initializing...</span>';
-    qrContainer.style.display = 'none';
+    if (data.connected) {
+      info.innerHTML = '<span style="color: var(--teal); font-weight: 700;">✅ Connected</span>';
+      qrContainer.style.display = 'none';
+    } else if (data.qr) {
+      info.innerHTML = '<span style="color: var(--rust); font-weight: 700;">🟡 Needs Login</span>';
+      qrContainer.style.display = 'block';
+      QRCode.toCanvas(qrCanvas, data.qr, { width: 200, margin: 2 }, (error) => {
+        if (error) console.error('QR Render Error:', error);
+      });
+    } else {
+      info.innerHTML = '<span style="color: var(--muted);">⏳ Initializing WhatsApp...</span>';
+      qrContainer.style.display = 'none';
+    }
+  } catch (e) {
+    console.error('WA Status Error:', e);
   }
 }
 
