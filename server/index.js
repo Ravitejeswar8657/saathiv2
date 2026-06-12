@@ -94,7 +94,8 @@ async function sendWhatsAppBrief(brief, news) {
 
   try {
     const wa = await import('./whatsapp.js');
-    await wa.default(message, '9652345570');
+    // Add the Indian country code '91' to the beginning of the number
+    await wa.default(message, '919652345570');
     logEntry.status = 'sent';
   } catch (e) {
     logEntry.status = e.message.includes('QR') || e.message.includes('not connected') 

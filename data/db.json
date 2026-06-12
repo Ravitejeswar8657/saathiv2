@@ -36,7 +36,16 @@
       ],
       "affinity": "supportive",
       "estimated_reach": 3000,
-      "ai_reason": "No contact in 188 days — T1 contact risk of going cold. Open grievance: \"Encroachment on village common land\". Pending commitment: \"Sought scholarship for child - in process\". Krishna Sir follower — high loyalty, expects personal attention. Recommend direct MP call today."
+      "ai_reason": "No contact in 188 days — T1 contact risk of going cold. Open grievance: \"Encroachment on village common land\". Pending commitment: \"Sought scholarship for child - in process\". Krishna Sir follower — high loyalty, expects personal attention. Recommend direct MP call today.",
+      "issues": [
+        {
+          "id": "ISS_DUMMY_1781244728544_0",
+          "type": "Recommendation Letter",
+          "description": "Requesting recommendation for daughter's college admission.",
+          "status": "pending",
+          "created_at": "2026-06-12T06:12:08.544Z"
+        }
+      ]
     },
     {
       "id": "C0677",
@@ -68,7 +77,16 @@
       ],
       "affinity": "neutral",
       "estimated_reach": 1200,
-      "ai_reason": "No contact in 510 days — T1 contact risk of going cold. Open grievance: \"Medical bill reimbursement support sought\". Pending commitment: \"Sought scholarship for child - in process\". Krishna Sir follower — high loyalty, expects personal attention. Recommend direct MP call today."
+      "ai_reason": "No contact in 510 days — T1 contact risk of going cold. Open grievance: \"Medical bill reimbursement support sought\". Pending commitment: \"Sought scholarship for child - in process\". Krishna Sir follower — high loyalty, expects personal attention. Recommend direct MP call today.",
+      "issues": [
+        {
+          "id": "ISS_DUMMY_1781244728547_1",
+          "type": "TTD Darshan",
+          "description": "VIP break darshan requested for family of 4 on 25th.",
+          "status": "pending",
+          "created_at": "2026-06-12T06:12:08.547Z"
+        }
+      ]
     },
     {
       "id": "C0164",
@@ -100,7 +118,16 @@
       ],
       "affinity": "neutral",
       "estimated_reach": 1200,
-      "ai_reason": "No contact in 232 days — T1 contact risk of going cold. Open grievance: \"Road repair request for village main road\". Pending commitment: \"Earlier raised issue of school building - partial work done\". Krishna Sir follower — high loyalty, expects personal attention. Recommend direct MP call today."
+      "ai_reason": "No contact in 232 days — T1 contact risk of going cold. Open grievance: \"Road repair request for village main road\". Pending commitment: \"Earlier raised issue of school building - partial work done\". Krishna Sir follower — high loyalty, expects personal attention. Recommend direct MP call today.",
+      "issues": [
+        {
+          "id": "ISS_DUMMY_1781244728547_2",
+          "type": "Medical Help",
+          "description": "CM Relief Fund application for heart surgery.",
+          "status": "pending",
+          "created_at": "2026-06-12T06:12:08.547Z"
+        }
+      ]
     },
     {
       "id": "C0820",
@@ -65152,7 +65179,52 @@
       "health": "critical"
     }
   ],
-  "news": [],
-  "schedule": [],
+  "news": [
+    {
+      "id": "NEWS_DUMMY_1781244728547",
+      "headline": "Heavy rains in Vinukonda mandal cause crop damage",
+      "body": "Farmers report significant damage to cotton crops due to unseasonal rainfall. Requesting immediate assessment by agriculture officials.",
+      "source": "Local Reporter, TV9",
+      "mandal": "Vinukonda",
+      "priority": "high",
+      "submitted_at": "2026-06-12T06:12:08.547Z",
+      "has_attachment": false
+    }
+  ],
+  "schedule": [
+    {
+      "id": "SCH_DUMMY_1781244728547",
+      "event_name": "Palanadu Zilla Parishad Review",
+      "date": "2026-06-13",
+      "time": "10:00",
+      "mandal": "Narasaraopet",
+      "description": "Monthly review meeting with all mandal presidents.",
+      "nearby_count": 3,
+      "nearby_contacts": [
+        {
+          "id": "C0522",
+          "name": "Srinivas Gade",
+          "phone": "8534167812",
+          "village": "Bhattiprolu",
+          "tier": "T1"
+        },
+        {
+          "id": "C0677",
+          "name": "Srinivas Battula",
+          "phone": "7603197899",
+          "village": "Cherukupalli",
+          "tier": "T1"
+        },
+        {
+          "id": "C0164",
+          "name": "Balaji Chebrolu",
+          "phone": "8057620555",
+          "village": "Guntur Rural",
+          "tier": "T1"
+        }
+      ],
+      "created_at": "2026-06-12T06:12:08.547Z"
+    }
+  ],
   "whatsapp_log": []
 }
