@@ -1,0 +1,23 @@
+{
+  "name": "saathi-v2",
+  "version": "2.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "build": "node scripts/setup_db.js",
+    "setup-db": "node scripts/setup_db.js"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
+    "fuse.js": "^7.4.2",
+    "multer": "^1.4.5-lts.1",
+    "qrcode": "^1.5.4",
+    "xlsx": "^0.18.5"
+  }
+}
