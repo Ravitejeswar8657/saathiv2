@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240">
+  <rect width="200" height="240" fill="#eff6ff" rx="12"/>
+  <circle cx="100" cy="80" r="40" fill="#1d4ed8" opacity="0.15"/>
+  <text x="100" y="85" text-anchor="middle" font-family="serif" font-size="40" fill="#1d4ed8">⚜</text>
+  <text x="100" y="120" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1d4ed8" font-weight="700">ANDHRA PRADESH</text>
+  <text x="100" y="140" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#3b82f6">State Emblem</text>
+</svg>
