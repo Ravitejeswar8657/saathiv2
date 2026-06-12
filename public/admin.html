@@ -4,101 +4,466 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>MP Dashboard · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --ink:#1a1208;--paper:#fffbeb;--cream:#fef3c7;--rust:#b45309;
-  --white:#fff;--border:#e7e5e4;--muted:#78716c;--teal:#0f766e;--teal-l:#ccfbf1;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #1a1208;
+  --bg: #fafaf9;
+  --card-bg: #ffffff;
+  --border: #e5e5e5;
+  --muted: #6b7280;
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --teal: #0f766e;
+  --teal-light: #ccfbf1;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --red-border: #fecaca;
+  --blue: #1d4ed8;
+  --blue-hover: #1e40af;
+  --shadow: 0 1px 2px rgba(0,0,0,0.05);
+  --radius: 8px;
 }
-body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);padding:clamp(16px, 4vw, 40px) 16px; min-height: 100vh;}
-.container{width:100%}
-.header{margin-bottom:30px}
-.page-title{font-family:'Fraunces',serif;font-size:clamp(24px, 6vw, 32px);font-weight:600}
-.back-link{font-size:14px;color:var(--rust);text-decoration:none;font-weight:600;margin-bottom:8px;display:block}
-.grid{display:grid;grid-template-columns:1fr;gap:24px}
-@media(min-width: 900px) { .grid { grid-template-columns: 1fr 400px; } }
-.card{background:var(--white);border:1px solid var(--border);border-radius:16px;padding:clamp(16px, 4vw, 24px);margin-bottom:20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);}
-.section-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
-.issue-row{display:flex;flex-direction:column;gap:16px;padding:20px;border:1px solid var(--border);border-radius:12px;margin-bottom:12px;background:var(--white); transition: 0.2s;}
-@media(min-width: 480px) { .issue-row { flex-direction: row; justify-content: space-between; align-items: center; } }
-.issue-row:hover { border-color: var(--teal); }
-.btn{padding:10px 20px;border-radius:10px;font-weight:700;cursor:pointer;border:none;font-size:14px; transition: 0.2s;}
-.btn-approve{background:var(--teal);color:#fff; box-shadow: 0 4px 6px rgba(15,118,110,0.2);}
-.btn-approve:active { transform: scale(0.95); }
-.btn-reject{background:#fef2f2;color:#991b1b; border: 1px solid #fecaca;}
-.wa-preview{background:#0b141a;border-radius:16px;padding:20px;font-family:monospace;font-size:13px;color:#e9edef;white-space:pre-wrap;line-height:1.6;max-height:600px;overflow-y:auto; border: 4px solid #202c33;}
-.wa-preview b{color:#00a884; font-weight: bold;}
-.btn-group{display:flex;flex-direction:column;gap:10px;margin-top:16px}
-.action-btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:0.2s;display:flex;align-items:center;justify-content:center;gap:8px}
-.action-btn:active{transform:scale(0.98)}
-.action-btn:disabled{background:var(--muted)!important;color:#fff;cursor:not-allowed;box-shadow:none!important}
-.btn-generate{background:#1d4ed8;color:#fff;box-shadow:0 4px 6px rgba(29,78,216,0.3)}
-.btn-generate:hover:not(:disabled){background:#1e40af}
-.btn-approve-brief{background:var(--teal);color:#fff;box-shadow:0 4px 6px rgba(15,118,110,0.3)}
-.btn-approve-brief:hover:not(:disabled){background:#0d6357}
-.btn-send{background:var(--rust);color:#fff;box-shadow:0 10px 15px -3px rgba(180,83,9,0.3);font-size:16px;font-weight:800;padding:18px}
-.btn-send:hover:not(:disabled){background:#92400e}
-.btn-wa-send{background:#25D366;color:#fff;font-size:12px;padding:8px 14px;border-radius:8px;border:none;cursor:pointer;font-weight:600;transition:0.2s}
-.btn-wa-send:hover{background:#128C7E}
-.btn-wa-send:disabled{background:var(--muted);cursor:not-allowed}
-.wa-response-row{padding:16px;border:2px solid #25D366;border-radius:12px;margin-bottom:12px;background:#f0fdf4}
-.wa-response-row .badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700}
-.badge-approved{background:var(--teal-l);color:var(--teal)}
-.badge-rejected{background:#fef2f2;color:#991b1b}
-.btn-confirm{padding:8px 16px;border-radius:8px;font-weight:700;cursor:pointer;border:none;font-size:13px;transition:0.2s}
-.btn-confirm-approve{background:var(--teal);color:#fff}
-.btn-confirm-reject{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
-.live-news-item{padding:14px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--white)}
-.live-news-item a{color:var(--rust);text-decoration:none;font-weight:600;font-size:14px}
-.live-news-item a:hover{text-decoration:underline}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+/* ── Header ── */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 500;
+  margin-bottom: 16px;
+  transition: color 0.15s;
+}
+.back-link:hover { color: var(--ink); }
+
+.header { margin-bottom: 32px; }
+.page-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* ── Layout ── */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+}
+@media (min-width: 900px) {
+  .grid { grid-template-columns: 1fr 360px; }
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* ── Section headings ── */
+.section-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.section-header [data-lucide] {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.section-block { margin-bottom: 40px; }
+.section-block:last-child { margin-bottom: 0; }
+
+/* ── Tables / Issue rows ── */
+.issue-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.issue-table td {
+  padding: 14px 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.issue-table tr:last-child td { border-bottom: none; }
+.issue-table .col-info { padding-right: 16px; }
+.issue-table .col-actions {
+  white-space: nowrap;
+  text-align: right;
+  vertical-align: middle;
+}
+.issue-type {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+.issue-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.issue-desc {
+  font-size: 13px;
+  color: #374151;
+  margin-top: 4px;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  line-height: 1.4;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn [data-lucide] {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+/* Primary (teal) */
+.btn-primary {
+  background: var(--teal);
+  color: #fff;
+  border-color: var(--teal);
+}
+.btn-primary:hover:not(:disabled) { background: #0d6357; border-color: #0d6357; }
+
+/* Destructive outline */
+.btn-destructive {
+  background: transparent;
+  color: var(--red);
+  border-color: var(--red-border);
+}
+.btn-destructive:hover:not(:disabled) { background: var(--red-light); }
+
+/* Ghost */
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+.btn-ghost:hover:not(:disabled) { background: #f5f5f4; color: var(--ink); }
+
+/* Accent filled */
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.btn-accent:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+/* Blue filled */
+.btn-blue {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+.btn-blue:hover:not(:disabled) { background: var(--blue-hover); border-color: var(--blue-hover); }
+
+.btn-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── WA Response rows ── */
+.wa-response-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.wa-response-item:last-child { border-bottom: none; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.badge-approved { background: var(--teal-light); color: var(--teal); }
+.badge-rejected { background: var(--red-light); color: var(--red); }
+
+/* ── News list ── */
+.news-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.news-item:last-child { border-bottom: none; }
+.news-headline { font-weight: 500; font-size: 14px; }
+.news-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.news-body { font-size: 13px; color: #374151; margin-top: 4px; }
+
+.live-news-item {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.live-news-item:last-child { border-bottom: none; }
+.live-news-item a {
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 13px;
+}
+.live-news-item a:hover { color: var(--accent); }
+.live-news-item .news-meta { margin-top: 2px; }
+
+/* ── Sidebar ── */
+.sidebar-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.sidebar-card .section-header {
+  margin-bottom: 12px;
+}
+
+/* WA status */
+.wa-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.wa-status-badge [data-lucide] { width: 14px; height: 14px; }
+.wa-status-connected { color: var(--teal); }
+.wa-status-pending { color: var(--accent); }
+.wa-status-loading { color: var(--muted); }
+
+#wa-qr-container {
+  text-align: center;
+  margin-top: 16px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+#wa-qr-container p.qr-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+#wa-qr-container p.qr-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 10px;
+}
+
+/* ── WA Preview (dark phone screen) ── */
+.wa-preview {
+  background: #0b141a;
+  border-radius: var(--radius);
+  padding: 16px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  color: #e9edef;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid #1f2c34;
+}
+.wa-preview b { color: #00a884; font-weight: 600; }
+
+/* ── Brief action buttons ── */
+.brief-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.brief-actions .btn {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.brief-actions .btn-send-wa {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.brief-actions .btn-send-wa:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+#send-status {
+  margin-top: 10px;
+  font-size: 12px;
+  text-align: center;
+  min-height: 18px;
+}
+
+/* ── Empty states ── */
+.empty-state {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 20px 16px;
+  text-align: center;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .container { padding: 16px; }
+  .issue-table td { display: block; padding: 0; }
+  .issue-table .col-actions { text-align: left; padding-top: 10px; }
+  .issue-table tr { display: block; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .issue-table tr:last-child { border-bottom: none; }
+  .issue-table td { border-bottom: none; }
+  .wa-response-item { flex-direction: column; align-items: flex-start; }
+}
 </style>
 </head>
 <body>
 <div class="container">
-  <a href="/" class="back-link">← Back to Portal</a>
+  <a href="/" class="back-link">
+    <i data-lucide="arrow-left"></i> Back to Portal
+  </a>
   <div class="header">
-    <div style="font-size:12px;font-weight:600;color:var(--rust);text-transform:uppercase;letter-spacing:1px">Strategic Command</div>
     <h1 class="page-title">MP Dashboard</h1>
   </div>
 
   <div class="grid">
+    <!-- ── Main column ── -->
     <div class="left-col">
-      <div class="section-title">⚖️ Pending Approvals (Letters & TTD)</div>
-      <div id="pending-list"></div>
 
-      <div class="section-title" style="margin-top:40px">📲 MP WhatsApp Responses (Awaiting Confirmation)</div>
-      <div id="wa-responses-list"></div>
+      <!-- Pending Approvals -->
+      <div class="section-block">
+        <div class="section-header">
+          <i data-lucide="scale"></i> Pending Approvals
+        </div>
+        <div class="card">
+          <div id="pending-list"></div>
+        </div>
+      </div>
 
-      <div class="section-title" style="margin-top:40px">📰 Field Intelligence (Submitted News)</div>
-      <div id="news-list"></div>
+      <!-- WA Responses -->
+      <div class="section-block">
+        <div class="section-header">
+          <i data-lucide="message-circle"></i> MP WhatsApp Responses
+        </div>
+        <div class="card">
+          <div id="wa-responses-list"></div>
+        </div>
+      </div>
 
-      <div class="section-title" style="margin-top:40px">🌐 Live News (Palanadu / Narasaraopet)</div>
-      <div id="live-news-list"></div>
+      <!-- Submitted News -->
+      <div class="section-block">
+        <div class="section-header">
+          <i data-lucide="newspaper"></i> Submitted News
+        </div>
+        <div class="card">
+          <div id="news-list"></div>
+        </div>
+      </div>
+
+      <!-- Live News -->
+      <div class="section-block">
+        <div class="section-header">
+          <i data-lucide="globe"></i> Live News
+        </div>
+        <div class="card">
+          <div id="live-news-list"></div>
+        </div>
+      </div>
+
     </div>
 
+    <!-- ── Sidebar ── -->
     <div class="right-col">
-      <div class="section-title">📱 WhatsApp Connection</div>
-      <div class="card" id="wa-status-card">
-        <div id="wa-status-info" style="font-size: 13px; margin-bottom: 10px;">Checking status...</div>
-        <div id="wa-qr-container" style="display: none; text-align: center; background: #fff; padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-          <p style="font-size: 13px; font-weight: 600; color: var(--rust); margin-bottom: 10px;">Scan QR with WhatsApp</p>
-          <canvas id="wa-qr-canvas" style="max-width: 100%; height: auto;"></canvas>
-          <p style="font-size: 11px; color: var(--muted); margin-top: 10px;">QR updates automatically</p>
+
+      <!-- WhatsApp Connection -->
+      <div class="sidebar-card">
+        <div class="section-header">
+          <i data-lucide="smartphone"></i> WhatsApp Connection
+        </div>
+        <div id="wa-status-info">
+          <span class="wa-status-badge wa-status-loading">
+            <i data-lucide="loader"></i> Checking status...
+          </span>
+        </div>
+        <div id="wa-qr-container" style="display:none;">
+          <p class="qr-label">Scan QR code with WhatsApp</p>
+          <canvas id="wa-qr-canvas" style="max-width:100%;height:auto;"></canvas>
+          <p class="qr-hint">QR updates automatically</p>
         </div>
       </div>
 
-      <div class="section-title">📱 Final Brief Approval</div>
-      <div class="card" style="padding:10px">
-        <div id="brief-preview" class="wa-preview">Loading preview...</div>
-        <div class="btn-group">
-          <button class="action-btn btn-generate" id="generate-btn" onclick="generateBrief()">📝 Generate Brief</button>
-          <button class="action-btn btn-approve-brief" id="approve-btn" onclick="approveBrief()" disabled>✅ Approve Brief</button>
-          <button class="action-btn btn-send" id="send-btn" onclick="sendToWhatsApp()" disabled>📱 Send to WhatsApp →</button>
+      <!-- Brief Preview -->
+      <div class="sidebar-card">
+        <div class="section-header">
+          <i data-lucide="file-text"></i> Daily Brief
         </div>
-        <div id="send-status" style="margin-top:10px;font-size:13px;text-align:center"></div>
+        <div id="brief-preview" class="wa-preview">Loading preview...</div>
+        <div class="brief-actions">
+          <button class="btn btn-blue" id="generate-btn" onclick="generateBrief()">
+            <i data-lucide="refresh-cw"></i> Generate Brief
+          </button>
+          <button class="btn btn-primary" id="approve-btn" onclick="approveBrief()" disabled>
+            <i data-lucide="check"></i> Approve Brief
+          </button>
+          <button class="btn btn-send-wa" id="send-btn" onclick="sendToWhatsApp()" disabled>
+            <i data-lucide="send"></i> Send to WhatsApp
+          </button>
+        </div>
+        <div id="send-status"></div>
       </div>
+
     </div>
   </div>
 </div>
@@ -109,66 +474,83 @@ async function loadData() {
   const r1 = await fetch('/api/pending-approvals');
   const d1 = await r1.json();
   let h1 = '';
-  if (d1.pending.length === 0) h1 = '<p style="color:var(--muted);font-size:13px">No pending approvals.</p>';
-  d1.pending.forEach(iss => {
-    h1 += `
-    <div class="issue-row">
-      <div>
-        <div style="font-weight:700">${iss.type}</div>
-        <div style="font-size:12px;color:var(--muted)">For ${iss.contact_name} (${iss.mandal})</div>
-        <div style="font-size:13px;margin-top:6px">${iss.description}</div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-approve" onclick="actionIssue('${iss.contact_id}','${iss.id}','approved')">Approve</button>
-        <button class="btn btn-reject" onclick="actionIssue('${iss.contact_id}','${iss.id}','rejected')">Reject</button>
-        <button class="btn-wa-send" onclick="sendApprovalToWA('${iss.contact_id}','${iss.id}',this)">📲 Send to MP</button>
-      </div>
-    </div>`;
-  });
+  if (d1.pending.length === 0) {
+    h1 = '<div class="empty-state">No pending approvals</div>';
+  } else {
+    h1 = '<table class="issue-table"><tbody>';
+    d1.pending.forEach(iss => {
+      h1 += `
+      <tr>
+        <td class="col-info">
+          <div class="issue-type">${iss.type}</div>
+          <div class="issue-meta">${iss.contact_name} · ${iss.mandal}</div>
+          <div class="issue-desc">${iss.description}</div>
+        </td>
+        <td class="col-actions">
+          <div class="btn-actions">
+            <button class="btn btn-primary" onclick="actionIssue('${iss.contact_id}','${iss.id}','approved')">Approve</button>
+            <button class="btn btn-destructive" onclick="actionIssue('${iss.contact_id}','${iss.id}','rejected')">Reject</button>
+            <button class="btn btn-ghost" onclick="sendApprovalToWA('${iss.contact_id}','${iss.id}',this)">
+              <i data-lucide="send"></i> Send to MP
+            </button>
+          </div>
+        </td>
+      </tr>`;
+    });
+    h1 += '</tbody></table>';
+  }
   document.getElementById('pending-list').innerHTML = h1;
 
   // Load WhatsApp responses
   const r3 = await fetch('/api/wa-responses');
   const d3 = await r3.json();
   let h3 = '';
-  if (d3.responses.length === 0) h3 = '<p style="color:var(--muted);font-size:13px">No pending MP responses.</p>';
-  d3.responses.forEach(resp => {
-    h3 += `
-    <div class="wa-response-row">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  if (d3.responses.length === 0) {
+    h3 = '<div class="empty-state">No pending MP responses</div>';
+  } else {
+    d3.responses.forEach(resp => {
+      h3 += `
+      <div class="wa-response-item">
         <div>
           <span class="badge ${resp.mp_response === 'approved' ? 'badge-approved' : 'badge-rejected'}">${resp.mp_response.toUpperCase()}</span>
-          <span style="font-weight:700;margin-left:8px">${resp.issue_type}</span>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px">For ${resp.contact_name} · MP replied: "${resp.mp_message}"</div>
+          <span style="font-weight:600;margin-left:8px;font-size:14px">${resp.issue_type}</span>
+          <div class="issue-meta" style="margin-top:4px">${resp.contact_name} · MP replied: "${resp.mp_message}"</div>
           <div style="font-size:11px;color:var(--muted)">${new Date(resp.responded_at).toLocaleString('en-IN')}</div>
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn-confirm btn-confirm-approve" onclick="confirmWAResponse('${resp.issue_id}','approved')">Confirm Approve</button>
-          <button class="btn-confirm btn-confirm-reject" onclick="confirmWAResponse('${resp.issue_id}','rejected')">Confirm Reject</button>
+        <div class="btn-actions">
+          <button class="btn btn-primary" onclick="confirmWAResponse('${resp.issue_id}','approved')">Confirm</button>
+          <button class="btn btn-destructive" onclick="confirmWAResponse('${resp.issue_id}','rejected')">Reject</button>
         </div>
-      </div>
-    </div>`;
-  });
+      </div>`;
+    });
+  }
   document.getElementById('wa-responses-list').innerHTML = h3;
 
   // Load News & Brief Preview
   const r2 = await fetch('/api/dashboard');
   const d2 = await r2.json();
-  
+
   let h2 = '';
-  (d2.news || []).slice(0, 5).forEach(n => {
-    h2 += `
-    <div class="card" style="padding:16px;margin-bottom:10px">
-      <div style="font-weight:600">${n.headline}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px">${n.source} · ${n.mandal}</div>
-      <div style="font-size:13px;margin-top:6px">${n.body}</div>
-    </div>`;
-  });
+  const newsItems = (d2.news || []).slice(0, 5);
+  if (newsItems.length === 0) {
+    h2 = '<div class="empty-state">No submitted news</div>';
+  } else {
+    newsItems.forEach(n => {
+      h2 += `
+      <div class="news-item">
+        <div class="news-headline">${n.headline}</div>
+        <div class="news-meta">${n.source} · ${n.mandal}</div>
+        <div class="news-body">${n.body}</div>
+      </div>`;
+    });
+  }
   document.getElementById('news-list').innerHTML = h2;
 
   // Brief Preview
   const preview = d2.last_brief_message || "Brief will be generated upon approval.";
   document.getElementById('brief-preview').innerHTML = preview.replace(/\*/g, '<b>').replace(/<b>([^*]*)<\/b>/g, '<b>$1</b>');
+
+  lucide.createIcons();
 }
 
 async function actionIssue(contact_id, issue_id, status) {
@@ -185,7 +567,8 @@ let briefApproved = false;
 
 async function generateBrief() {
   const btn = document.getElementById('generate-btn');
-  btn.disabled = true; btn.innerHTML = '⏳ Generating...';
+  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader"></i> Generating...';
+  lucide.createIcons();
   const status = document.getElementById('send-status');
   status.textContent = '';
   try {
@@ -197,45 +580,49 @@ async function generateBrief() {
     briefApproved = false;
     document.getElementById('approve-btn').disabled = false;
     document.getElementById('send-btn').disabled = true;
-    status.textContent = '📝 Brief generated. Review and approve below.';
+    status.textContent = 'Brief generated. Review and approve below.';
     status.style.color = '#1d4ed8';
   } catch(e) {
-    status.textContent = '❌ Failed to generate brief';
+    status.textContent = 'Failed to generate brief.';
     status.style.color = '#dc2626';
   } finally {
-    btn.disabled = false; btn.innerHTML = '📝 Generate Brief';
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="refresh-cw"></i> Generate Brief';
+    lucide.createIcons();
   }
 }
 
 function approveBrief() {
   briefApproved = true;
   document.getElementById('approve-btn').disabled = true;
-  document.getElementById('approve-btn').innerHTML = '✅ Approved';
+  document.getElementById('approve-btn').innerHTML = '<i data-lucide="check-circle"></i> Approved';
   document.getElementById('send-btn').disabled = false;
   const status = document.getElementById('send-status');
-  status.textContent = '✅ Brief approved. Ready to send.';
+  status.textContent = 'Brief approved. Ready to send.';
   status.style.color = 'var(--teal)';
+  lucide.createIcons();
 }
 
 async function sendToWhatsApp() {
   const btn = document.getElementById('send-btn');
-  btn.disabled = true; btn.innerHTML = '⏳ Sending...';
+  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader"></i> Sending...';
+  lucide.createIcons();
   const status = document.getElementById('send-status');
   try {
     const r = await fetch('/api/send-brief', { method: 'POST' });
     const data = await r.json();
-    status.textContent = data.status === 'sent' ? '✅ Sent to WhatsApp!' : '✅ Previewed (Module in Preview Mode)';
+    status.textContent = data.status === 'sent' ? 'Sent to WhatsApp.' : 'Previewed (Module in Preview Mode).';
     status.style.color = 'var(--teal)';
     briefGenerated = false;
     briefApproved = false;
     document.getElementById('approve-btn').disabled = true;
-    document.getElementById('approve-btn').innerHTML = '✅ Approve Brief';
+    document.getElementById('approve-btn').innerHTML = '<i data-lucide="check"></i> Approve Brief';
   } catch(e) {
-    status.textContent = '❌ Failed to send';
-    status.style.color = '#dc2626';
+    status.textContent = 'Failed to send.';
+    status.style.color = 'var(--red)';
     btn.disabled = false;
   } finally {
-    btn.innerHTML = '📱 Send to WhatsApp →';
+    btn.innerHTML = '<i data-lucide="send"></i> Send to WhatsApp';
+    lucide.createIcons();
   }
 }
 
@@ -248,25 +635,27 @@ async function checkWAStatus() {
     const qrCanvas = document.getElementById('wa-qr-canvas');
 
     if (data.connected) {
-      info.innerHTML = '<span style="color: var(--teal); font-weight: 700;">✅ Connected</span>';
+      info.innerHTML = '<span class="wa-status-badge wa-status-connected"><i data-lucide="check-circle"></i> Connected</span>';
       qrContainer.style.display = 'none';
     } else if (data.qr) {
-      info.innerHTML = '<span style="color: var(--rust); font-weight: 700;">🟡 Needs Login</span>';
+      info.innerHTML = '<span class="wa-status-badge wa-status-pending"><i data-lucide="alert-circle"></i> Needs Login</span>';
       qrContainer.style.display = 'block';
       QRCode.toCanvas(qrCanvas, data.qr, { width: 200, margin: 2 }, (error) => {
         if (error) console.error('QR Render Error:', error);
       });
     } else {
-      info.innerHTML = '<span style="color: var(--muted);">⏳ Initializing WhatsApp...</span>';
+      info.innerHTML = '<span class="wa-status-badge wa-status-loading"><i data-lucide="loader"></i> Initializing...</span>';
       qrContainer.style.display = 'none';
     }
+    lucide.createIcons();
   } catch (e) {
     console.error('WA Status Error:', e);
   }
 }
 
 async function sendApprovalToWA(contact_id, issue_id, btn) {
-  btn.disabled = true; btn.textContent = 'Sending...';
+  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader"></i> Sending...';
+  lucide.createIcons();
   try {
     const r = await fetch('/api/send-approval-request', {
       method: 'POST',
@@ -274,11 +663,14 @@ async function sendApprovalToWA(contact_id, issue_id, btn) {
       body: JSON.stringify({ contact_id, issue_id })
     });
     const data = await r.json();
-    btn.textContent = data.log.status === 'sent' ? '✅ Sent' : '📋 Previewed';
-    btn.style.background = 'var(--teal)';
+    btn.innerHTML = data.log.status === 'sent' ? '<i data-lucide="check"></i> Sent' : '<i data-lucide="clipboard"></i> Previewed';
+    btn.style.color = 'var(--teal)';
+    btn.style.borderColor = 'var(--teal)';
+    lucide.createIcons();
   } catch(e) {
-    btn.textContent = '❌ Failed';
+    btn.innerHTML = '<i data-lucide="x"></i> Failed';
     btn.disabled = false;
+    lucide.createIcons();
   }
 }
 
@@ -297,23 +689,26 @@ async function loadLiveNews() {
     const data = await r.json();
     let html = '';
     if (!data.news || data.news.length === 0) {
-      html = '<p style="color:var(--muted);font-size:13px">No live news available.</p>';
+      html = '<div class="empty-state">No live news available</div>';
     } else {
       data.news.slice(0, 10).forEach(n => {
         const date = n.pubDate ? new Date(n.pubDate).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
         html += `
         <div class="live-news-item">
           <a href="${n.link}" target="_blank">${n.title}</a>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">${n.source} · ${date}</div>
+          <div class="news-meta">${n.source} · ${date}</div>
         </div>`;
       });
     }
     document.getElementById('live-news-list').innerHTML = html;
+    lucide.createIcons();
   } catch(e) {
-    document.getElementById('live-news-list').innerHTML = '<p style="color:var(--muted);font-size:13px">Failed to load live news.</p>';
+    document.getElementById('live-news-list').innerHTML = '<div class="empty-state">Failed to load live news</div>';
   }
 }
 
+// Initialize
+lucide.createIcons();
 loadData();
 loadLiveNews();
 checkWAStatus();

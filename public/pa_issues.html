@@ -4,74 +4,87 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>PA Issue Tracker · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --ink:#1a1208;--paper:#fffbeb;--cream:#fef3c7;--rust:#b45309;
-  --white:#fff;--border:#e7e5e4;--muted:#78716c;--teal:#0f766e;--teal-l:#ccfbf1;
-}
-body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);padding:clamp(16px, 4vw, 40px) 16px; min-height: 100vh;}
-.container{width:100%}
-.header{margin-bottom:30px;display:flex;flex-direction:column;gap:16px}
-@media(min-width: 600px) { .header { flex-direction: row; justify-content: space-between; align-items: flex-end; } }
-.page-title{font-family:'Fraunces',serif;font-size:clamp(24px, 6vw, 32px);font-weight:600}
-.back-link{font-size:14px;color:var(--rust);text-decoration:none;font-weight:600;margin-bottom:8px;display:block}
-.card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:clamp(16px, 4vw, 24px);margin-bottom:20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
-.search-box{display:flex;gap:10px;margin-bottom:10px; position: sticky; top: 10px; z-index: 10;}
-.search-input{flex:1;padding:14px 16px;border:1px solid var(--border);border-radius:12px;font-size:16px;outline:none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-color: #d97706;}
-.search-input:focus{border-color:var(--rust); box-shadow: 0 0 0 3px rgba(180,83,9,0.2);}
-.btn{padding:12px 20px;border-radius:10px;font-weight:600;cursor:pointer;border:none;font-size:14px;transition:all 0.2s; white-space: nowrap;}
-.btn-primary{background:var(--rust);color:#fff}
-.btn-primary:active{transform: scale(0.96);}
-.btn-secondary{background:var(--teal-l);color:var(--teal)}
-.contact-item{display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid var(--border);border-radius:12px;margin-bottom:12px;background:var(--white);cursor:pointer; transition: 0.2s;}
-@media(min-width: 480px) { .contact-item { flex-direction: row; justify-content: space-between; align-items: center; } }
-.contact-item:active{background: #fafafa;}
-.tag{font-size:11px;padding:3px 8px;border-radius:6px;font-weight:600;margin-left:4px}
-.issue-row{display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid var(--border);border-radius:12px;margin-bottom:12px;background:var(--white);}
-@media(min-width: 480px) { .issue-row { flex-direction: row; justify-content: space-between; align-items: flex-start; } }
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
+.container{max-width:1200px;margin:0 auto;padding:24px 16px}
+.back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:#6b7280;text-decoration:none}
+.back-link:hover{color:#1a1208}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:22px;font-weight:700;color:#1a1208}
+.btn{padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-size:13px;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#1a1208;color:#fff}
+.btn-primary:hover{background:#374151}
+.btn-secondary{background:#fff;border:1px solid #e5e5e5;color:#1a1208}
+.btn-secondary:hover{background:#f9fafb}
+.btn-accent{background:#b45309;color:#fff}
+.btn-accent:hover{background:#92400e}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px}
+.search-box{display:flex;gap:10px;margin-bottom:14px}
+.search-input{flex:1;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s}
+.search-input:focus{border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)}
+.contact-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid #e5e5e5;border-radius:6px;margin-bottom:8px;background:#fff;cursor:pointer;transition:background .1s}
+.contact-item:hover{background:#fafaf9}
+.contact-name{font-weight:600;font-size:14px}
+.contact-meta{font-size:12px;color:#6b7280;margin-top:2px}
+.contact-action{color:#b45309;font-weight:600;font-size:13px;white-space:nowrap}
+.tag{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block;margin-left:6px}
+.issue-item{padding:14px;border:1px solid #e5e5e5;border-radius:6px;margin-bottom:8px;background:#fff}
+.issue-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.issue-type{font-weight:600;font-size:14px}
+.issue-meta{font-size:12px;color:#6b7280;margin-top:2px}
+.issue-desc{font-size:13px;color:#374151;margin-top:6px;line-height:1.5}
+.tag-status{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
+
 /* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter: blur(4px); display:none;align-items:flex-end;justify-content:center;z-index:100}
-@media(min-width: 600px) { .modal-overlay { align-items: center; padding: 20px; } }
-.modal{background:var(--white);border-radius:24px 24px 0 0;width:100%;max-width:500px;padding:30px;box-shadow: 0 -10px 25px rgba(0,0,0,0.1); animation: slideUp 0.3s ease-out;}
-@media(min-width: 600px) { .modal { border-radius: 20px; } }
-@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.form-group{margin-bottom:18px}
-.form-group label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
-.form-group input, .form-group textarea, .form-group select{width:100%;padding:14px;border:1px solid var(--border);border-radius:10px;font-size:16px;font-family:inherit; background: #f9fafb;}
-.form-group input:focus { border-color: var(--rust); outline: none; background: #fff; }
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:#fff;border-radius:8px;width:100%;max-width:480px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,0.15)}
+.modal h3{font-size:16px;font-weight:700;color:#1a1208;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
+.form-group input,.form-group textarea,.form-group select{
+  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
+  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
+}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{
+  border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
+}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+.modal-actions .btn{flex:1;justify-content:center}
 </style>
 </head>
 <body>
 <div class="container">
-  <a href="/" class="back-link">← Back to Portal</a>
+  <a href="/" class="back-link">&larr; Back to Portal</a>
   <div class="header">
-    <div>
-      <div style="font-size:12px;font-weight:600;color:var(--rust);text-transform:uppercase;letter-spacing:1px">PA Operations</div>
-      <h1 class="page-title">Issue & Grievance Tracker</h1>
-    </div>
-    <button class="btn btn-primary" onclick="openCreateContact()">+ New Contact</button>
+    <h1>Issue & Grievance Tracker</h1>
+    <button class="btn btn-primary" onclick="openCreateContact()">
+      <i data-lucide="user-plus" style="width:15px;height:15px"></i> New Contact
+    </button>
   </div>
 
   <div class="card">
-    <h3 style="font-size:16px;margin-bottom:16px">🔍 Search Contact to Log Issue</h3>
+    <div class="section-title">Search contact to log issue</div>
     <div class="search-box">
       <input type="text" id="search-input" class="search-input" placeholder="Search by name, village, or phone..." oninput="debouncedSearch()">
     </div>
     <div id="search-results"></div>
   </div>
 
-  <h3 style="font-size:18px;margin:30px 0 15px">Recent Issues & Approvals</h3>
+  <div class="section-title" style="margin-top:28px;margin-bottom:12px">Recent issues</div>
   <div id="issues-list"></div>
 </div>
 
 <!-- LOG ISSUE MODAL -->
 <div id="issue-modal" class="modal-overlay" onclick="closeModals()">
   <div class="modal" onclick="event.stopPropagation()">
-    <h3 id="modal-title" style="margin-bottom:16px">Log Issue for </h3>
+    <h3 id="modal-title">Log Issue for </h3>
     <div class="form-group">
-      <label>Issue Type</label>
+      <label>Issue type</label>
       <select id="iss-type">
         <option value="General">General Grievance</option>
         <option value="Recommendation Letter">Recommendation Letter</option>
@@ -80,12 +93,12 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
       </select>
     </div>
     <div class="form-group">
-      <label>Description / Details</label>
+      <label>Description / details</label>
       <textarea id="iss-desc" placeholder="Describe the request or issue..."></textarea>
     </div>
-    <div style="display:flex;gap:10px;margin-top:20px">
-      <button class="btn btn-primary" style="flex:1" onclick="submitIssue()">Log Issue</button>
-      <button class="btn btn-secondary" style="flex:1;background:#f5f5f4;color:var(--ink)" onclick="closeModals()">Cancel</button>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="submitIssue()">Log Issue</button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
     </div>
   </div>
 </div>
@@ -93,13 +106,13 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
 <!-- CREATE CONTACT MODAL -->
 <div id="contact-modal" class="modal-overlay" onclick="closeModals()">
   <div class="modal" onclick="event.stopPropagation()">
-    <h3 style="margin-bottom:16px">Create New Contact</h3>
+    <h3>Create New Contact</h3>
     <div class="form-group">
-      <label>Full Name *</label>
+      <label>Full name *</label>
       <input id="c-name" placeholder="Contact Name">
     </div>
     <div class="form-group">
-      <label>Phone Number *</label>
+      <label>Phone number *</label>
       <input id="c-phone" placeholder="10-digit mobile">
     </div>
     <div class="form-group">
@@ -119,14 +132,16 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
       <label>Village</label>
       <input id="c-village" placeholder="Village name">
     </div>
-    <div style="display:flex;gap:10px;margin-top:20px">
-      <button class="btn btn-primary" style="flex:1" onclick="submitContact()">Create & Next</button>
-      <button class="btn btn-secondary" style="flex:1;background:#f5f5f4;color:var(--ink)" onclick="closeModals()">Cancel</button>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="submitContact()">Create & Next</button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
     </div>
   </div>
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+
 let searchTimeout = null;
 let selectedContactId = null;
 
@@ -134,7 +149,6 @@ async function loadIssues() {
   const r = await fetch('/api/dashboard');
   const db = await r.json();
   let html = '';
-  // Flatten issues from all contacts for the tracker
   const allIssues = [];
   db.all_contacts.forEach(c => {
     (c.issues || []).forEach(iss => {
@@ -143,16 +157,16 @@ async function loadIssues() {
   });
   allIssues.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
-  if (allIssues.length === 0) html = '<p style="color:var(--muted)">No issues logged yet.</p>';
+  if (allIssues.length === 0) html = '<p class="empty-state">No issues logged yet.</p>';
   allIssues.slice(0, 20).forEach(iss => {
-    const statusTag = iss.status !== 'none' ? `<span class="tag tag-${iss.status}">${iss.status}</span>` : '';
+    const statusTag = iss.status !== 'none' ? `<span class="tag-status">${iss.status}</span>` : '';
     html += `
-    <div class="card" style="padding:16px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between">
+    <div class="issue-item">
+      <div class="issue-header">
         <div>
-          <div style="font-weight:600">${iss.type} for ${iss.contact_name}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">${iss.village} · ${new Date(iss.created_at).toLocaleDateString()}</div>
-          <div style="font-size:13px;margin-top:6px">${iss.description}</div>
+          <div class="issue-type">${iss.type} for ${iss.contact_name}</div>
+          <div class="issue-meta">${iss.village} &middot; ${new Date(iss.created_at).toLocaleDateString()}</div>
+          <div class="issue-desc">${iss.description}</div>
         </div>
         <div>${statusTag}</div>
       </div>
@@ -176,13 +190,13 @@ async function search() {
     html += `
     <div class="contact-item" onclick="openLogIssue('${c.id}', '${c.name}')">
       <div>
-        <div style="font-weight:600">${c.name}</div>
-        <div style="font-size:12px;color:var(--muted)">${c.phone} · ${c.village}, ${c.mandal}</div>
+        <div class="contact-name">${c.name}</div>
+        <div class="contact-meta">${c.phone} &middot; ${c.village}, ${c.mandal}</div>
       </div>
-      <div style="color:var(--rust);font-weight:600">Log Issue →</div>
+      <div class="contact-action">Log Issue &rarr;</div>
     </div>`;
   });
-  if (data.contacts.length === 0) html = '<p style="padding:10px;font-size:13px">No contact found. Click "New Contact" to create one.</p>';
+  if (data.contacts.length === 0) html = '<p class="empty-state">No contact found. Click "New Contact" to create one.</p>';
   document.getElementById('search-results').innerHTML = html;
 }
 
