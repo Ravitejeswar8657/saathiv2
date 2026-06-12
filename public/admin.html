@@ -30,9 +30,16 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
 .btn-reject{background:#fef2f2;color:#991b1b; border: 1px solid #fecaca;}
 .wa-preview{background:#0b141a;border-radius:16px;padding:20px;font-family:monospace;font-size:13px;color:#e9edef;white-space:pre-wrap;line-height:1.6;max-height:600px;overflow-y:auto; border: 4px solid #202c33;}
 .wa-preview b{color:#00a884; font-weight: bold;}
-.send-btn{width:100%;padding:18px;background:var(--rust);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;margin-top:16px; box-shadow: 0 10px 15px -3px rgba(180,83,9,0.3); transition: 0.2s;}
-.send-btn:active { transform: scale(0.98); background: var(--ink); }
-.send-btn:disabled{background:var(--muted);cursor:not-allowed}
+.btn-group{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.action-btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:0.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.action-btn:active{transform:scale(0.98)}
+.action-btn:disabled{background:var(--muted)!important;color:#fff;cursor:not-allowed;box-shadow:none!important}
+.btn-generate{background:#1d4ed8;color:#fff;box-shadow:0 4px 6px rgba(29,78,216,0.3)}
+.btn-generate:hover:not(:disabled){background:#1e40af}
+.btn-approve-brief{background:var(--teal);color:#fff;box-shadow:0 4px 6px rgba(15,118,110,0.3)}
+.btn-approve-brief:hover:not(:disabled){background:#0d6357}
+.btn-send{background:var(--rust);color:#fff;box-shadow:0 10px 15px -3px rgba(180,83,9,0.3);font-size:16px;font-weight:800;padding:18px}
+.btn-send:hover:not(:disabled){background:#92400e}
 </style>
 </head>
 <body>
@@ -66,7 +73,11 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
       <div class="section-title">📱 Final Brief Approval</div>
       <div class="card" style="padding:10px">
         <div id="brief-preview" class="wa-preview">Loading preview...</div>
-        <button class="send-btn" id="send-btn" onclick="approveAndSend()">Approve & Send to WhatsApp →</button>
+        <div class="btn-group">
+          <button class="action-btn btn-generate" id="generate-btn" onclick="generateBrief()">📝 Generate Brief</button>
+          <button class="action-btn btn-approve-brief" id="approve-btn" onclick="approveBrief()" disabled>✅ Approve Brief</button>
+          <button class="action-btn btn-send" id="send-btn" onclick="sendToWhatsApp()" disabled>📱 Send to WhatsApp →</button>
+        </div>
         <div id="send-status" style="margin-top:10px;font-size:13px;text-align:center"></div>
       </div>
     </div>
@@ -125,19 +136,62 @@ async function actionIssue(contact_id, issue_id, status) {
   if (r.ok) loadData();
 }
 
-async function approveAndSend() {
+let briefGenerated = false;
+let briefApproved = false;
+
+async function generateBrief() {
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true; btn.innerHTML = '⏳ Generating...';
+  const status = document.getElementById('send-status');
+  status.textContent = '';
+  try {
+    const r = await fetch('/api/dashboard');
+    const d = await r.json();
+    const preview = d.last_brief_message || "Brief will be generated upon approval.";
+    document.getElementById('brief-preview').innerHTML = preview.replace(/\*/g, '<b>').replace(/<b>([^*]*)<\/b>/g, '<b>$1</b>');
+    briefGenerated = true;
+    briefApproved = false;
+    document.getElementById('approve-btn').disabled = false;
+    document.getElementById('send-btn').disabled = true;
+    status.textContent = '📝 Brief generated. Review and approve below.';
+    status.style.color = '#1d4ed8';
+  } catch(e) {
+    status.textContent = '❌ Failed to generate brief';
+    status.style.color = '#dc2626';
+  } finally {
+    btn.disabled = false; btn.innerHTML = '📝 Generate Brief';
+  }
+}
+
+function approveBrief() {
+  briefApproved = true;
+  document.getElementById('approve-btn').disabled = true;
+  document.getElementById('approve-btn').innerHTML = '✅ Approved';
+  document.getElementById('send-btn').disabled = false;
+  const status = document.getElementById('send-status');
+  status.textContent = '✅ Brief approved. Ready to send.';
+  status.style.color = 'var(--teal)';
+}
+
+async function sendToWhatsApp() {
   const btn = document.getElementById('send-btn');
-  btn.disabled = true; btn.textContent = 'Sending...';
+  btn.disabled = true; btn.innerHTML = '⏳ Sending...';
+  const status = document.getElementById('send-status');
   try {
     const r = await fetch('/api/send-brief', { method: 'POST' });
     const data = await r.json();
-    document.getElementById('send-status').textContent = data.status === 'sent' ? '✅ Sent to WhatsApp!' : '✅ Previewed (Module in Preview Mode)';
-    document.getElementById('send-status').style.color = 'var(--teal)';
+    status.textContent = data.status === 'sent' ? '✅ Sent to WhatsApp!' : '✅ Previewed (Module in Preview Mode)';
+    status.style.color = 'var(--teal)';
+    briefGenerated = false;
+    briefApproved = false;
+    document.getElementById('approve-btn').disabled = true;
+    document.getElementById('approve-btn').innerHTML = '✅ Approve Brief';
   } catch(e) {
-    document.getElementById('send-status').textContent = '❌ Failed to send';
-    document.getElementById('send-status').style.color = '#dc2626';
+    status.textContent = '❌ Failed to send';
+    status.style.color = '#dc2626';
+    btn.disabled = false;
   } finally {
-    btn.disabled = false; btn.textContent = 'Approve & Send to WhatsApp →';
+    btn.innerHTML = '📱 Send to WhatsApp →';
   }
 }
 

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" fill="#f0fdf4" rx="12"/>
+  <path d="M60 40 Q100 30 140 50 Q160 80 150 120 Q140 150 110 170 Q80 180 55 160 Q35 130 40 90 Q45 60 60 40Z" fill="#bbf7d0" stroke="#16a34a" stroke-width="2"/>
+  <circle cx="100" cy="105" r="4" fill="#dc2626"/>
+  <text x="100" y="100" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#15803d" font-weight="700">NARASARAOPET</text>
+  <text x="70" y="70" font-family="sans-serif" font-size="7" fill="#16a34a">Sattenapalli</text>
+  <text x="115" y="140" font-family="sans-serif" font-size="7" fill="#16a34a">Vinukonda</text>
+  <text x="80" y="155" font-family="sans-serif" font-size="7" fill="#16a34a">Macherla</text>
+  <text x="100" y="190" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#78716c" font-weight="600">PALANADU DISTRICT</text>
+</svg>

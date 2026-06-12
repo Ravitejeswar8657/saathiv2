@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 180" width="150" height="180">
+  <rect width="150" height="180" fill="#fef3c7" rx="16"/>
+  <circle cx="75" cy="65" r="30" fill="#d97706" opacity="0.2"/>
+  <text x="75" y="72" text-anchor="middle" font-size="32">👤</text>
+  <text x="75" y="115" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#92400e" font-weight="600">MP Photo</text>
+  <text x="75" y="132" text-anchor="middle" font-family="sans-serif" font-size="7" fill="#78716c">Lavu Sri Krishna</text>
+  <text x="75" y="145" text-anchor="middle" font-family="sans-serif" font-size="7" fill="#78716c">Devarayalu</text>
+</svg>
