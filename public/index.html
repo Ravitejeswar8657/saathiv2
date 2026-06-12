@@ -6,16 +6,18 @@
 <title>Saathi v2 · Palanadu Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
 <style>
-  body { font-family: 'Inter', sans-serif; background: #fffbeb; color: #1a1208; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-  .portal { width: 100%; max-width: 800px; padding: 40px; text-align: center; }
-  h1 { font-family: 'Fraunces', serif; font-size: 48px; margin-bottom: 10px; }
-  p.subtitle { font-size: 18px; color: #78716c; margin-bottom: 40px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
-  .role-card { background: #fff; border: 1px solid #e7e5e4; border-radius: 16px; padding: 30px; text-decoration: none; color: inherit; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; }
-  .role-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); border-color: #d97706; }
-  .icon { font-size: 40px; margin-bottom: 15px; }
-  .role-name { font-weight: 700; font-size: 20px; margin-bottom: 8px; }
-  .role-desc { font-size: 14px; color: #78716c; line-height: 1.5; }
+  body { font-family: 'Inter', sans-serif; background: #fffbeb; color: #1a1208; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+  .portal { width: 100%; max-width: 900px; text-align: center; }
+  h1 { font-family: 'Fraunces', serif; font-size: clamp(32px, 8vw, 48px); margin-bottom: 10px; }
+  p.subtitle { font-size: clamp(14px, 4vw, 18px); color: #78716c; margin-bottom: 40px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+  .role-card { background: #fff; border: 1px solid #e7e5e4; border-radius: 20px; padding: clamp(20px, 5vw, 40px); text-decoration: none; color: inherit; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+  .role-card:active { transform: scale(0.98); }
+  .role-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); border-color: #d97706; }
+  .icon { font-size: 48px; margin-bottom: 20px; filter: drop-shadow(0 4px 3px rgba(0,0,0,0.1)); }
+  .role-name { font-weight: 700; font-size: 22px; margin-bottom: 10px; }
+  .role-desc { font-size: 15px; color: #78716c; line-height: 1.6; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } .portal { padding-top: 20px; } }
 </style>
 </head>
 <body>
