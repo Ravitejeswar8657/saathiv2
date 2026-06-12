@@ -67,11 +67,11 @@ function recomputeBrief(db) {
 async function sendWhatsAppBrief(brief, news) {
   const lines = [
     `*🌅 Saathi Daily Brief — ${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}*`,
-    `_Guntur Constituency · TDP_\n`,
+    `_Palanadu District · TDP_\n`,
     `*📞 Top contacts for today:*`,
   ];
   brief.slice(0, 10).forEach((c, i) => {
-    lines.push(`${i + 1}. *${c.name}* (${c.village})`);
+    lines.push(`${i + 1}. *${c.name}* (${c.village}, ${c.constituency})`);
     lines.push(`   ${c.role} · ${c.tier} · PPS ${c.pps_score}`);
     if (c.open_grievance) lines.push(`   ⚠️ ${c.open_grievance.slice(0, 60)}`);
     if (c.schedule_event) lines.push(`   📍 Near: ${c.schedule_event.event_name}`);
@@ -204,6 +204,80 @@ app.get('/api/schedule', (req, res) => {
 app.delete('/api/schedule/:id', (req, res) => {
   const db = readDB();
   db.schedule = (db.schedule || []).filter(s => s.id !== req.params.id);
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.post('/api/contact', (req, res) => {
+  const { name, phone, village, mandal, role, tier, constituency } = req.body;
+  if (!name || !phone || !mandal) return res.status(400).json({ error: 'name, phone, and mandal required' });
+  
+  const db = readDB();
+  const newContact = {
+    id: `C${Date.now()}`,
+    name, phone, village: village || '', mandal, constituency: constituency || '',
+    role: role || 'Other', tier: tier || 'T3',
+    pps_score: 50, days_since_contact: 0,
+    created_at: new Date().toISOString(),
+    issues: []
+  };
+  db.contacts.push(newContact);
+  writeDB(db);
+  res.json({ ok: true, contact: newContact });
+});
+
+app.post('/api/issue', (req, res) => {
+  const { contact_id, type, description } = req.body;
+  if (!contact_id || !type) return res.status(400).json({ error: 'contact_id and type required' });
+  
+  const db = readDB();
+  const idx = db.contacts.findIndex(c => c.id === contact_id);
+  if (idx === -1) return res.status(404).json({ error: 'Contact not found' });
+  
+  const issue = {
+    id: `ISS${Date.now()}`,
+    type, // 'General', 'Recommendation Letter', 'TTD Darshan'
+    description: description || '',
+    status: (type === 'General') ? 'none' : 'pending',
+    created_at: new Date().toISOString()
+  };
+  
+  if (!db.contacts[idx].issues) db.contacts[idx].issues = [];
+  db.contacts[idx].issues.push(issue);
+  // Also update open_grievance for backward compatibility
+  db.contacts[idx].open_grievance = description;
+  
+  writeDB(db);
+  res.json({ ok: true, issue });
+});
+
+app.get('/api/pending-approvals', (req, res) => {
+  const db = readDB();
+  const pending = [];
+  db.contacts.forEach(c => {
+    (c.issues || []).forEach(iss => {
+      if (iss.status === 'pending') {
+        pending.push({ ...iss, contact_name: c.name, contact_id: c.id, mandal: c.mandal });
+      }
+    });
+  });
+  res.json({ pending });
+});
+
+app.post('/api/issue/approve', (req, res) => {
+  const { contact_id, issue_id, status } = req.body; // status: 'approved' or 'rejected'
+  if (!contact_id || !issue_id || !status) return res.status(400).json({ error: 'Missing params' });
+  
+  const db = readDB();
+  const cIdx = db.contacts.findIndex(c => c.id === contact_id);
+  if (cIdx === -1) return res.status(404).json({ error: 'Contact not found' });
+  
+  const issIdx = (db.contacts[cIdx].issues || []).findIndex(iss => iss.id === issue_id);
+  if (issIdx === -1) return res.status(404).json({ error: 'Issue not found' });
+  
+  db.contacts[cIdx].issues[issIdx].status = status;
+  db.contacts[cIdx].issues[issIdx].resolved_at = new Date().toISOString();
+  
   writeDB(db);
   res.json({ ok: true });
 });

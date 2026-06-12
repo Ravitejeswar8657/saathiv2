@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PA Schedule · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1a1208;--paper:#fffbeb;--cream:#fef3c7;--rust:#b45309;
+  --white:#fff;--border:#e7e5e4;--muted:#78716c;--teal:#0f766e;--teal-l:#ccfbf1;
+}
+body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);padding:40px 16px}
+.container{max-width:800px;margin:0 auto}
+.header{margin-bottom:30px;display:flex;justify-content:space-between;align-items:flex-end}
+.page-title{font-family:'Fraunces',serif;font-size:32px;font-weight:600}
+.back-link{font-size:14px;color:var(--rust);text-decoration:none;font-weight:600;margin-bottom:8px;display:block}
+.card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.form-group input,.form-group textarea,.form-group select{
+  width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;
+  font-size:14px;font-family:inherit;background:var(--paper)
+}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.submit-btn{
+  background:var(--rust);color:#fff;border:none;border-radius:8px;padding:12px 24px;
+  font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;width:100%
+}
+.submit-btn:hover{background:var(--ink)}
+.submit-btn:disabled{background:var(--muted);cursor:not-allowed}
+.nearby-result{background:var(--cream);border:1px solid #fcd34d;border-radius:8px;padding:16px;margin-top:20px}
+.nearby-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #fcd34d;font-size:13px}
+.nearby-item:last-child{border:none}
+.tag{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500;margin-left:6px}
+.tag-t1{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.tag-t2{background:var(--teal-l);color:#0f766e;border:1px solid #99f6e4}
+.tag-t3{background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0}
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back-link">← Back to Portal</a>
+  <div class="header">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:var(--rust);text-transform:uppercase;letter-spacing:1px">PA Operations</div>
+      <h1 class="page-title">MP Schedule & Events</h1>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:16px;margin-bottom:16px">📅 Add New Event</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Event Name *</label><input id="sch-name" placeholder="e.g. Public Meeting"></div>
+      <div class="form-group"><label>Date *</label><input id="sch-date" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Time</label><input id="sch-time" type="time"></div>
+      <div class="form-group"><label>Mandal *</label>
+        <select id="sch-mandal">
+          <option value="">Select Mandal</option>
+          <option>Amaravathi</option><option>Atchampet</option><option>Bellamkonda</option><option>Krosuru</option>
+          <option>Muppalla</option><option>Nekarikallu</option><option>Pedakurapadu</option><option>Rajupalem</option>
+          <option>Sattenapalli</option><option>Bollapalle</option><option>Chilakaluripet</option><option>Edlapadu</option>
+          <option>Ipuru</option><option>Nadendla</option><option>Narasaraopet</option><option>Nuzendla</option>
+          <option>Rompicherla</option><option>Savalyapuram</option><option>Vinukonda</option><option>Dachepalle</option>
+          <option>Durgi</option><option>Gurazala</option><option>Karempudi</option><option>Machavaram</option>
+          <option>Macherla</option><option>Piduguralla</option><option>Rentachintala</option><option>Veldurthi</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Address / Village</label><input id="sch-village" placeholder="e.g. Sattenapalli Town"></div>
+    <div class="form-group"><label>Description</label><textarea id="sch-desc" placeholder="Agenda or notes..."></textarea></div>
+    <button class="submit-btn" onclick="submitSchedule()">Save & Find Nearby Contacts →</button>
+  </div>
+
+  <div id="schedule-result"></div>
+
+  <div id="upcoming-list"></div>
+</div>
+
+<script>
+async function loadSchedule() {
+  const r = await fetch('/api/schedule');
+  const data = await r.json();
+  const schedule = data.schedule || [];
+  let html = '<h3 style="font-size:16px;margin:20px 0 12px">Upcoming Events</h3>';
+  if (schedule.length === 0) html += '<p style="font-size:13px;color:var(--muted)">No events scheduled yet.</p>';
+  schedule.forEach(ev => {
+    html += `
+    <div class="card" style="padding:16px">
+      <div style="display:flex;justify-content:space-between">
+        <div>
+          <div style="font-size:16px;font-weight:600">${ev.event_name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${ev.date} ${ev.time || ''} · ${ev.mandal}</div>
+        </div>
+        <button onclick="deleteSchedule('${ev.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px">×</button>
+      </div>
+      ${ev.nearby_contacts?.length ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--rust);margin-bottom:8px">📍 ${ev.nearby_count} PRIORITY CONTACTS NEARBY</div>
+          ${ev.nearby_contacts.slice(0,5).map(c => `
+            <div class="nearby-item">
+              <span><strong>${c.name}</strong> · ${c.village} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
+              <a href="tel:${c.phone}" style="color:var(--teal);text-decoration:none;font-weight:600">📞 ${c.phone}</a>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>`;
+  });
+  document.getElementById('upcoming-list').innerHTML = html;
+}
+
+async function submitSchedule() {
+  const name = document.getElementById('sch-name').value;
+  const date = document.getElementById('sch-date').value;
+  const mandal = document.getElementById('sch-mandal').value;
+  if (!name || !date || !mandal) { alert('Fill required fields.'); return; }
+
+  const btn = document.querySelector('.submit-btn');
+  btn.disabled = true; btn.textContent = 'Processing...';
+
+  try {
+    const r = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_name: name, date, mandal,
+        time: document.getElementById('sch-time').value,
+        village: document.getElementById('sch-village').value,
+        description: document.getElementById('sch-desc').value
+      })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    
+    let html = `<div class="nearby-result">
+      <h4>📍 Found ${data.nearby_count} priority contacts near ${mandal}</h4>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">These contacts will be boosted in today's brief.</p>`;
+    data.nearby_contacts.slice(0,5).forEach(c => {
+      html += `<div class="nearby-item">
+        <span><strong>${c.name}</strong> · ${c.village} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
+        <a href="tel:${c.phone}" style="color:var(--teal);text-decoration:none;font-weight:600">📞 ${c.phone}</a>
+      </div>`;
+    });
+    html += `</div>`;
+    document.getElementById('schedule-result').innerHTML = html;
+    loadSchedule();
+  } catch(e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save & Find Nearby Contacts →';
+  }
+}
+
+async function deleteSchedule(id) {
+  if (confirm('Delete this event?')) {
+    await fetch(`/api/schedule/${id}`, { method: 'DELETE' });
+    loadSchedule();
+  }
+}
+
+loadSchedule();
+</script>
+</body>
+</html>

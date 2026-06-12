@@ -79,27 +79,33 @@ function computePPS(c) {
   return Math.min(Math.round(raw * 100), 99);
 }
 
-function inferMandal(village) {
-  // Map villages to mandals based on known AP geography
-  const mandalMap = {
-    'Sattenapalli': 'Sattenapalli', 'Narasaraopet Rural': 'Narasaraopet',
-    'Guntur': 'Guntur Urban', 'Tenali': 'Tenali', 'Mangalagiri': 'Mangalagiri',
-    'Pedakakani': 'Pedakakani', 'Tadikonda': 'Tadikonda', 'Ponnur': 'Ponnur',
-    'Vatluru': 'Vatluru', 'Kakumanu': 'Kakumanu', 'Lankalakoderu': 'Lankalakoderu',
-    'Vissannapeta': 'Vissannapeta', 'Gudivada Rural': 'Gudivada',
-    'Jaggampeta': 'Jaggampeta', 'Lemalle': 'Lemalle', 'Sidhantam': 'Narasaraopet',
-    'Tallapudi': 'Tallapudi', 'Nuzvid Rural': 'Nuzvid', 'Unguturu': 'Unguturu',
-    'Kovvur': 'Kovvur', 'Bantumilli': 'Bantumilli', 'Bhimavaram': 'Bhimavaram',
-    'Rajavommangi': 'Rajanagaram', 'Nallajerla': 'Nallajerla',
-    'Eluru': 'Eluru Urban', 'Vijayawada': 'Vijayawada Urban',
-  };
-  return mandalMap[village] || village || 'Unknown';
+const PALANADU_STRUCTURE = {
+  'Gurajala': ['Gurazala', 'Dachepalle', 'Piduguralla', 'Machavaram'],
+  'Macherla': ['Macherla', 'Veldurthi', 'Durgi', 'Rentachintala', 'Karempudi'],
+  'Vinukonda': ['Vinukonda', 'Nuzendla', 'Savalyapuram', 'Bollapalle', 'Ipur'],
+  'Narasaraopet': ['Narasaraopet', 'Rompicherla', 'Nadendla'],
+  'Chilakaluripet': ['Chilakaluripet', 'Edlapadu'],
+  'Sattenapalli': ['Sattenapalli', 'Rajupalem', 'Nekarikallu', 'Muppalla'],
+  'Pedakurapadu': ['Pedakurapadu', 'Bellamkonda', 'Atchampet', 'Krosuru', 'Amaravathi']
+};
+
+const ALL_MANDALS = Object.values(PALANADU_STRUCTURE).flat();
+const MANDAL_TO_CONSTITUENCY = {};
+Object.entries(PALANADU_STRUCTURE).forEach(([con, mandals]) => {
+  mandals.forEach(m => MANDAL_TO_CONSTITUENCY[m] = con);
+});
+
+function inferMandal(village, index) {
+  // Map villages to mandals deterministically for the prototype
+  return ALL_MANDALS[index % ALL_MANDALS.length];
 }
 
 const contacts = raw.map((c, i) => {
   const pps = computePPS(c);
   const tier = TIER_MAP[c['Priority Level']] || 'T3';
   const days = daysSince(c['Last Interaction Date']);
+  const mandal = inferMandal(c['Village'], i);
+  const constituency = MANDAL_TO_CONSTITUENCY[mandal];
   
   // Determine top drivers
   const drivers = [];
@@ -114,7 +120,8 @@ const contacts = raw.map((c, i) => {
     name: c['Full Name'] || '',
     phone: String(c['Mobile Number'] || ''),
     village: c['Village'] || '',
-    mandal: inferMandal(c['Village']),
+    mandal,
+    constituency,
     dob: c['Date of Birth'] || '',
     gender: c['Gender'] || '',
     occupation: c['Occupation'] || '',
@@ -206,7 +213,7 @@ const db = {
   metadata: {
     total_contacts: contacts.length,
     generated_at: new Date().toISOString(),
-    constituency: 'Guntur (AP)',
+    constituency: 'Palanadu (AP)',
     source: 'Excel import - political_contacts_sample_2000.xlsx',
   },
   contacts,

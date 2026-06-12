@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PA Issue Tracker · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1a1208;--paper:#fffbeb;--cream:#fef3c7;--rust:#b45309;
+  --white:#fff;--border:#e7e5e4;--muted:#78716c;--teal:#0f766e;--teal-l:#ccfbf1;
+}
+body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);padding:40px 16px}
+.container{max-width:900px;margin:0 auto}
+.header{margin-bottom:30px;display:flex;justify-content:space-between;align-items:flex-end}
+.page-title{font-family:'Fraunces',serif;font-size:32px;font-weight:600}
+.back-link{font-size:14px;color:var(--rust);text-decoration:none;font-weight:600;margin-bottom:8px;display:block}
+.card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+.search-box{display:flex;gap:10px;margin-bottom:20px}
+.search-input{flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:15px;outline:none}
+.search-input:focus{border-color:var(--rust)}
+.btn{padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;border:none;font-size:14px;transition:all 0.2s}
+.btn-primary{background:var(--rust);color:#fff}
+.btn-primary:hover{background:var(--ink)}
+.btn-secondary{background:var(--teal-l);color:var(--teal)}
+.contact-list{margin-top:20px}
+.contact-item{display:flex;justify-content:space-between;align-items:center;padding:14px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;background:var(--white);cursor:pointer}
+.contact-item:hover{border-color:var(--rust)}
+.tag{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500;margin-left:6px}
+.tag-pending{background:#fef3c7;color:#92400e}
+.tag-approved{background:var(--teal-l);color:var(--teal)}
+.tag-rejected{background:#fef2f2;color:#991b1b}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:20px;z-index:100}
+.modal{background:var(--white);border-radius:12px;width:100%;max-width:500px;padding:24px;box-shadow:0 10px 25px rgba(0,0,0,0.1)}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.form-group input, .form-group textarea, .form-group select{width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit}
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back-link">← Back to Portal</a>
+  <div class="header">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:var(--rust);text-transform:uppercase;letter-spacing:1px">PA Operations</div>
+      <h1 class="page-title">Issue & Grievance Tracker</h1>
+    </div>
+    <button class="btn btn-primary" onclick="openCreateContact()">+ New Contact</button>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:16px;margin-bottom:16px">🔍 Search Contact to Log Issue</h3>
+    <div class="search-box">
+      <input type="text" id="search-input" class="search-input" placeholder="Search by name, village, or phone..." oninput="debouncedSearch()">
+    </div>
+    <div id="search-results"></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:30px 0 15px">Recent Issues & Approvals</h3>
+  <div id="issues-list"></div>
+</div>
+
+<!-- LOG ISSUE MODAL -->
+<div id="issue-modal" class="modal-overlay" onclick="closeModals()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-title" style="margin-bottom:16px">Log Issue for </h3>
+    <div class="form-group">
+      <label>Issue Type</label>
+      <select id="iss-type">
+        <option value="General">General Grievance</option>
+        <option value="Recommendation Letter">Recommendation Letter</option>
+        <option value="TTD Darshan">TTD Darshan Approval</option>
+        <option value="Medical Help">Medical/CM Relief Fund</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Description / Details</label>
+      <textarea id="iss-desc" placeholder="Describe the request or issue..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn btn-primary" style="flex:1" onclick="submitIssue()">Log Issue</button>
+      <button class="btn btn-secondary" style="flex:1;background:#f5f5f4;color:var(--ink)" onclick="closeModals()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE CONTACT MODAL -->
+<div id="contact-modal" class="modal-overlay" onclick="closeModals()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 style="margin-bottom:16px">Create New Contact</h3>
+    <div class="form-group">
+      <label>Full Name *</label>
+      <input id="c-name" placeholder="Contact Name">
+    </div>
+    <div class="form-group">
+      <label>Phone Number *</label>
+      <input id="c-phone" placeholder="10-digit mobile">
+    </div>
+    <div class="form-group">
+      <label>Mandal *</label>
+      <select id="c-mandal">
+        <option value="">Select Mandal</option>
+        <option>Amaravathi</option><option>Atchampet</option><option>Bellamkonda</option><option>Krosuru</option>
+        <option>Muppalla</option><option>Nekarikallu</option><option>Pedakurapadu</option><option>Rajupalem</option>
+        <option>Sattenapalli</option><option>Bollapalle</option><option>Chilakaluripet</option><option>Edlapadu</option>
+        <option>Ipuru</option><option>Nadendla</option><option>Narasaraopet</option><option>Nuzendla</option>
+        <option>Rompicherla</option><option>Savalyapuram</option><option>Vinukonda</option><option>Dachepalle</option>
+        <option>Durgi</option><option>Gurazala</option><option>Karempudi</option><option>Machavaram</option>
+        <option>Macherla</option><option>Piduguralla</option><option>Rentachintala</option><option>Veldurthi</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Village</label>
+      <input id="c-village" placeholder="Village name">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn btn-primary" style="flex:1" onclick="submitContact()">Create & Next</button>
+      <button class="btn btn-secondary" style="flex:1;background:#f5f5f4;color:var(--ink)" onclick="closeModals()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let searchTimeout = null;
+let selectedContactId = null;
+
+async function loadIssues() {
+  const r = await fetch('/api/dashboard');
+  const db = await r.json();
+  let html = '';
+  // Flatten issues from all contacts for the tracker
+  const allIssues = [];
+  db.all_contacts.forEach(c => {
+    (c.issues || []).forEach(iss => {
+      allIssues.push({...iss, contact_name: c.name, village: c.village});
+    });
+  });
+  allIssues.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (allIssues.length === 0) html = '<p style="color:var(--muted)">No issues logged yet.</p>';
+  allIssues.slice(0, 20).forEach(iss => {
+    const statusTag = iss.status !== 'none' ? `<span class="tag tag-${iss.status}">${iss.status}</span>` : '';
+    html += `
+    <div class="card" style="padding:16px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between">
+        <div>
+          <div style="font-weight:600">${iss.type} for ${iss.contact_name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${iss.village} · ${new Date(iss.created_at).toLocaleDateString()}</div>
+          <div style="font-size:13px;margin-top:6px">${iss.description}</div>
+        </div>
+        <div>${statusTag}</div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('issues-list').innerHTML = html;
+}
+
+function debouncedSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(search, 300);
+}
+
+async function search() {
+  const q = document.getElementById('search-input').value;
+  if (q.length < 2) { document.getElementById('search-results').innerHTML = ''; return; }
+  const r = await fetch(`/api/contacts?q=${encodeURIComponent(q)}`);
+  const data = await r.json();
+  let html = '';
+  data.contacts.slice(0, 5).forEach(c => {
+    html += `
+    <div class="contact-item" onclick="openLogIssue('${c.id}', '${c.name}')">
+      <div>
+        <div style="font-weight:600">${c.name}</div>
+        <div style="font-size:12px;color:var(--muted)">${c.phone} · ${c.village}, ${c.mandal}</div>
+      </div>
+      <div style="color:var(--rust);font-weight:600">Log Issue →</div>
+    </div>`;
+  });
+  if (data.contacts.length === 0) html = '<p style="padding:10px;font-size:13px">No contact found. Click "New Contact" to create one.</p>';
+  document.getElementById('search-results').innerHTML = html;
+}
+
+function openLogIssue(id, name) {
+  selectedContactId = id;
+  document.getElementById('modal-title').textContent = `Log Issue for ${name}`;
+  document.getElementById('issue-modal').style.display = 'flex';
+}
+
+function openCreateContact() {
+  document.getElementById('contact-modal').style.display = 'flex';
+}
+
+function closeModals() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+}
+
+async function submitIssue() {
+  const type = document.getElementById('iss-type').value;
+  const desc = document.getElementById('iss-desc').value;
+  const r = await fetch('/api/issue', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({contact_id: selectedContactId, type, description: desc})
+  });
+  if (r.ok) {
+    alert('Issue logged successfully!');
+    closeModals();
+    loadIssues();
+  }
+}
+
+async function submitContact() {
+  const name = document.getElementById('c-name').value;
+  const phone = document.getElementById('c-phone').value;
+  const mandal = document.getElementById('c-mandal').value;
+  const village = document.getElementById('c-village').value;
+  if (!name || !phone || !mandal) { alert('Fill required fields.'); return; }
+
+  const r = await fetch('/api/contact', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, phone, mandal, village})
+  });
+  const data = await r.json();
+  if (r.ok) {
+    closeModals();
+    openLogIssue(data.contact.id, data.contact.name);
+  }
+}
+
+loadIssues();
+</script>
+</body>
+</html>
