@@ -18,6 +18,45 @@ let isConnected = false;
 let qrData = null;
 let initPromise = null;
 
+// ── Incoming message handler ───────────────────────────────────────────────
+const MP_NUMBER = '919652345570';
+let _onIncomingMessage = null;
+
+export function setOnIncomingMessage(callback) {
+  _onIncomingMessage = callback;
+}
+
+function setupIncomingHandler(socket) {
+  socket.ev.on('messages.upsert', async ({ messages }) => {
+    for (const msg of messages) {
+      if (!msg.message || msg.key.fromMe) continue;
+      const sender = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || '';
+      if (sender !== MP_NUMBER) continue;
+
+      const text = msg.message.conversation
+        || msg.message.extendedTextMessage?.text
+        || '';
+      if (!text) continue;
+
+      // Check for approve/reject patterns
+      const approveMatch = text.match(/^approve\s+(.+)/i);
+      const rejectMatch = text.match(/^reject\s+(.+)/i);
+      if (!approveMatch && !rejectMatch) continue;
+
+      const action = approveMatch ? 'approved' : 'rejected';
+      const identifier = (approveMatch || rejectMatch)[1].trim();
+
+      if (_onIncomingMessage) {
+        try {
+          await _onIncomingMessage({ action, identifier, rawText: text, sender });
+        } catch (e) {
+          console.error('Error in incoming message handler:', e.message);
+        }
+      }
+    }
+  });
+}
+
 const silent = {
   level: 'silent',
   trace(){}, debug(){}, info(){}, warn(){}, error(){}, fatal(){},
@@ -60,6 +99,8 @@ async function init() {
         }
       }
     });
+    // Wire up incoming message listener on this socket
+    setupIncomingHandler(sock);
     // Wait up to 20s for either QR or connection
     await new Promise(resolve => {
       const t = setInterval(() => {
