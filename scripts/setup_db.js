@@ -3,7 +3,15 @@ import XLSX from 'xlsx';
 import fs from 'fs';
 import path from 'path';
 
-const wb = XLSX.readFile('/mnt/user-data/uploads/political_contacts_sample_2000.xlsx');
+const EXCEL_PATH = process.env.EXCEL_PATH || './political_contacts_sample_2000.xlsx';
+
+if (!fs.existsSync(EXCEL_PATH)) {
+  console.error(`❌ Error: Excel file not found at ${EXCEL_PATH}`);
+  console.log('💡 Tip: Place your Excel file in the project root or set the EXCEL_PATH environment variable.');
+  process.exit(0); // Exit gracefully to not block builds if it's called
+}
+
+const wb = XLSX.readFile(EXCEL_PATH);
 const ws = wb.Sheets[wb.SheetNames[0]];
 const raw = XLSX.utils.sheet_to_json(ws);
 
@@ -210,7 +218,8 @@ const db = {
   whatsapp_log: [],  // sent brief log
 };
 
-fs.writeFileSync('/home/claude/saathi_v2/data/db.json', JSON.stringify(db, null, 2));
+const OUTPUT_PATH = path.join(process.cwd(), 'data', 'db.json');
+fs.writeFileSync(OUTPUT_PATH, JSON.stringify(db, null, 2));
 console.log(`✓ DB created: ${contacts.length} contacts`);
 console.log(`✓ Today's brief: ${db.todays_brief.length} contacts`);
 console.log(`✓ Issue radar: ${db.issue_radar.length} clusters`);
