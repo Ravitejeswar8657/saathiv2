@@ -4,94 +4,78 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Coverage Heat Map · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --ink:#1a1208;--paper:#fffbeb;--cream:#fef3c7;--rust:#b45309;
-  --white:#fff;--border:#e7e5e4;--muted:#78716c;--teal:#0f766e;--teal-l:#ccfbf1;
-  --healthy:#16a34a;--healthy-bg:#dcfce7;--healthy-border:#86efac;
-  --moderate:#ca8a04;--moderate-bg:#fef9c3;--moderate-border:#fde047;
-  --warning:#ea580c;--warning-bg:#ffedd5;--warning-border:#fdba74;
-  --critical:#dc2626;--critical-bg:#fee2e2;--critical-border:#fca5a5;
-}
-body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);padding:clamp(16px, 4vw, 40px) 16px;min-height:100vh}
-.container{width:100%}
-.back-link{font-size:14px;color:var(--rust);text-decoration:none;font-weight:600;margin-bottom:8px;display:block}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
+.container{max-width:1200px;margin:0 auto;padding:24px 16px}
+.back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:#6b7280;text-decoration:none}
+.back-link:hover{color:#1a1208}
 .header{margin-bottom:24px}
-.page-label{font-size:12px;font-weight:600;color:var(--rust);text-transform:uppercase;letter-spacing:1px}
-.page-title{font-family:'Fraunces',serif;font-size:clamp(24px, 6vw, 32px);font-weight:600;margin-top:4px}
+.header h1{font-size:22px;font-weight:700;color:#1a1208}
+.header p{font-size:14px;color:#6b7280;margin-top:4px}
 
-/* Summary stats */
-.stats-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:28px}
-.stat-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px 20px;flex:1;min-width:140px;box-shadow:0 2px 4px rgba(0,0,0,0.06)}
-.stat-value{font-size:28px;font-weight:700;line-height:1}
-.stat-label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px}
+.stats-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}
+.stat-card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:14px 18px;flex:1;min-width:130px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.stat-value{font-size:24px;font-weight:700;line-height:1}
+.stat-label{font-size:12px;color:#6b7280;font-weight:500;margin-top:4px}
 
-/* Legend */
-.legend{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:28px;padding:14px 18px;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 4px rgba(0,0,0,0.06)}
-.legend-item{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
-.legend-dot{width:14px;height:14px;border-radius:4px}
-.legend-dot.healthy{background:var(--healthy)}
-.legend-dot.moderate{background:var(--moderate)}
-.legend-dot.warning{background:var(--warning)}
-.legend-dot.critical{background:var(--critical)}
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px;font-size:13px;color:#6b7280}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-dot{width:12px;height:12px;border-radius:3px}
+.legend-dot.healthy{background:#16a34a}
+.legend-dot.moderate{background:#ca8a04}
+.legend-dot.warning{background:#ea580c}
+.legend-dot.critical{background:#dc2626}
 
-/* Constituency sections */
-.constituency{margin-bottom:32px}
-.constituency-title{font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:2px solid var(--border)}
-.constituency-title .dot{width:8px;height:8px;border-radius:50%;background:var(--rust)}
+.constituency{margin-bottom:28px}
+.constituency-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #e5e5e5}
 
-/* Mandal grid */
-.mandal-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));gap:12px}
-.mandal-card{border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);border:2px solid transparent;position:relative;overflow:hidden}
-.mandal-card:hover{transform:translateY(-3px);box-shadow:0 10px 20px -5px rgba(0,0,0,0.15)}
-.mandal-card:active{transform:scale(0.97)}
-.mandal-card.healthy{background:var(--healthy-bg);border-color:var(--healthy-border)}
-.mandal-card.moderate{background:var(--moderate-bg);border-color:var(--moderate-border)}
-.mandal-card.warning{background:var(--warning-bg);border-color:var(--warning-border)}
-.mandal-card.critical{background:var(--critical-bg);border-color:var(--critical-border);animation:pulse-border 2s infinite}
-.mandal-card.no-data{background:#f5f5f4;border-color:#d6d3d1}
-@keyframes pulse-border{0%,100%{border-color:var(--critical-border)}50%{border-color:var(--critical)}}
+.mandal-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));gap:10px}
+.mandal-card{border-radius:8px;padding:14px;cursor:pointer;transition:box-shadow .15s;border:1px solid transparent;position:relative}
+.mandal-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.1)}
+.mandal-card.healthy{background:#f0fdf4;border-color:#bbf7d0}
+.mandal-card.moderate{background:#fefce8;border-color:#fde68a}
+.mandal-card.warning{background:#fff7ed;border-color:#fed7aa}
+.mandal-card.critical{background:#fef2f2;border-color:#fecaca}
+.mandal-card.no-data{background:#f5f5f4;border-color:#e5e5e5}
 
-.mandal-name{font-weight:700;font-size:15px;margin-bottom:6px}
-.mandal-meta{font-size:12px;color:var(--ink);opacity:0.7;line-height:1.5}
-.mandal-badge{position:absolute;top:10px;right:10px;width:10px;height:10px;border-radius:50%}
-.mandal-badge.healthy{background:var(--healthy)}
-.mandal-badge.moderate{background:var(--moderate)}
-.mandal-badge.warning{background:var(--warning)}
-.mandal-badge.critical{background:var(--critical)}
-.mandal-badge.no-data{background:#a8a29e}
+.mandal-name{font-weight:600;font-size:14px;margin-bottom:4px}
+.mandal-meta{font-size:12px;color:#6b7280;line-height:1.5}
+.mandal-dot{position:absolute;top:12px;right:12px;width:8px;height:8px;border-radius:50%}
+.mandal-dot.healthy{background:#16a34a}
+.mandal-dot.moderate{background:#ca8a04}
+.mandal-dot.warning{background:#ea580c}
+.mandal-dot.critical{background:#dc2626}
+.mandal-dot.no-data{background:#9ca3af}
 
-/* Detail panel */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;justify-content:center;align-items:center;padding:20px}
 .overlay.open{display:flex}
-.detail-panel{background:var(--white);border-radius:20px;padding:clamp(20px, 5vw, 32px);width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);position:relative}
-.detail-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center}
-.detail-close:hover{background:var(--cream)}
-.detail-title{font-family:'Fraunces',serif;font-size:24px;font-weight:600;margin-bottom:4px}
-.detail-constituency{font-size:13px;color:var(--rust);font-weight:600;margin-bottom:16px}
-.detail-health{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:16px}
-.detail-health.healthy{background:var(--healthy-bg);color:var(--healthy)}
-.detail-health.moderate{background:var(--moderate-bg);color:var(--moderate)}
-.detail-health.warning{background:var(--warning-bg);color:var(--warning)}
-.detail-health.critical{background:var(--critical-bg);color:var(--critical)}
-.detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
-.detail-stat{background:var(--paper);border-radius:10px;padding:12px}
-.detail-stat-val{font-size:22px;font-weight:700}
-.detail-stat-lbl{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-top:2px}
-.detail-note{font-size:13px;color:var(--muted);line-height:1.6;padding-top:12px;border-top:1px solid var(--border)}
+.detail-panel{background:#fff;border-radius:8px;padding:24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,0.15);position:relative}
+.detail-close{position:absolute;top:12px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:#9ca3af;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.detail-close:hover{background:#f5f5f4;color:#1a1208}
+.detail-title{font-size:20px;font-weight:700;margin-bottom:2px}
+.detail-constituency{font-size:13px;color:#6b7280;margin-bottom:14px}
+.detail-health{display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;margin-bottom:14px}
+.detail-health.healthy{background:#f0fdf4;color:#16a34a}
+.detail-health.moderate{background:#fefce8;color:#ca8a04}
+.detail-health.warning{background:#fff7ed;color:#ea580c}
+.detail-health.critical{background:#fef2f2;color:#dc2626}
+.detail-health.no-data{background:#f5f5f4;color:#6b7280}
+.detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.detail-stat{background:#fafaf9;border:1px solid #e5e5e5;border-radius:6px;padding:10px}
+.detail-stat-val{font-size:20px;font-weight:700}
+.detail-stat-lbl{font-size:11px;color:#6b7280;margin-top:2px}
+.detail-note{font-size:13px;color:#6b7280;line-height:1.6;padding-top:12px;border-top:1px solid #e5e5e5}
 
-/* Loading */
-.loading{text-align:center;padding:60px 20px;color:var(--muted);font-size:15px}
-.loading .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--rust);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:12px}
-@keyframes spin{to{transform:rotate(360deg)}}
+.loading{text-align:center;padding:60px 20px;color:#6b7280;font-size:14px}
 
 @media(max-width:480px){
   .mandal-grid{grid-template-columns:repeat(auto-fill, minmax(140px, 1fr))}
   .stats-row{gap:8px}
   .stat-card{min-width:100px;padding:12px 14px}
-  .stat-value{font-size:22px}
+  .stat-value{font-size:20px}
 }
 </style>
 </head>
@@ -99,30 +83,29 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);pad
 <div class="container">
   <a href="/" class="back-link">&larr; Back to Portal</a>
   <div class="header">
-    <div class="page-label">District Intelligence</div>
-    <h1 class="page-title">Palanadu Coverage Heat Map</h1>
+    <h1>Palanadu Coverage Heat Map</h1>
+    <p>Mandal-level contact coverage health across the district.</p>
   </div>
 
-  <div id="stats-row" class="stats-row">
-    <div class="stat-card"><div class="stat-value" id="stat-total">--</div><div class="stat-label">Total Contacts</div></div>
-    <div class="stat-card"><div class="stat-value" id="stat-mandals">--</div><div class="stat-label">Mandals Covered</div></div>
-    <div class="stat-card"><div class="stat-value" id="stat-critical" style="color:var(--critical)">--</div><div class="stat-label">Critical Mandals</div></div>
-    <div class="stat-card"><div class="stat-value" id="stat-healthy" style="color:var(--healthy)">--</div><div class="stat-label">Healthy Mandals</div></div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-value" id="stat-total">--</div><div class="stat-label">Total contacts</div></div>
+    <div class="stat-card"><div class="stat-value" id="stat-mandals">--</div><div class="stat-label">Mandals covered</div></div>
+    <div class="stat-card"><div class="stat-value" id="stat-critical" style="color:#dc2626">--</div><div class="stat-label">Critical mandals</div></div>
+    <div class="stat-card"><div class="stat-value" id="stat-healthy" style="color:#16a34a">--</div><div class="stat-label">Healthy mandals</div></div>
   </div>
 
   <div class="legend">
-    <div class="legend-item"><div class="legend-dot healthy"></div>Healthy &mdash; recently contacted</div>
-    <div class="legend-item"><div class="legend-dot moderate"></div>Moderate &mdash; getting stale</div>
-    <div class="legend-item"><div class="legend-dot warning"></div>Warning &mdash; stale</div>
-    <div class="legend-item"><div class="legend-dot critical"></div>Critical &mdash; needs attention</div>
+    <div class="legend-item"><div class="legend-dot healthy"></div>Healthy</div>
+    <div class="legend-item"><div class="legend-dot moderate"></div>Moderate</div>
+    <div class="legend-item"><div class="legend-dot warning"></div>Warning</div>
+    <div class="legend-item"><div class="legend-dot critical"></div>Critical</div>
   </div>
 
   <div id="heatmap-body">
-    <div class="loading"><div class="spinner"></div><br>Loading coverage data...</div>
+    <div class="loading">Loading coverage data...</div>
   </div>
 </div>
 
-<!-- Detail overlay -->
 <div class="overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
   <div class="detail-panel" id="detail-panel"></div>
 </div>
@@ -160,7 +143,7 @@ async function init() {
     renderHeatmap();
   } catch (e) {
     document.getElementById('heatmap-body').innerHTML =
-      '<div class="loading" style="color:var(--critical)">Failed to load data. Please try again.</div>';
+      '<div class="loading" style="color:#dc2626">Failed to load data. Please try again.</div>';
     console.error(e);
   }
 }
@@ -193,7 +176,7 @@ function renderHeatmap() {
 
     const title = document.createElement('div');
     title.className = 'constituency-title';
-    title.innerHTML = '<span class="dot"></span> ' + constName + ' Assembly Constituency';
+    title.textContent = constName + ' Assembly Constituency';
     section.appendChild(title);
 
     const grid = document.createElement('div');
@@ -210,7 +193,7 @@ function renderHeatmap() {
       card.onclick = () => showDetail(mandal, constName, data);
 
       card.innerHTML =
-        '<div class="mandal-badge ' + health + '"></div>' +
+        '<div class="mandal-dot ' + health + '"></div>' +
         '<div class="mandal-name">' + mandal + '</div>' +
         '<div class="mandal-meta">' +
           contacts + ' contact' + (contacts !== 1 ? 's' : '') +
@@ -237,13 +220,13 @@ function showDetail(mandal, constituency, data) {
   if (!data) {
     advice = 'No coverage data available for this mandal. Consider adding contacts here.';
   } else if (health === 'critical') {
-    advice = 'This mandal has not been contacted in a long time and needs immediate attention. Schedule outreach as soon as possible.';
+    advice = 'This mandal needs immediate attention. Schedule outreach as soon as possible.';
   } else if (health === 'warning') {
-    advice = 'Coverage is getting stale. Plan follow-up contacts this week to maintain the relationship.';
+    advice = 'Coverage is getting stale. Plan follow-up contacts this week.';
   } else if (health === 'moderate') {
-    advice = 'Coverage is acceptable but could be better. Keep this mandal on the radar for the next outreach cycle.';
+    advice = 'Coverage is acceptable. Keep this mandal on the radar for the next outreach cycle.';
   } else {
-    advice = 'Good coverage. Continue regular engagement to maintain strong relationships here.';
+    advice = 'Good coverage. Continue regular engagement to maintain relationships.';
   }
 
   panel.innerHTML =
@@ -253,9 +236,9 @@ function showDetail(mandal, constituency, data) {
     '<div class="detail-health ' + health + '">' + healthLabel + '</div>' +
     '<div class="detail-stats">' +
       '<div class="detail-stat"><div class="detail-stat-val">' + contacts + '</div><div class="detail-stat-lbl">Contacts</div></div>' +
-      '<div class="detail-stat"><div class="detail-stat-val">' + lastTouch + '</div><div class="detail-stat-lbl">Days Since Last Touch</div></div>' +
-      '<div class="detail-stat"><div class="detail-stat-val">' + minDays + '</div><div class="detail-stat-lbl">Min Days Gap</div></div>' +
-      '<div class="detail-stat"><div class="detail-stat-val">' + (data ? Math.round((contacts / Math.max(1, coverageData.reduce((s,c) => s + c.contacts, 0))) * 100) + '%' : '--') + '</div><div class="detail-stat-lbl">Share of Contacts</div></div>' +
+      '<div class="detail-stat"><div class="detail-stat-val">' + lastTouch + '</div><div class="detail-stat-lbl">Days since last touch</div></div>' +
+      '<div class="detail-stat"><div class="detail-stat-val">' + minDays + '</div><div class="detail-stat-lbl">Min days gap</div></div>' +
+      '<div class="detail-stat"><div class="detail-stat-val">' + (data ? Math.round((contacts / Math.max(1, coverageData.reduce((s,c) => s + c.contacts, 0))) * 100) + '%' : '--') + '</div><div class="detail-stat-lbl">Share of contacts</div></div>' +
     '</div>' +
     '<div class="detail-note">' + advice + '</div>';
 

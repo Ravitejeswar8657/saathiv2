@@ -3,51 +3,53 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Submit News · Saathi Guntur</title>
+<title>Submit News · Saathi Palanadu</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#fffbeb;color:#1a1208;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px}
-.container{width:100%}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:40px 16px}
+.container{max-width:580px;margin:0 auto}
+.back-link{display:inline-block;margin-bottom:20px;font-size:13px;color:#6b7280;text-decoration:none}
+.back-link:hover{color:#1a1208}
 .header{text-align:center;margin-bottom:32px}
-.header .logo{font-size:13px;font-weight:600;color:#b45309;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
-.header h1{font-size:28px;font-weight:700;color:#1a1208;line-height:1.2}
-.header p{font-size:14px;color:#78716c;margin-top:8px;line-height:1.6}
-.card{background:#fff;border:1px solid #e7e5e4;border-radius:12px;padding:28px}
-.form-group{margin-bottom:18px}
-.form-group label{display:block;font-size:12px;font-weight:600;color:#78716c;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.header h1{font-size:24px;font-weight:700;color:#1a1208;line-height:1.3}
+.header p{font-size:14px;color:#6b7280;margin-top:8px;line-height:1.6}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:24px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:14px;font-weight:600;color:#374151;margin-bottom:6px}
 .form-group input,.form-group textarea,.form-group select{
-  width:100%;padding:11px 14px;border:1px solid #e7e5e4;border-radius:8px;
-  font-size:14px;font-family:inherit;background:#fffbeb;transition:border .15s
+  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
+  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
 }
 .form-group input:focus,.form-group textarea:focus,.form-group select:focus{
-  outline:none;border-color:#d97706;box-shadow:0 0 0 3px rgba(217,119,6,.1)
+  outline:none;border-color:#b45309;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
 }
 .form-group textarea{resize:vertical;min-height:120px}
 .required{color:#dc2626}
-.file-hint{font-size:11px;color:#78716c;margin-top:4px}
+.file-hint{font-size:12px;color:#6b7280;margin-top:4px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .submit-btn{
-  width:100%;padding:13px;background:#b45309;color:#fff;border:none;
-  border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;
+  width:100%;padding:12px;background:#1a1208;color:#fff;border:none;
+  border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;
   display:flex;align-items:center;justify-content:center;gap:8px
 }
-.submit-btn:hover{background:#92400e}
-.submit-btn:disabled{background:#78716c;cursor:not-allowed}
-.success{background:#ccfbf1;border:1px solid #99f6e4;border-radius:8px;padding:20px;text-align:center;display:none}
-.success .icon{font-size:36px;margin-bottom:8px}
-.success h3{font-size:16px;font-weight:600;color:#0f766e}
-.success p{font-size:13px;color:#0f766e;margin-top:4px}
-.priority-badge{display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600}
-.p-high{background:#fef2f2;color:#991b1b}
-.p-medium{background:#fef3c7;color:#92400e}
-.p-low{background:#f1f5f9;color:#475569}
-.footer{text-align:center;font-size:11px;color:#a8a29e;margin-top:20px;line-height:1.8}
+.submit-btn:hover{background:#374151}
+.submit-btn:disabled{background:#9ca3af;cursor:not-allowed}
+.success{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:24px;text-align:center;display:none}
+.success h3{font-size:16px;font-weight:600;color:#15803d;margin-bottom:4px}
+.success p{font-size:13px;color:#166534;line-height:1.5}
+.success button{margin-top:14px;padding:9px 20px;background:#1a1208;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
+.success button:hover{background:#374151}
+.footer{text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;line-height:1.8}
+#error-msg{color:#dc2626;font-size:13px;margin-top:10px;display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
 <div class="container">
+  <a href="/" class="back-link">&larr; Back to Portal</a>
   <div class="header">
-    <div class="logo">Saathi · Guntur Constituency</div>
     <h1>Submit Field News</h1>
     <p>Report local events, issues, and developments directly to the MP's office. No login required.</p>
   </div>
@@ -57,62 +59,61 @@ body{font-family:'Inter',sans-serif;background:#fffbeb;color:#1a1208;min-height:
       <label>Headline <span class="required">*</span></label>
       <input id="n-headline" placeholder="Short, factual one-liner about what happened" maxlength="200">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="form-row">
       <div class="form-group">
-        <label>Your Name / Publication</label>
+        <label>Your name / publication</label>
         <input id="n-source" placeholder="e.g. Ravi Kumar, TV9">
       </div>
       <div class="form-group">
-        <label>Mandal / Area</label>
+        <label>Mandal / area</label>
         <input id="n-mandal" placeholder="e.g. Sattenapalli">
       </div>
     </div>
     <div class="form-group">
-      <label>Priority Level</label>
+      <label>Priority level</label>
       <select id="n-priority">
-        <option value="high">🔴 High — urgent, MP needs to know immediately</option>
-        <option value="medium" selected>🟡 Medium — relevant today</option>
-        <option value="low">⚪ Low — background / follow-up later</option>
+        <option value="high">High - Urgent, MP needs to know immediately</option>
+        <option value="medium" selected>Medium - Relevant today</option>
+        <option value="low">Low - Background / follow-up later</option>
       </select>
     </div>
     <div class="form-group">
-      <label>Full Details</label>
+      <label>Full details</label>
       <textarea id="n-body" placeholder="What happened, where, who is affected, any quotes or reactions, what action may be needed..."></textarea>
     </div>
     <div class="form-group">
-      <label>Attach File (optional)</label>
+      <label>Attach file (optional)</label>
       <input id="n-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.mp4,.doc,.docx">
-      <div class="file-hint">Photos, documents, or video clips accepted · Max 10 MB</div>
+      <div class="file-hint">Photos, documents, or video clips accepted. Max 10 MB.</div>
     </div>
     <button class="submit-btn" id="submit-btn" onclick="submitNews()">
-      <span>📤</span> Submit to MP's Office
+      <i data-lucide="send" style="width:16px;height:16px"></i> Submit to MP's Office
     </button>
-    <div id="error-msg" style="color:#dc2626;font-size:13px;margin-top:10px;display:none"></div>
+    <div id="error-msg"></div>
   </div>
 
   <div class="success" id="success-card">
-    <div class="icon">✅</div>
-    <h3>Submitted successfully!</h3>
+    <h3>Submitted successfully</h3>
     <p>Your news has been received and will appear in the MP's daily brief immediately.</p>
-    <button onclick="resetForm()" style="margin-top:14px;padding:9px 20px;background:#0f766e;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">
-      Submit another →
-    </button>
+    <button onclick="resetForm()">Submit another</button>
   </div>
 
   <div class="footer">
-    Saathi · Guntur Constituency Intelligence System · TDP<br>
+    Saathi &middot; Palanadu District Intelligence System<br>
     Submissions are reviewed by the MP's office team.
   </div>
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+
 async function submitNews() {
   const headline = document.getElementById('n-headline').value.trim();
   if (!headline) { showError('Headline is required.'); return; }
 
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span> Submitting...';
+  btn.innerHTML = '<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span> Submitting...';
 
   const fd = new FormData();
   fd.append('headline', headline);
@@ -132,7 +133,8 @@ async function submitNews() {
   } catch(e) {
     showError(e.message);
     btn.disabled = false;
-    btn.innerHTML = '<span>📤</span> Submit to MP\'s Office';
+    btn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px"></i> Submit to MP\'s Office';
+    lucide.createIcons();
   }
 }
 
@@ -152,6 +154,5 @@ function resetForm() {
   document.getElementById('error-msg').style.display = 'none';
 }
 </script>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </body>
 </html>

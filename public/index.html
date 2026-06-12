@@ -3,77 +3,259 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Saathi v2 · Palanadu Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<title>Saathi v2 - Palanadu Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
 <style>
-  body { font-family: 'Inter', sans-serif; background: #fffbeb; color: #1a1208; display: flex; align-items: flex-start; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
-  .portal { width: 100%; text-align: center; }
-  h1 { font-family: 'Fraunces', serif; font-size: clamp(32px, 8vw, 48px); margin-bottom: 10px; }
-  p.subtitle { font-size: clamp(14px, 4vw, 18px); color: #78716c; margin-bottom: 40px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
-  .role-card { background: #fff; border: 1px solid #e7e5e4; border-radius: 20px; padding: clamp(20px, 5vw, 40px); text-decoration: none; color: inherit; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-  .role-card:active { transform: scale(0.98); }
-  .role-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); border-color: #d97706; }
-  .icon { font-size: 48px; margin-bottom: 20px; filter: drop-shadow(0 4px 3px rgba(0,0,0,0.1)); }
-  .role-name { font-weight: 700; font-size: 22px; margin-bottom: 10px; }
-  .role-desc { font-size: 15px; color: #78716c; line-height: 1.6; }
-  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } .portal { padding-top: 20px; } }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #fafaf9;
+    color: #1a1208;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Government header bar */
+  .gov-header {
+    background: #fff;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 10px 24px;
+  }
+  .gov-header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .gov-header img {
+    height: 40px;
+    flex-shrink: 0;
+  }
+  .gov-header-text {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #78716c;
+    text-align: center;
+  }
+
+  /* Main content */
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* MP Hero */
+  .mp-hero {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 32px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    margin-bottom: 48px;
+  }
+  .mp-photo {
+    width: 120px;
+    height: 148px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+    background: #f5f5f4;
+  }
+  .mp-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .mp-name {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 6px;
+    color: #1a1208;
+  }
+  .mp-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #b45309;
+    margin-bottom: 4px;
+  }
+  .mp-subtitle {
+    font-size: 13px;
+    color: #78716c;
+    margin-bottom: 16px;
+  }
+  .mp-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .mp-tag {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: #f5f5f4;
+    color: #57534e;
+    border: 1px solid #e5e5e5;
+  }
+
+  /* Section heading */
+  .section-label {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #a8a29e;
+    margin-bottom: 16px;
+  }
+
+  /* Nav grid */
+  .nav-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .nav-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 24px;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  }
+  .nav-card:hover {
+    border-color: #d6d3d1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+  }
+  .nav-card:active {
+    transform: translateY(0);
+  }
+  .nav-card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: #fafaf9;
+    border: 1px solid #e5e5e5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #78716c;
+  }
+  .nav-card-icon i {
+    width: 18px;
+    height: 18px;
+  }
+  .nav-card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1208;
+  }
+  .nav-card-desc {
+    font-size: 13px;
+    color: #78716c;
+    line-height: 1.5;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .nav-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .mp-hero {
+      flex-direction: column;
+      text-align: center;
+      padding: 24px;
+      gap: 20px;
+    }
+    .mp-tags {
+      justify-content: center;
+    }
+    .container {
+      padding: 28px 16px 60px;
+    }
+  }
+  @media (max-width: 480px) {
+    .nav-grid {
+      grid-template-columns: 1fr;
+    }
+    .gov-header-text {
+      font-size: 10px;
+      letter-spacing: 1px;
+    }
+    .gov-header img {
+      height: 32px;
+    }
+  }
 </style>
 </head>
 <body>
-<div class="portal">
-  <div class="logos-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-    <img src="/assets/india_emblem_new.svg" alt="India Emblem" style="height: 60px;">
-    <div style="text-align: center;">
-      <div style="font-weight: 800; font-size: 14px; color: #b45309; letter-spacing: 2px;">GOVERNMENT OF ANDHRA PRADESH</div>
-    </div>
-    <img src="/assets/ap_emblem.svg" alt="AP Emblem" style="height: 60px;">
-  </div>
 
-  <div class="mp-hero" style="background: white; border-radius: 24px; padding: 30px; margin-bottom: 30px; display: flex; align-items: center; gap: 30px; border: 1px solid #e7e5e4; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); flex-wrap: wrap;">
-    <img src="/assets/mp_photo.svg" alt="Lavu Sri Krishna Devarayalu" style="width: 150px; height: 180px; object-fit: cover; border-radius: 16px; border: 4px solid #fef3c7;">
-    <div style="flex: 1; text-align: left; min-width: 250px;">
-      <h1 style="margin: 0; font-size: 32px;">Lavu Sri Krishna Devarayalu</h1>
-      <p style="margin: 5px 0; font-size: 18px; color: #b45309; font-weight: 600;">Member of Parliament · Palanadu</p>
-      <p style="margin: 0; font-size: 14px; color: #78716c;">Leader of TDP Parliamentary Party, Lok Sabha</p>
-      <div style="margin-top: 15px; display: flex; gap: 10px;">
-        <span style="background: #fef3c7; color: #92400e; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;">Narasaraopet Constituency</span>
-        <span style="background: #eff6ff; color: #1d4ed8; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;">TDP</span>
+<header class="gov-header">
+  <div class="gov-header-inner">
+    <img src="/assets/india_emblem_new.svg" alt="Emblem of India">
+    <span class="gov-header-text">Government of Andhra Pradesh</span>
+    <img src="/assets/ap_emblem.svg" alt="Emblem of Andhra Pradesh">
+  </div>
+</header>
+
+<main class="container">
+  <section class="mp-hero">
+    <img class="mp-photo" src="/assets/mp_photo.svg" alt="Lavu Sri Krishna Devarayalu">
+    <div class="mp-info">
+      <h1 class="mp-name">Lavu Sri Krishna Devarayalu</h1>
+      <p class="mp-title">Member of Parliament, Palanadu</p>
+      <p class="mp-subtitle">TDP Parliamentary Party Leader, Lok Sabha</p>
+      <div class="mp-tags">
+        <span class="mp-tag">Narasaraopet Constituency</span>
+        <span class="mp-tag">Palanadu District</span>
+        <span class="mp-tag">TDP</span>
       </div>
     </div>
-    <div class="district-map" style="flex-shrink: 0; text-align: center;">
-      <img src="/assets/palanadu_map.svg" alt="Palanadu District Map" style="height: 150px; border-radius: 8px;">
-      <div style="font-size: 10px; color: #78716c; margin-top: 5px; font-weight: 600; text-transform: uppercase;">Palanadu District Map</div>
-    </div>
-  </div>
+  </section>
 
-  <div class="grid">
-    <a href="/journalist.html" class="role-card">
-      <div class="icon">📰</div>
-      <div class="role-name">Journalist Desk</div>
-      <div class="role-desc">Submit local news and field reports immediately.</div>
+  <div class="section-label">Portal</div>
+  <nav class="nav-grid">
+    <a href="/journalist.html" class="nav-card">
+      <div class="nav-card-icon"><i data-lucide="newspaper"></i></div>
+      <div class="nav-card-title">Journalist Desk</div>
+      <div class="nav-card-desc">Submit local news and field reports.</div>
     </a>
-    <a href="/pa_schedule.html" class="role-card">
-      <div class="icon">📅</div>
-      <div class="role-name">PA Schedule</div>
-      <div class="role-desc">Update MP's calendar and find nearby contacts.</div>
+    <a href="/pa_schedule.html" class="nav-card">
+      <div class="nav-card-icon"><i data-lucide="calendar"></i></div>
+      <div class="nav-card-title">PA Schedule</div>
+      <div class="nav-card-desc">Update the MP's calendar and find nearby contacts.</div>
     </a>
-    <a href="/pa_issues.html" class="role-card">
-      <div class="icon">⚖️</div>
-      <div class="role-name">PA Issues</div>
-      <div class="role-desc">Manage contacts and track grievances/requests.</div>
+    <a href="/pa_issues.html" class="nav-card">
+      <div class="nav-card-icon"><i data-lucide="scale"></i></div>
+      <div class="nav-card-title">PA Issues</div>
+      <div class="nav-card-desc">Manage contacts and track grievances.</div>
     </a>
-    <a href="/admin.html" class="role-card">
-      <div class="icon">🦁</div>
-      <div class="role-name">MP Dashboard</div>
-      <div class="role-desc">Approve special requests and send daily briefs.</div>
+    <a href="/admin.html" class="nav-card">
+      <div class="nav-card-icon"><i data-lucide="layout-dashboard"></i></div>
+      <div class="nav-card-title">MP Dashboard</div>
+      <div class="nav-card-desc">Approve requests and review daily briefs.</div>
     </a>
-    <a href="/heatmap.html" class="role-card">
-      <div class="icon">🗺️</div>
-      <div class="role-name">Coverage Heat Map</div>
-      <div class="role-desc">District-wide mandal coverage health and constituency view.</div>
+    <a href="/heatmap.html" class="nav-card">
+      <div class="nav-card-icon"><i data-lucide="map"></i></div>
+      <div class="nav-card-title">Coverage Heat Map</div>
+      <div class="nav-card-desc">District-wide mandal coverage and constituency view.</div>
     </a>
-  </div>
-</div>
+  </nav>
+</main>
+
+<script>lucide.createIcons();</script>
 </body>
 </html>
