@@ -45,21 +45,29 @@ function writeDB(db) {
 
 // ── Scoring helpers ─────────────────────────────────────────────────────────
 function recomputeBrief(db) {
-  const contacts = [...db.contacts];
   const now = Date.now();
   const upcoming = (db.schedule || []).filter(s => {
     const d = new Date(s.date).getTime();
+    // Today, Yesterday, Tomorrow
     return d >= now - 86400000 && d <= now + 86400000 * 2;
   });
-  const scheduledMandals = new Set(upcoming.map(s => s.mandal));
-  contacts.forEach(c => {
-    c._boosted_pps = Math.min((c.pps_score || 0) + (scheduledMandals.has(c.mandal) ? 15 : 0), 99);
+
+  if (upcoming.length === 0) {
+    db.todays_brief = [];
+    return db;
+  }
+
+  // Use nearby contacts from upcoming schedules
+  const briefMap = new Map();
+  upcoming.forEach(event => {
+    (event.nearby_contacts || []).forEach(c => {
+      if (!briefMap.has(c.id)) {
+        briefMap.set(c.id, { ...c, schedule_event: event });
+      }
+    });
   });
-  contacts.sort((a, b) => (b._boosted_pps || b.pps_score) - (a._boosted_pps || a.pps_score));
-  db.todays_brief = contacts.slice(0, 15).map(c => ({
-    ...c,
-    schedule_event: upcoming.find(s => s.mandal === c.mandal) || null,
-  }));
+
+  db.todays_brief = Array.from(briefMap.values()).sort((a, b) => b.pps_score - a.pps_score);
   return db;
 }
 
@@ -175,18 +183,24 @@ function generateBriefText(brief, news) {
   const lines = [
     `*🌅 Saathi Daily Brief — ${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}*`,
     `_Palanadu District · TDP_\n`,
-    `*📞 Top contacts for today:*`,
   ];
-  brief.slice(0, 10).forEach((c, i) => {
-    lines.push(`${i + 1}. *${c.name}* (${c.village}, ${c.constituency})`);
-    lines.push(`   ${c.role} · ${c.tier} · PPS ${c.pps_score}`);
-    if (c.open_grievance) lines.push(`   ⚠️ ${c.open_grievance.slice(0, 60)}`);
-    if (c.schedule_event) lines.push(`   📍 Near: ${c.schedule_event.event_name}`);
-    lines.push('');
-  });
+
+  if (brief.length > 0) {
+    lines.push(`*📞 Top contacts for today:*`);
+    brief.slice(0, 10).forEach((c, i) => {
+      lines.push(`${i + 1}. *${c.name}* (${c.phone})`);
+      lines.push(`   ${c.village}, ${c.role} · PPS ${c.pps_score}`);
+      if (c.open_grievance) lines.push(`   ⚠️ ${c.open_grievance.slice(0, 60)}`);
+      if (c.schedule_event) lines.push(`   📍 Near: ${c.schedule_event.event_name}`);
+      lines.push('');
+    });
+  } else {
+    lines.push(`_No upcoming schedule events to display nearby contacts._\n`);
+  }
+
   if (news?.length) {
     lines.push(`*📰 Latest news:*`);
-    news.slice(0, 3).forEach(n => lines.push(`• ${n.headline}`));
+    news.slice(0, 3).forEach((n, i) => lines.push(`${i + 1}. ${n.headline}`));
     lines.push('');
   }
   lines.push(`_Sent by Saathi · ${new Date().toLocaleTimeString('en-IN')}_`);
