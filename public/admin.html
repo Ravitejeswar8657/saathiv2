@@ -454,6 +454,9 @@ body {
           <button class="btn btn-blue" id="generate-btn" onclick="generateBrief()">
             <i data-lucide="refresh-cw"></i> Generate Brief
           </button>
+          <button class="btn btn-ghost" id="copy-btn" onclick="copyBrief()" disabled>
+            <i data-lucide="copy"></i> Copy Brief
+          </button>
           <button class="btn btn-primary" id="approve-btn" onclick="approveBrief()" disabled>
             <i data-lucide="check"></i> Approve Brief
           </button>
@@ -548,7 +551,11 @@ async function loadData() {
 
   // Brief Preview
   const preview = d2.last_brief_message || "Brief will be generated upon approval.";
+  currentBriefText = d2.last_brief_message || "";
   document.getElementById('brief-preview').innerHTML = preview.replace(/\*/g, '<b>').replace(/<b>([^*]*)<\/b>/g, '<b>$1</b>');
+  if (currentBriefText) {
+    document.getElementById('copy-btn').disabled = false;
+  }
 
   lucide.createIcons();
 }
@@ -564,6 +571,21 @@ async function actionIssue(contact_id, issue_id, status) {
 
 let briefGenerated = false;
 let briefApproved = false;
+let currentBriefText = "";
+
+function copyBrief() {
+  if (!currentBriefText) return;
+  navigator.clipboard.writeText(currentBriefText).then(() => {
+    const btn = document.getElementById('copy-btn');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i data-lucide="check"></i> Copied!';
+    lucide.createIcons();
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+      lucide.createIcons();
+    }, 2000);
+  });
+}
 
 async function generateBrief() {
   const btn = document.getElementById('generate-btn');
@@ -572,10 +594,14 @@ async function generateBrief() {
   const status = document.getElementById('send-status');
   status.textContent = '';
   try {
-    const r = await fetch('/api/dashboard');
+    const r = await fetch('/api/generate-brief');
     const d = await r.json();
-    const preview = d.last_brief_message || "Brief will be generated upon approval.";
+    const preview = d.message || "Brief will be generated upon approval.";
+    currentBriefText = d.message || "";
     document.getElementById('brief-preview').innerHTML = preview.replace(/\*/g, '<b>').replace(/<b>([^*]*)<\/b>/g, '<b>$1</b>');
+    if (currentBriefText) {
+      document.getElementById('copy-btn').disabled = false;
+    }
     briefGenerated = true;
     briefApproved = false;
     document.getElementById('approve-btn').disabled = false;

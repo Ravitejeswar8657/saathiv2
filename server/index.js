@@ -171,7 +171,7 @@ async function fetchGoogleNews() {
 })();
 
 // ── WhatsApp ────────────────────────────────────────────────────────────────
-async function sendWhatsAppBrief(brief, news) {
+function generateBriefText(brief, news) {
   const lines = [
     `*🌅 Saathi Daily Brief — ${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}*`,
     `_Palanadu District · TDP_\n`,
@@ -190,7 +190,11 @@ async function sendWhatsAppBrief(brief, news) {
     lines.push('');
   }
   lines.push(`_Sent by Saathi · ${new Date().toLocaleTimeString('en-IN')}_`);
-  const message = lines.join('\n');
+  return lines.join('\n');
+}
+
+async function sendWhatsAppBrief(brief, news) {
+  const message = generateBriefText(brief, news);
 
   const logEntry = {
     sent_at: new Date().toISOString(),
@@ -205,7 +209,7 @@ async function sendWhatsAppBrief(brief, news) {
     await wa.default(message, '919652345570');
     logEntry.status = 'sent';
   } catch (e) {
-    logEntry.status = e.message.includes('QR') || e.message.includes('not connected') 
+    logEntry.status = e.message.includes('QR') || e.message.includes('not connected')
       ? 'preview_only' : 'error';
     logEntry.note = e.message;
   }
@@ -218,6 +222,14 @@ async function sendWhatsAppBrief(brief, news) {
 }
 
 // ── ROUTES ──────────────────────────────────────────────────────────────────
+
+app.get('/api/generate-brief', (req, res) => {
+  const db = recomputeBrief(readDB());
+  const message = generateBriefText(db.todays_brief, db.news || []);
+  db.last_brief_message = message;
+  writeDB(db);
+  res.json({ message });
+});
 
 app.get('/api/dashboard', (req, res) => {
   const db = recomputeBrief(readDB());
