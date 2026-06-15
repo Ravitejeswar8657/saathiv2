@@ -3,255 +3,420 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Coverage Heat Map · Saathi Palanadu</title>
+<title>Heat Map · Saathi Palanadu</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
-.container{max-width:1200px;margin:0 auto;padding:24px 16px}
-.back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:#6b7280;text-decoration:none}
-.back-link:hover{color:#1a1208}
-.header{margin-bottom:24px}
-.header h1{font-size:22px;font-weight:700;color:#1a1208}
-.header p{font-size:14px;color:#6b7280;margin-top:4px}
+  :root {
+    --ink: #1a1208;
+    --bg: #fafaf9;
+    --border: #e5e5e5;
+    --muted: #6b7280;
+    --accent: #b45309;
+    --teal: #16a34a;
+    --yellow: #ca8a04;
+    --orange: #ea580c;
+    --red: #dc2626;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  
+  /* Header */
+  .top-nav {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .nav-left { display: flex; align-items: center; gap: 16px; }
+  .logo-text { font-size: 18px; font-weight: 800; text-transform: uppercase; }
+  .back-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); text-decoration: none; font-weight: 500; }
+  .back-btn:hover { color: var(--ink); }
 
-.stats-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}
-.stat-card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:14px 18px;flex:1;min-width:130px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.stat-value{font-size:24px;font-weight:700;line-height:1}
-.stat-label{font-size:12px;color:#6b7280;font-weight:500;margin-top:4px}
+  /* Layout */
+  .main-layout { display: flex; flex: 1; overflow: hidden; }
+  
+  /* Sidebar */
+  .sidebar {
+    width: 320px;
+    border-right: 1px solid var(--border);
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .sidebar-padding { padding: 24px; }
+  .sidebar-section { margin-bottom: 32px; }
+  .section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .stat-val { font-size: 20px; font-weight: 700; display: block; }
+  .stat-lbl { font-size: 11px; color: var(--muted); font-weight: 500; }
 
-.legend{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px;font-size:13px;color:#6b7280}
-.legend-item{display:flex;align-items:center;gap:6px}
-.legend-dot{width:12px;height:12px;border-radius:3px}
-.legend-dot.healthy{background:#16a34a}
-.legend-dot.moderate{background:#ca8a04}
-.legend-dot.warning{background:#ea580c}
-.legend-dot.critical{background:#dc2626}
+  .legend-list { display: flex; flex-direction: column; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+  .legend-dot.healthy { background: var(--teal); }
+  .legend-dot.moderate { background: var(--yellow); }
+  .legend-dot.warning { background: var(--orange); }
+  .legend-dot.critical { background: var(--red); }
+  .legend-dot.no-data { background: #e5e7eb; }
 
-.constituency{margin-bottom:28px}
-.constituency-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #e5e5e5}
+  /* Content Area */
+  .content-area { flex: 1; overflow-y: auto; background: #fff; position: relative; }
+  .content-padding { padding: 32px; max-width: 1000px; margin: 0 auto; width: 100%; }
 
-.mandal-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));gap:10px}
-.mandal-card{border-radius:8px;padding:14px;cursor:pointer;transition:box-shadow .15s;border:1px solid transparent;position:relative}
-.mandal-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.1)}
-.mandal-card.healthy{background:#f0fdf4;border-color:#bbf7d0}
-.mandal-card.moderate{background:#fefce8;border-color:#fde68a}
-.mandal-card.warning{background:#fff7ed;border-color:#fed7aa}
-.mandal-card.critical{background:#fef2f2;border-color:#fecaca}
-.mandal-card.no-data{background:#f5f5f4;border-color:#e5e5e5}
+  /* Map Visual */
+  .map-container { 
+    background: #f8fafc; 
+    border: 1px solid var(--border); 
+    border-radius: 12px; 
+    padding: 40px; 
+    margin-bottom: 40px; 
+    display: flex; 
+    justify-content: center; 
+    position: relative;
+    overflow: hidden;
+  }
+  .map-svg { width: 100%; max-width: 600px; height: auto; }
+  .map-ac { cursor: pointer; transition: transform 0.2s, filter 0.2s; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.05)); }
+  .map-ac:hover { transform: scale(1.02); filter: drop-shadow(0 4px 12px rgba(0,0,0,0.1)); }
+  .map-ac text { pointer-events: none; font-size: 6px; font-weight: 700; fill: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
 
-.mandal-name{font-weight:600;font-size:14px;margin-bottom:4px}
-.mandal-meta{font-size:12px;color:#6b7280;line-height:1.5}
-.mandal-dot{position:absolute;top:12px;right:12px;width:8px;height:8px;border-radius:50%}
-.mandal-dot.healthy{background:#16a34a}
-.mandal-dot.moderate{background:#ca8a04}
-.mandal-dot.warning{background:#ea580c}
-.mandal-dot.critical{background:#dc2626}
-.mandal-dot.no-data{background:#9ca3af}
+  /* Grid Visual */
+  .constituency-block { margin-bottom: 40px; }
+  .ac-header { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .mandal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .mandal-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden; }
+  .mandal-card:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  .mandal-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; display: block; }
+  .mandal-meta { font-size: 12px; color: var(--muted); }
+  .health-bar { position: absolute; left: 0; bottom: 0; width: 100%; height: 4px; }
+  
+  .health-healthy { background: var(--teal); }
+  .health-moderate { background: var(--yellow); }
+  .health-warning { background: var(--orange); }
+  .health-critical { background: var(--red); }
+  .health-no-data { background: #e5e7eb; }
 
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;justify-content:center;align-items:center;padding:20px}
-.overlay.open{display:flex}
-.detail-panel{background:#fff;border-radius:8px;padding:24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,0.15);position:relative}
-.detail-close{position:absolute;top:12px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:#9ca3af;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center}
-.detail-close:hover{background:#f5f5f4;color:#1a1208}
-.detail-title{font-size:20px;font-weight:700;margin-bottom:2px}
-.detail-constituency{font-size:13px;color:#6b7280;margin-bottom:14px}
-.detail-health{display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;margin-bottom:14px}
-.detail-health.healthy{background:#f0fdf4;color:#16a34a}
-.detail-health.moderate{background:#fefce8;color:#ca8a04}
-.detail-health.warning{background:#fff7ed;color:#ea580c}
-.detail-health.critical{background:#fef2f2;color:#dc2626}
-.detail-health.no-data{background:#f5f5f4;color:#6b7280}
-.detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.detail-stat{background:#fafaf9;border:1px solid #e5e5e5;border-radius:6px;padding:10px}
-.detail-stat-val{font-size:20px;font-weight:700}
-.detail-stat-lbl{font-size:11px;color:#6b7280;margin-top:2px}
-.detail-note{font-size:13px;color:#6b7280;line-height:1.6;padding-top:12px;border-top:1px solid #e5e5e5}
+  /* Overlay */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; justify-content: center; align-items: center; padding: 20px; }
+  .overlay.open { display: flex; }
+  .detail-panel { background: #fff; border-radius: 12px; padding: 32px; width: 100%; max-width: 480px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); position: relative; }
+  .detail-close { position: absolute; top: 16px; right: 16px; background: none; border: none; cursor: pointer; color: var(--muted); }
+  .detail-title { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .detail-sub { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
+  .detail-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 24px; text-transform: uppercase; }
+  
+  /* Mobile Controls */
+  .mobile-tabs { display: none; border-bottom: 1px solid var(--border); background: #fff; }
+  .mobile-tab { flex: 1; padding: 14px; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
+  .mobile-tab.active { color: var(--accent); border-color: var(--accent); }
 
-.loading{text-align:center;padding:60px 20px;color:#6b7280;font-size:14px}
-
-@media(max-width:480px){
-  .mandal-grid{grid-template-columns:repeat(auto-fill, minmax(140px, 1fr))}
-  .stats-row{gap:8px}
-  .stat-card{min-width:100px;padding:12px 14px}
-  .stat-value{font-size:20px}
-}
+  @media (max-width: 900px) {
+    body { flex-direction: column; overflow: auto; height: auto; }
+    .main-layout { flex-direction: column; height: auto; overflow: visible; }
+    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); height: auto; }
+    .content-area { height: auto; overflow: visible; }
+    .mobile-tabs { display: flex; }
+    .sidebar.hide-mobile { display: none; }
+    .content-area.hide-mobile { display: none; }
+  }
 </style>
 </head>
 <body>
-<div class="container">
-  <a href="/" class="back-link">&larr; Back to Portal</a>
-  <div class="header">
-    <h1>Palanadu Coverage Heat Map</h1>
-    <p>Mandal-level contact coverage health across the district.</p>
-  </div>
 
-  <div class="stats-row">
-    <div class="stat-card"><div class="stat-value" id="stat-total">--</div><div class="stat-label">Total contacts</div></div>
-    <div class="stat-card"><div class="stat-value" id="stat-mandals">--</div><div class="stat-label">Mandals covered</div></div>
-    <div class="stat-card"><div class="stat-value" id="stat-critical" style="color:#dc2626">--</div><div class="stat-label">Critical mandals</div></div>
-    <div class="stat-card"><div class="stat-value" id="stat-healthy" style="color:#16a34a">--</div><div class="stat-label">Healthy mandals</div></div>
+<header class="top-nav">
+  <div class="nav-left">
+    <a href="/" class="back-btn"><i data-lucide="arrow-left"></i></a>
+    <span class="logo-text">MP's Office Heat Map</span>
   </div>
+  <div class="nav-right">
+    <div id="last-updated" style="font-size:12px; color:var(--muted)">Updated just now</div>
+  </div>
+</header>
 
-  <div class="legend">
-    <div class="legend-item"><div class="legend-dot healthy"></div>Healthy</div>
-    <div class="legend-item"><div class="legend-dot moderate"></div>Moderate</div>
-    <div class="legend-item"><div class="legend-dot warning"></div>Warning</div>
-    <div class="legend-item"><div class="legend-dot critical"></div>Critical</div>
-  </div>
-
-  <div id="heatmap-body">
-    <div class="loading">Loading coverage data...</div>
-  </div>
+<div class="mobile-tabs">
+  <div class="mobile-tab active" onclick="switchTab('map')">Map View</div>
+  <div class="mobile-tab" onclick="switchTab('stats')">District Stats</div>
 </div>
 
+<main class="main-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-padding">
+      <div class="sidebar-section">
+        <div class="section-title"><i data-lucide="activity"></i> District Overview</div>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span class="stat-val" id="stat-total">--</span>
+            <span class="stat-lbl">Total Contacts</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-val" id="stat-mandals">--</span>
+            <span class="stat-lbl">Mandals Covered</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-val" id="stat-critical" style="color:var(--red)">--</span>
+            <span class="stat-lbl">Critical Mandals</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-val" id="stat-healthy" style="color:var(--teal)">--</span>
+            <span class="stat-lbl">Healthy Mandals</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-title"><i data-lucide="layers"></i> Health Legend</div>
+        <div class="legend-list">
+          <div class="legend-item"><div class="legend-dot healthy"></div> Healthy (>100 contacts)</div>
+          <div class="legend-item"><div class="legend-dot moderate"></div> Moderate (50-100)</div>
+          <div class="legend-item"><div class="legend-dot warning"></div> Warning (20-50)</div>
+          <div class="legend-item"><div class="legend-dot critical"></div> Critical (<20)</div>
+          <div class="legend-item"><div class="legend-dot no-data"></div> No Data</div>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <div class="section-title"><i data-lucide="info"></i> About Coverage</div>
+        <p style="font-size:13px; color:var(--muted); line-height:1.6">
+          Coverage is calculated based on the total number of contacts per mandal and the frequency of interaction logs. Critical areas require immediate engagement.
+        </p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="content-area" id="content-area">
+    <div class="content-padding">
+      
+      <!-- Geographic Map Visual -->
+      <div class="map-container">
+        <svg viewBox="0 0 100 80" class="map-svg" id="palanadu-map">
+          <!-- Schematic Geographical Layout -->
+          <!-- Macherla (NW) -->
+          <g class="map-ac" id="map-Macherla" onclick="scrollToAC('Macherla')">
+            <path d="M5 25 L35 15 L40 40 L10 50 Z" fill="#e5e7eb" stroke="#fff" stroke-width="0.5"/>
+            <text x="15" y="35">Macherla</text>
+          </g>
+          <!-- Gurazala (North) -->
+          <g class="map-ac" id="map-Gurazala" onclick="scrollToAC('Gurazala')">
+            <path d="M35 15 L65 10 L70 35 L40 40 Z" fill="#e5e7eb" stroke="#fff" stroke-width="0.5"/>
+            <text x="45" y="25">Gurazala</text>
+          </g>
+          <!-- Pedakurapadu (NE) -->
+          <g class="map-ac" id="map-Pedakurapadu" onclick="scrollToAC('Pedakurapadu')">
+            <path d="M65 10 L95 15 L90 40 L70 35 Z" fill="#e5e7eb" stroke="#fff" stroke-width="0.5"/>
+            <text x="70" y="25">Pedakurapadu</text>
+          </g>
+          <!-- Sattenapalle (Central) -->
+          <g class="map-ac" id="map-Sattenapalle" onclick="scrollToAC('Sattenapalle')">
+            <path d="M40 40 L70 35 L75 55 L45 60 Z" fill="#e5e7eb" stroke="#fff" stroke-width="0.5"/>
+            <text x="48" y="50">Sattenapalle</text>
+          </g>
+          <!-- Vinukonda (SW) -->
+          <g class="map-ac" id="map-Vinukonda" onclick="scrollToAC('Vinukonda')">
+            <path d="M10 50 L45 60 L40 75 L15 70 Z" fill="#e5e7eb" stroke="#fff" stroke-width="0.5"/>
+            <text x="18" y="65">Vinukonda</text>
+          </g>
+          <!-- Narasaraopet (South Central) -->
+          <g class="map-ac" id="map-Narasaraopet" onclick="scrollToAC('Narasaraopet')">
+            <path d="M45 60 L75 55 L70 75 L50 78 Z" fill="#e5e7eb" stroke="#fff" stroke-width="0.5"/>
+            <text x="48" y="70">Narasaraopet</text>
+          </g>
+          <!-- Chilakaluripet (SE) -->
+          <g class="map-ac" id="map-Chilakaluripet" onclick="scrollToAC('Chilakaluripet')">
+            <path d="M75 55 L95 50 L90 70 L70 75 Z" fill="#e5e7eb" stroke="#fff" stroke-width="0.5"/>
+            <text x="72" y="65">Chilakaluripet</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Detail Grid View -->
+      <div id="heatmap-body">
+        <div style="text-align:center; padding:40px; color:var(--muted)">Loading district data...</div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- Overlay -->
 <div class="overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
-  <div class="detail-panel" id="detail-panel"></div>
+  <div class="detail-panel" id="detail-panel">
+    <!-- Content injected via JS -->
+  </div>
 </div>
 
 <script>
 const CONSTITUENCIES = {
-  Narasaraopet: [
-    'Narasaraopet','Chilakaluripet','Edlapadu','Ipuru','Nadendla',
-    'Nuzendla','Rompicherla','Savalyapuram','Vinukonda','Bollapalle'
-  ],
-  Sattenapalli: [
-    'Amaravathi','Sattenapalli','Pedakurapadu','Bellamkonda','Krosuru',
-    'Muppalla','Nekarikallu','Rajupalem','Atchampet'
-  ],
-  Macherla: [
-    'Macherla','Piduguralla','Gurazala','Karempudi','Dachepalle',
-    'Durgi','Rentachintala','Veldurthi','Machavaram'
-  ]
+  "Gurazala": ["Gurazala", "Dachepalle", "Piduguralla", "Machavaram"],
+  "Macherla": ["Macherla", "Veldurthi", "Durgi", "Rentachintala", "Karempudi"],
+  "Vinukonda": ["Vinukonda", "Nuzendla", "Savalyapuram", "Ipuru", "Bollapalle"],
+  "Narasaraopet": ["Narasaraopet", "Rompicherla"],
+  "Chilakaluripet": ["Chilakaluripet", "Nadendla", "Edlapadu"],
+  "Sattenapalle": ["Sattenapalle", "Rajupalem", "Nekarikallu", "Muppalla"],
+  "Pedakurapadu": ["Pedakurapadu", "Bellamkonda", "Atchampet", "Krosuru", "Amaravathi"]
 };
 
 let coverageData = [];
-let statsData = {};
 
 async function init() {
+  lucide.createIcons();
   try {
-    const [dashRes, statsRes] = await Promise.all([
-      fetch('/api/dashboard'),
-      fetch('/api/stats')
-    ]);
-    const dash = await dashRes.json();
-    statsData = await statsRes.json();
-    coverageData = dash.coverage || [];
-
+    const r = await fetch('/api/dashboard');
+    const d = await r.json();
+    coverageData = d.coverage || [];
     renderStats();
     renderHeatmap();
+    updateMapColors();
   } catch (e) {
-    document.getElementById('heatmap-body').innerHTML =
-      '<div class="loading" style="color:#dc2626">Failed to load data. Please try again.</div>';
     console.error(e);
+    document.getElementById('heatmap-body').innerHTML = '<div style="text-align:center; padding:40px; color:var(--red)">Failed to load data</div>';
   }
 }
 
-function getCoverageForMandal(name) {
-  return coverageData.find(c =>
-    c.mandal && c.mandal.toLowerCase() === name.toLowerCase()
-  ) || null;
+function renderStats() {
+  const total = coverageData.reduce((s, c) => s + c.contacts, 0);
+  const covered = coverageData.filter(c => c.contacts > 0).length;
+  const critical = coverageData.filter(c => c.health === 'critical').length;
+  const healthy = coverageData.filter(c => c.health === 'healthy').length;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-mandals').textContent = covered;
+  document.getElementById('stat-critical').textContent = critical;
+  document.getElementById('stat-healthy').textContent = healthy;
 }
 
-function renderStats() {
-  const totalContacts = coverageData.reduce((s, c) => s + (c.contacts || 0), 0);
-  const coveredMandals = coverageData.filter(c => c.contacts > 0).length;
-  const criticalCount = coverageData.filter(c => c.health === 'critical').length;
-  const healthyCount = coverageData.filter(c => c.health === 'healthy').length;
+function getMandalData(name) {
+  return coverageData.find(c => c.mandal.toLowerCase() === name.toLowerCase()) || null;
+}
 
-  document.getElementById('stat-total').textContent = statsData.total || totalContacts;
-  document.getElementById('stat-mandals').textContent = coveredMandals;
-  document.getElementById('stat-critical').textContent = criticalCount;
-  document.getElementById('stat-healthy').textContent = healthyCount;
+function getACHealth(acName) {
+  const mandals = CONSTITUENCIES[acName];
+  if (!mandals) return '#e5e7eb';
+  let totalHealth = 0;
+  let dataCount = 0;
+  mandals.forEach(m => {
+    const data = getMandalData(m);
+    if (!data) return;
+    dataCount++;
+    if (data.health === 'healthy') totalHealth += 3;
+    else if (data.health === 'moderate') totalHealth += 2;
+    else if (data.health === 'warning') totalHealth += 1;
+  });
+  if (dataCount === 0) return '#e5e7eb';
+  const avg = totalHealth / mandals.length;
+  if (avg >= 2.2) return '#16a34a'; // Healthy
+  if (avg >= 1.5) return '#ca8a04'; // Moderate
+  if (avg >= 0.8) return '#ea580c'; // Warning
+  return '#dc2626'; // Critical
+}
+
+function updateMapColors() {
+  for (const ac in CONSTITUENCIES) {
+    const color = getACHealth(ac);
+    const el = document.querySelector(`#map-${ac} path`);
+    if (el) el.setAttribute('fill', color);
+  }
 }
 
 function renderHeatmap() {
   const body = document.getElementById('heatmap-body');
   body.innerHTML = '';
 
-  for (const [constName, mandals] of Object.entries(CONSTITUENCIES)) {
-    const section = document.createElement('div');
-    section.className = 'constituency';
-
-    const title = document.createElement('div');
-    title.className = 'constituency-title';
-    title.textContent = constName + ' Assembly Constituency';
-    section.appendChild(title);
-
-    const grid = document.createElement('div');
-    grid.className = 'mandal-grid';
-
-    for (const mandal of mandals) {
-      const data = getCoverageForMandal(mandal);
-      const health = data ? data.health : 'no-data';
-      const contacts = data ? data.contacts : 0;
-      const lastTouch = data ? data.last_touch_days : null;
-
-      const card = document.createElement('div');
-      card.className = 'mandal-card ' + health;
-      card.onclick = () => showDetail(mandal, constName, data);
-
-      card.innerHTML =
-        '<div class="mandal-dot ' + health + '"></div>' +
-        '<div class="mandal-name">' + mandal + '</div>' +
-        '<div class="mandal-meta">' +
-          contacts + ' contact' + (contacts !== 1 ? 's' : '') +
-          (lastTouch !== null ? '<br>' + lastTouch + 'd since last touch' : '<br>No data') +
-        '</div>';
-
-      grid.appendChild(card);
-    }
-
-    section.appendChild(grid);
-    body.appendChild(section);
+  for (const [ac, mandals] of Object.entries(CONSTITUENCIES)) {
+    const block = document.createElement('div');
+    block.className = 'constituency-block';
+    block.id = `section-${ac}`;
+    
+    block.innerHTML = `
+      <div class="ac-header">
+        <i data-lucide="map-pin" style="width:14px"></i> ${ac} Assembly Constituency
+      </div>
+      <div class="mandal-grid">
+        ${mandals.map(m => {
+          const data = getMandalData(m);
+          const health = data ? data.health : 'no-data';
+          const contacts = data ? data.contacts : 0;
+          return `
+            <div class="mandal-card" onclick="showDetail('${m}', '${ac}')">
+              <span class="mandal-name">${m}</span>
+              <span class="mandal-meta">${contacts} contacts</span>
+              <div class="health-bar health-${health}"></div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    body.appendChild(block);
   }
+  lucide.createIcons();
 }
 
-function showDetail(mandal, constituency, data) {
+function showDetail(mandal, ac) {
+  const data = getMandalData(mandal);
   const panel = document.getElementById('detail-panel');
   const health = data ? data.health : 'no-data';
-  const healthLabel = data ? data.health.charAt(0).toUpperCase() + data.health.slice(1) : 'No Data';
   const contacts = data ? data.contacts : 0;
-  const lastTouch = data ? data.last_touch_days : '--';
-  const minDays = data ? data.min_days : '--';
 
-  let advice = '';
-  if (!data) {
-    advice = 'No coverage data available for this mandal. Consider adding contacts here.';
-  } else if (health === 'critical') {
-    advice = 'This mandal needs immediate attention. Schedule outreach as soon as possible.';
-  } else if (health === 'warning') {
-    advice = 'Coverage is getting stale. Plan follow-up contacts this week.';
-  } else if (health === 'moderate') {
-    advice = 'Coverage is acceptable. Keep this mandal on the radar for the next outreach cycle.';
-  } else {
-    advice = 'Good coverage. Continue regular engagement to maintain relationships.';
-  }
-
-  panel.innerHTML =
-    '<button class="detail-close" onclick="closeDetail()">&times;</button>' +
-    '<div class="detail-title">' + mandal + '</div>' +
-    '<div class="detail-constituency">' + constituency + ' Assembly Constituency</div>' +
-    '<div class="detail-health ' + health + '">' + healthLabel + '</div>' +
-    '<div class="detail-stats">' +
-      '<div class="detail-stat"><div class="detail-stat-val">' + contacts + '</div><div class="detail-stat-lbl">Contacts</div></div>' +
-      '<div class="detail-stat"><div class="detail-stat-val">' + lastTouch + '</div><div class="detail-stat-lbl">Days since last touch</div></div>' +
-      '<div class="detail-stat"><div class="detail-stat-val">' + minDays + '</div><div class="detail-stat-lbl">Min days gap</div></div>' +
-      '<div class="detail-stat"><div class="detail-stat-val">' + (data ? Math.round((contacts / Math.max(1, coverageData.reduce((s,c) => s + c.contacts, 0))) * 100) + '%' : '--') + '</div><div class="detail-stat-lbl">Share of contacts</div></div>' +
-    '</div>' +
-    '<div class="detail-note">' + advice + '</div>';
-
+  panel.innerHTML = `
+    <button class="detail-close" onclick="closeDetail()"><i data-lucide="x"></i></button>
+    <div class="detail-title">${mandal}</div>
+    <div class="detail-sub">${ac} Constituency</div>
+    <div class="detail-badge health-${health}">${health}</div>
+    <div class="stat-grid" style="margin-bottom:24px">
+      <div class="stat-card">
+        <span class="stat-val">${contacts}</span>
+        <span class="stat-lbl">Contacts</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-val">${data ? data.last_touch_days : '--'}</span>
+        <span class="stat-lbl">Days since log</span>
+      </div>
+    </div>
+    <p style="font-size:14px; color:var(--muted); line-height:1.6">
+      ${data ? 'Engagement in this mandal is being tracked. Update interaction logs regularly to maintain health.' : 'No data available. Start adding contacts in this mandal to begin tracking coverage.'}
+    </p>
+  `;
   document.getElementById('detail-overlay').classList.add('open');
+  lucide.createIcons();
 }
 
-function closeDetail() {
-  document.getElementById('detail-overlay').classList.remove('open');
+function closeDetail() { document.getElementById('detail-overlay').classList.remove('open'); }
+
+function scrollToAC(id) {
+  const el = document.getElementById(`section-${id}`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeDetail();
-});
+function switchTab(tab) {
+  const sidebar = document.getElementById('sidebar');
+  const content = document.getElementById('content-area');
+  const tabs = document.querySelectorAll('.mobile-tab');
+  
+  if (tab === 'map') {
+    sidebar.classList.add('hide-mobile');
+    content.classList.remove('hide-mobile');
+    tabs[0].classList.add('active');
+    tabs[1].classList.remove('active');
+  } else {
+    sidebar.classList.remove('hide-mobile');
+    content.classList.add('hide-mobile');
+    tabs[0].classList.remove('active');
+    tabs[1].classList.add('active');
+  }
+}
+
+// Mobile init
+if (window.innerWidth <= 900) switchTab('map');
 
 init();
 </script>
