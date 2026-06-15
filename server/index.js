@@ -278,7 +278,7 @@ app.get('/api/contacts', (req, res) => {
   if (constituency) contacts = contacts.filter(c =>
     c.constituency.toLowerCase().includes(constituency.toLowerCase()));
   if (role) contacts = contacts.filter(c => c.role === role);
-  const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+  const limit = Math.min(parseInt(req.query.limit) || 200, 10000);
   res.json({ contacts: contacts.slice(0, limit), total: contacts.length });
 });
 

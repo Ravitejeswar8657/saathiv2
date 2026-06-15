@@ -380,7 +380,7 @@ function onConstituencyChange() {
 
 async function loadContacts() {
   try {
-    const r = await fetch('/api/contacts?limit=1000');
+    const r = await fetch('/api/contacts?limit=5000');
     const d = await r.json();
     allContacts = d.contacts || [];
     applyFilters();
