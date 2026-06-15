@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Broadcast Lists · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #1a1208;
+  --bg: #fafaf9;
+  --card-bg: #ffffff;
+  --border: #e5e5e5;
+  --muted: #6b7280;
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --teal: #0f766e;
+  --teal-light: #ccfbf1;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --red-border: #fecaca;
+  --blue: #1d4ed8;
+  --shadow: 0 1px 2px rgba(0,0,0,0.05);
+  --radius: 8px;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+.back-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; color: var(--muted); text-decoration: none;
+  font-weight: 500; margin-bottom: 16px; transition: color 0.15s;
+}
+.back-link:hover { color: var(--ink); }
+.back-link [data-lucide] { width: 14px; height: 14px; }
+
+.header { margin-bottom: 28px; }
+.page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+.grid { display: grid; grid-template-columns: 1fr; gap: 28px; }
+@media (min-width: 900px) { .grid { grid-template-columns: 1fr 340px; } }
+
+.section-block { margin-bottom: 28px; }
+.section-block:last-child { margin-bottom: 0; }
+
+.section-header {
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding-bottom: 8px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+}
+.section-header [data-lucide] { width: 13px; height: 13px; stroke-width: 2; }
+
+.card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.sidebar-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 18px; margin-bottom: 18px;
+}
+.sidebar-card .section-header { margin-bottom: 12px; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 7px 14px; border-radius: 6px; font-weight: 500;
+  font-size: 13px; cursor: pointer; border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s; line-height: 1.4;
+  font-family: inherit;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn [data-lucide] { width: 13px; height: 13px; stroke-width: 2; }
+.btn-primary { background: var(--teal); color: #fff; border-color: var(--teal); }
+.btn-primary:hover:not(:disabled) { background: #0d6357; }
+.btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+.btn-ghost:hover:not(:disabled) { background: #f5f5f4; color: var(--ink); }
+.btn-destructive { background: transparent; color: var(--red); border-color: var(--red-border); }
+.btn-destructive:hover:not(:disabled) { background: var(--red-light); }
+.btn-blue { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-blue:hover:not(:disabled) { background: #1e40af; }
+
+/* ── Quick create chips ── */
+.quick-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.quick-btns .btn { font-size: 12px; padding: 5px 12px; }
+
+/* ── Form ── */
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 9px 12px; border: 1px solid #d4d4d4; border-radius: 6px;
+  font-size: 13px; font-family: inherit; background: #fff; color: var(--ink);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--teal); outline: none; box-shadow: 0 0 0 2px rgba(15,118,110,0.12);
+}
+.form-group textarea { resize: vertical; min-height: 100px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+/* ── List cards ── */
+.list-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px;
+  box-shadow: var(--shadow); transition: border-color 0.15s;
+}
+.list-card:hover { border-color: #c4b5a0; }
+.list-card.selected { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(15,118,110,0.1); }
+.list-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.list-name { font-weight: 600; font-size: 14px; }
+.list-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.list-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.list-filters { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+.filter-chip {
+  font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 100px;
+  background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+}
+.list-history { margin-top: 8px; font-size: 11px; color: var(--muted); padding-top: 8px; border-top: 1px solid var(--border); }
+.send-badge {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+  font-weight: 600; padding: 2px 8px; border-radius: 100px;
+}
+.send-badge-ok { background: var(--teal-light); color: var(--teal); }
+.send-badge-fail { background: var(--red-light); color: var(--red); }
+
+/* ── Compose area ── */
+.compose-box { }
+.selected-list-banner {
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;
+  padding: 10px 14px; margin-bottom: 14px;
+}
+.selected-list-banner .list-name { color: var(--teal); }
+.char-counter { font-size: 11px; color: var(--muted); text-align: right; margin-top: 4px; }
+
+/* ── Progress ── */
+.progress-wrap { margin-top: 14px; }
+.progress-label {
+  display: flex; justify-content: space-between; font-size: 12px;
+  color: var(--muted); margin-bottom: 6px;
+}
+.progress-bar-track {
+  background: #e5e7eb; border-radius: 100px; height: 6px; overflow: hidden;
+}
+.progress-bar-fill {
+  background: var(--teal); height: 100%; border-radius: 100px;
+  transition: width 0.4s ease; width: 0%;
+}
+.progress-stats { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; }
+.stat-sent { color: var(--teal); font-weight: 500; }
+.stat-failed { color: var(--red); font-weight: 500; }
+.progress-done-banner {
+  margin-top: 12px; padding: 10px 14px; border-radius: 6px;
+  background: var(--teal-light); color: var(--teal); font-size: 13px; font-weight: 500;
+}
+
+/* ── WA status ── */
+.wa-status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
+.wa-status-badge [data-lucide] { width: 14px; height: 14px; }
+.wa-status-connected { color: var(--teal); }
+.wa-status-pending { color: var(--accent); }
+.wa-status-loading { color: var(--muted); }
+#wa-qr-container {
+  text-align: center; margin-top: 14px; padding: 14px;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+}
+.qr-label { font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 10px; }
+.qr-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+/* ── Empty states ── */
+.empty-state { color: var(--muted); font-size: 13px; padding: 20px 16px; text-align: center; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 999;
+  background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.2s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+@media (max-width: 600px) {
+  .container { padding: 16px; }
+  .list-card-header { flex-direction: column; }
+  .list-actions { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <a href="/" class="back-link"><i data-lucide="arrow-left"></i> Back to Portal</a>
+  <div class="header">
+    <h1 class="page-title">WhatsApp Broadcast Lists</h1>
+    <p class="page-sub">Send messages to groups of contacts. Each person receives it individually — no group chat visible.</p>
+  </div>
+
+  <div class="grid">
+    <!-- ── Left column ── -->
+    <div class="left-col">
+
+      <!-- Quick create -->
+      <div class="section-block">
+        <div class="section-header"><i data-lucide="zap"></i> Quick Create by Tier / Party</div>
+        <div class="quick-btns">
+          <button class="btn btn-ghost" onclick="autoCreate('T1', null, null, 'T1 Priority Contacts')">
+            <i data-lucide="star"></i> T1 Priority
+          </button>
+          <button class="btn btn-ghost" onclick="autoCreate('T2', null, null, 'T2 Contacts')">
+            <i data-lucide="users"></i> T2 Contacts
+          </button>
+          <button class="btn btn-ghost" onclick="autoCreate('T3', null, null, 'T3 Contacts')">
+            <i data-lucide="user"></i> T3 Contacts
+          </button>
+          <button class="btn btn-ghost" onclick="autoCreate(null, null, 'TDP', 'TDP Members')">
+            <i data-lucide="flag"></i> TDP Members
+          </button>
+          <button class="btn btn-ghost" onclick="autoCreate(null, null, null, 'All Contacts')">
+            <i data-lucide="database"></i> All Contacts
+          </button>
+        </div>
+      </div>
+
+      <!-- Create custom list -->
+      <div class="section-block">
+        <div class="section-header"><i data-lucide="plus-circle"></i> Create Custom List</div>
+        <div class="card" style="padding:16px">
+          <form onsubmit="createList(event)">
+            <div class="form-group">
+              <label>List Name *</label>
+              <input id="list-name" type="text" placeholder="e.g. Sattenapalli Mandal Leaders" required>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Tier</label>
+                <select id="list-tier">
+                  <option value="">All Tiers</option>
+                  <option value="T1">T1</option>
+                  <option value="T2">T2</option>
+                  <option value="T3">T3</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Party</label>
+                <select id="list-party">
+                  <option value="">All Parties</option>
+                  <option value="TDP">TDP</option>
+                  <option value="Janasena">Janasena</option>
+                  <option value="BJP">BJP</option>
+                  <option value="Neutral">Neutral</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Mandal</label>
+                <input id="list-mandal" type="text" placeholder="e.g. Sattenapalli" list="mandal-options">
+                <datalist id="mandal-options"></datalist>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-accent" style="width:100%;margin-top:4px">
+              <i data-lucide="plus"></i> Create List
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Lists -->
+      <div class="section-block">
+        <div class="section-header" style="justify-content:space-between">
+          <span style="display:flex;align-items:center;gap:6px"><i data-lucide="list"></i> Your Lists</span>
+          <span id="list-count" style="font-size:11px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0"></span>
+        </div>
+        <div id="lists-container">
+          <div class="empty-state">Loading lists...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Right column (sidebar) ── -->
+    <div class="right-col">
+
+      <!-- WA Status -->
+      <div class="sidebar-card">
+        <div class="section-header"><i data-lucide="smartphone"></i> WhatsApp Connection</div>
+        <div id="wa-status-info">
+          <span class="wa-status-badge wa-status-loading"><i data-lucide="loader"></i> Checking...</span>
+        </div>
+        <div id="wa-qr-container" style="display:none">
+          <p class="qr-label">Scan QR code with WhatsApp<br>Settings → Linked Devices → Link a Device</p>
+          <canvas id="wa-qr-canvas" style="max-width:100%;height:auto"></canvas>
+          <p class="qr-hint">Once scanned, session is saved. No need to scan again.</p>
+        </div>
+        <div id="wa-session-note" style="margin-top:10px;font-size:12px;color:var(--muted);display:none">
+          Session saved to <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">data/wa_auth/</code> — persists across server restarts.
+        </div>
+      </div>
+
+      <!-- Compose & Send -->
+      <div class="sidebar-card" id="compose-card">
+        <div class="section-header"><i data-lucide="send"></i> Compose &amp; Send</div>
+
+        <div id="compose-placeholder" class="empty-state" style="padding:12px 0">
+          Click <strong>Send</strong> on a list to compose a message.
+        </div>
+
+        <div id="compose-area" style="display:none">
+          <div class="selected-list-banner" id="compose-banner"></div>
+          <div class="form-group">
+            <label>Message</label>
+            <textarea id="msg-text" rows="6" placeholder="Type your WhatsApp message here..." oninput="updateCharCount()"></textarea>
+            <div class="char-counter" id="char-counter">0 characters</div>
+          </div>
+          <div class="form-group" style="margin-bottom:8px">
+            <label>Delay between sends (ms)</label>
+            <input id="delay-ms" type="number" value="2500" min="1000" max="10000" step="500">
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">Min 1000 ms recommended to avoid WhatsApp rate limits.</div>
+          </div>
+          <button class="btn btn-primary" id="send-btn" onclick="startSend()" style="width:100%;padding:10px;font-size:14px">
+            <i data-lucide="send"></i> Send to List
+          </button>
+          <button class="btn btn-ghost" onclick="clearCompose()" style="width:100%;margin-top:8px;font-size:12px">
+            Cancel
+          </button>
+
+          <!-- Progress -->
+          <div id="progress-wrap" class="progress-wrap" style="display:none">
+            <div class="progress-label">
+              <span id="progress-text">Sending...</span>
+              <span id="progress-pct">0%</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="progress-fill"></div>
+            </div>
+            <div class="progress-stats">
+              <span class="stat-sent" id="stat-sent">✓ 0 sent</span>
+              <span class="stat-failed" id="stat-failed" style="display:none">✗ 0 failed</span>
+            </div>
+            <button class="btn btn-destructive" id="cancel-btn" onclick="cancelJob()" style="margin-top:8px;font-size:12px">
+              <i data-lucide="x"></i> Cancel Send
+            </button>
+          </div>
+
+          <div id="done-banner" style="display:none" class="progress-done-banner"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let selectedListId = null;
+let activeJobId = null;
+let pollTimer = null;
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(msg, duration = 2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+// ── WA Status ─────────────────────────────────────────────────────────────
+async function checkWAStatus() {
+  try {
+    const r = await fetch('/api/wa-status');
+    const data = await r.json();
+    const info = document.getElementById('wa-status-info');
+    const qrContainer = document.getElementById('wa-qr-container');
+    const sessionNote = document.getElementById('wa-session-note');
+
+    if (data.connected) {
+      info.innerHTML = '<span class="wa-status-badge wa-status-connected"><i data-lucide="check-circle"></i> Connected & session saved</span>';
+      qrContainer.style.display = 'none';
+      sessionNote.style.display = 'block';
+    } else if (data.qr) {
+      info.innerHTML = '<span class="wa-status-badge wa-status-pending"><i data-lucide="alert-circle"></i> Scan QR to connect</span>';
+      qrContainer.style.display = 'block';
+      sessionNote.style.display = 'none';
+      QRCode.toCanvas(document.getElementById('wa-qr-canvas'), data.qr, { width: 200, margin: 2 }, () => {});
+    } else {
+      info.innerHTML = '<span class="wa-status-badge wa-status-loading"><i data-lucide="loader"></i> Initializing...</span>';
+      qrContainer.style.display = 'none';
+      sessionNote.style.display = 'none';
+    }
+    lucide.createIcons();
+  } catch {}
+}
+
+// ── Load mandal options ────────────────────────────────────────────────────
+async function loadMandals() {
+  try {
+    const r = await fetch('/api/contacts?q=&tier=');
+    const d = await r.json();
+    const mandals = [...new Set((d.contacts || []).map(c => c.mandal).filter(Boolean))].sort();
+    const dl = document.getElementById('mandal-options');
+    dl.innerHTML = mandals.map(m => `<option value="${m}">`).join('');
+  } catch {}
+}
+
+// ── Load lists ─────────────────────────────────────────────────────────────
+async function loadLists() {
+  try {
+    const r = await fetch('/api/broadcast-lists');
+    const { lists } = await r.json();
+    const container = document.getElementById('lists-container');
+    const countEl = document.getElementById('list-count');
+    countEl.textContent = lists.length ? `${lists.length} list${lists.length !== 1 ? 's' : ''}` : '';
+
+    if (lists.length === 0) {
+      container.innerHTML = '<div class="empty-state">No lists yet. Create one above or use Quick Create.</div>';
+      return;
+    }
+
+    container.innerHTML = lists.map(list => {
+      const filters = list.filters || {};
+      const chips = [
+        filters.tier ? `Tier: ${filters.tier}` : null,
+        filters.party ? `Party: ${filters.party}` : null,
+        filters.mandal ? `Mandal: ${filters.mandal}` : null,
+        !filters.tier && !filters.party && !filters.mandal ? 'All contacts' : null,
+      ].filter(Boolean);
+
+      const lastSent = list.last_sent_at
+        ? `Last sent ${new Date(list.last_sent_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}`
+        : 'Never sent';
+
+      const history = (list.send_history || []).slice(0, 1).map(h =>
+        `<span class="send-badge send-badge-ok">✓ ${h.sent} sent</span>${h.failed ? ` <span class="send-badge send-badge-fail">✗ ${h.failed} failed</span>` : ''} on ${new Date(h.sent_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })}`
+      ).join('');
+
+      return `
+      <div class="list-card${selectedListId === list.id ? ' selected' : ''}" id="card-${list.id}">
+        <div class="list-card-header">
+          <div>
+            <div class="list-name">${escHtml(list.name)}</div>
+            <div class="list-meta">${list.contact_count} contacts · ${lastSent}</div>
+          </div>
+          <div class="list-actions">
+            <button class="btn btn-primary" onclick="openCompose('${list.id}', '${escHtml(list.name)}', ${list.contact_count})">
+              <i data-lucide="send"></i> Send
+            </button>
+            <button class="btn btn-ghost" title="Refresh contacts from filters" onclick="refreshList('${list.id}', this)">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+            <button class="btn btn-destructive" onclick="deleteList('${list.id}', '${escHtml(list.name)}')">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        </div>
+        ${chips.length ? `<div class="list-filters">${chips.map(c => `<span class="filter-chip">${c}</span>`).join('')}</div>` : ''}
+        ${history ? `<div class="list-history">${history}</div>` : ''}
+      </div>`;
+    }).join('');
+    lucide.createIcons();
+  } catch (e) {
+    document.getElementById('lists-container').innerHTML = '<div class="empty-state">Failed to load lists.</div>';
+  }
+}
+
+// ── Auto-create ────────────────────────────────────────────────────────────
+async function autoCreate(tier, mandal, party, name) {
+  const r = await fetch('/api/broadcast-lists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, tier, mandal, party }),
+  });
+  const d = await r.json();
+  if (d.ok) {
+    toast(`Created "${name}" with ${d.list.contact_count} contacts`);
+    loadLists();
+  } else {
+    toast('Error: ' + (d.error || 'Unknown'));
+  }
+}
+
+// ── Create list ────────────────────────────────────────────────────────────
+async function createList(e) {
+  e.preventDefault();
+  const name = document.getElementById('list-name').value.trim();
+  const tier = document.getElementById('list-tier').value;
+  const party = document.getElementById('list-party').value;
+  const mandal = document.getElementById('list-mandal').value.trim();
+  if (!name) return;
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  const r = await fetch('/api/broadcast-lists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, tier: tier || undefined, party: party || undefined, mandal: mandal || undefined }),
+  });
+  const d = await r.json();
+  btn.disabled = false;
+  if (d.ok) {
+    toast(`List created with ${d.list.contact_count} contacts`);
+    e.target.reset();
+    loadLists();
+  } else {
+    toast('Error: ' + (d.error || 'Unknown'));
+  }
+}
+
+// ── Refresh list ───────────────────────────────────────────────────────────
+async function refreshList(id, btn) {
+  btn.disabled = true;
+  const r = await fetch(`/api/broadcast-lists/${id}/refresh`, { method: 'PUT' });
+  const d = await r.json();
+  btn.disabled = false;
+  if (d.ok) {
+    toast(`Refreshed — ${d.contact_count} contacts`);
+    loadLists();
+  } else {
+    toast('Error refreshing list');
+  }
+}
+
+// ── Delete list ────────────────────────────────────────────────────────────
+async function deleteList(id, name) {
+  if (!confirm(`Delete list "${name}"?`)) return;
+  await fetch(`/api/broadcast-lists/${id}`, { method: 'DELETE' });
+  if (selectedListId === id) clearCompose();
+  toast(`"${name}" deleted`);
+  loadLists();
+}
+
+// ── Compose ────────────────────────────────────────────────────────────────
+function openCompose(id, name, count) {
+  selectedListId = id;
+  document.querySelectorAll('.list-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`card-${id}`);
+  if (card) { card.classList.add('selected'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+
+  document.getElementById('compose-placeholder').style.display = 'none';
+  document.getElementById('compose-area').style.display = 'block';
+  document.getElementById('done-banner').style.display = 'none';
+  document.getElementById('progress-wrap').style.display = 'none';
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('send-btn').innerHTML = '<i data-lucide="send"></i> Send to List';
+
+  document.getElementById('compose-banner').innerHTML = `
+    <div class="list-name">${escHtml(name)}</div>
+    <div style="font-size:12px;color:var(--teal);margin-top:2px">${count} contacts will receive this message individually</div>
+  `;
+  lucide.createIcons();
+  document.getElementById('msg-text').focus();
+  document.getElementById('compose-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function clearCompose() {
+  selectedListId = null;
+  activeJobId = null;
+  clearInterval(pollTimer);
+  document.querySelectorAll('.list-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('compose-placeholder').style.display = 'block';
+  document.getElementById('compose-area').style.display = 'none';
+}
+
+function updateCharCount() {
+  const len = document.getElementById('msg-text').value.length;
+  document.getElementById('char-counter').textContent = `${len} character${len !== 1 ? 's' : ''}`;
+}
+
+// ── Send ───────────────────────────────────────────────────────────────────
+async function startSend() {
+  if (!selectedListId) return;
+  const message = document.getElementById('msg-text').value.trim();
+  if (!message) { toast('Please write a message first'); return; }
+  const delay_ms = parseInt(document.getElementById('delay-ms').value) || 2500;
+
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('send-btn').innerHTML = '<i data-lucide="loader"></i> Starting...';
+  document.getElementById('done-banner').style.display = 'none';
+  lucide.createIcons();
+
+  try {
+    const r = await fetch(`/api/broadcast-lists/${selectedListId}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, delay_ms }),
+    });
+    const d = await r.json();
+    if (!d.ok) { toast('Error: ' + (d.error || 'Failed to start')); resetSendBtn(); return; }
+
+    activeJobId = d.job_id;
+    document.getElementById('progress-wrap').style.display = 'block';
+    document.getElementById('cancel-btn').style.display = 'inline-flex';
+    document.getElementById('send-btn').innerHTML = '<i data-lucide="loader"></i> Sending...';
+    lucide.createIcons();
+    updateProgress({ total: d.total, done: 0, sent: 0, failed: 0, status: 'running' });
+    pollTimer = setInterval(pollJob, 1200);
+  } catch (e) {
+    toast('Network error: ' + e.message);
+    resetSendBtn();
+  }
+}
+
+async function pollJob() {
+  if (!activeJobId) return;
+  try {
+    const r = await fetch(`/api/broadcast-jobs/${activeJobId}`);
+    if (!r.ok) return;
+    const job = await r.json();
+    updateProgress(job);
+    if (job.status !== 'running') {
+      clearInterval(pollTimer);
+      activeJobId = null;
+      loadLists();
+      document.getElementById('send-btn').innerHTML = '<i data-lucide="send"></i> Send to List';
+      document.getElementById('send-btn').disabled = false;
+      document.getElementById('cancel-btn').style.display = 'none';
+      lucide.createIcons();
+      if (job.status === 'done') {
+        document.getElementById('done-banner').style.display = 'block';
+        document.getElementById('done-banner').textContent = `Done! ${job.sent} sent, ${job.failed} failed out of ${job.total} contacts.`;
+      } else if (job.status === 'cancelled') {
+        toast(`Cancelled after ${job.done} of ${job.total}`);
+      } else if (job.status === 'error') {
+        toast('Error: ' + (job.error || 'WhatsApp not connected?'));
+        resetSendBtn();
+      }
+    }
+  } catch {}
+}
+
+function updateProgress(job) {
+  const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  document.getElementById('progress-text').textContent = `Sending ${job.done} of ${job.total}...`;
+  document.getElementById('stat-sent').textContent = `✓ ${job.sent} sent`;
+  const failEl = document.getElementById('stat-failed');
+  if (job.failed > 0) { failEl.style.display = 'inline'; failEl.textContent = `✗ ${job.failed} failed`; }
+  else { failEl.style.display = 'none'; }
+}
+
+async function cancelJob() {
+  if (!activeJobId) return;
+  await fetch(`/api/broadcast-jobs/${activeJobId}`, { method: 'DELETE' });
+  toast('Cancelling...');
+}
+
+function resetSendBtn() {
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('send-btn').innerHTML = '<i data-lucide="send"></i> Send to List';
+  lucide.createIcons();
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+lucide.createIcons();
+loadLists();
+loadMandals();
+checkWAStatus();
+setInterval(checkWAStatus, 5000);
+</script>
+</body>
+</html>

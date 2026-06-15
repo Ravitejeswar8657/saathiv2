@@ -263,10 +263,10 @@ app.get('/api/dashboard', (req, res) => {
 app.get('/api/contacts', (req, res) => {
   const db = readDB();
   let contacts = db.contacts;
-  const { q, tier, party, mandal } = req.query;
+  const { q, tier, party, mandal, constituency, role } = req.query;
   if (q) {
     const fuse = new Fuse(contacts, {
-      keys: ['name', 'village', 'mandal', 'role', 'caste', 'open_grievance'],
+      keys: ['name', 'village', 'mandal', 'constituency', 'role', 'caste', 'open_grievance'],
       threshold: 0.35,
     });
     contacts = fuse.search(q).map(r => r.item);
@@ -275,7 +275,30 @@ app.get('/api/contacts', (req, res) => {
   if (party) contacts = contacts.filter(c => c.party === party);
   if (mandal) contacts = contacts.filter(c =>
     c.mandal.toLowerCase().includes(mandal.toLowerCase()));
-  res.json({ contacts: contacts.slice(0, 200), total: contacts.length });
+  if (constituency) contacts = contacts.filter(c =>
+    c.constituency.toLowerCase().includes(constituency.toLowerCase()));
+  if (role) contacts = contacts.filter(c => c.role === role);
+  const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+  res.json({ contacts: contacts.slice(0, limit), total: contacts.length });
+});
+
+app.get('/api/filter-options', (req, res) => {
+  const contacts = readDB().contacts;
+  const mandals = [...new Set(contacts.map(c => c.mandal).filter(Boolean))].sort();
+  const constituencies = [...new Set(contacts.map(c => c.constituency).filter(Boolean))].sort();
+  const parties = [...new Set(contacts.map(c => c.party).filter(Boolean))].sort();
+  const roles = [...new Set(contacts.map(c => c.role).filter(Boolean))].sort();
+  // map: constituency → sorted list of mandals that have contacts there
+  const mandalsByConstituency = {};
+  contacts.forEach(c => {
+    if (!c.constituency || !c.mandal) return;
+    if (!mandalsByConstituency[c.constituency]) mandalsByConstituency[c.constituency] = new Set();
+    mandalsByConstituency[c.constituency].add(c.mandal);
+  });
+  Object.keys(mandalsByConstituency).forEach(k => {
+    mandalsByConstituency[k] = [...mandalsByConstituency[k]].sort();
+  });
+  res.json({ mandals, constituencies, parties, roles, mandalsByConstituency });
 });
 
 app.get('/api/contact/:id', (req, res) => {
@@ -570,6 +593,134 @@ app.post('/api/send-approval-request', async (req, res) => {
   db.whatsapp_log = [logEntry, ...(db.whatsapp_log || [])].slice(0, 50);
   writeDB(db);
   res.json({ ok: true, log: logEntry, message_preview: message });
+});
+
+// ── Broadcast lists ─────────────────────────────────────────────────────────
+const broadcastJobs = new Map(); // jobId → { total, done, sent, failed, status, ... }
+
+function normalizePhone(phone) {
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length === 10) return `91${digits}`;
+  if (digits.length === 11 && digits[0] === '0') return `91${digits.slice(1)}`;
+  return digits; // already has country code or unusual format
+}
+
+app.get('/api/broadcast-lists', (req, res) => {
+  const db = readDB();
+  res.json({ lists: db.broadcast_lists || [] });
+});
+
+app.post('/api/broadcast-lists', (req, res) => {
+  const { name, tier, mandal, party } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  const db = readDB();
+  let filtered = db.contacts;
+  if (tier) filtered = filtered.filter(c => c.tier === tier);
+  if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase().includes(mandal.toLowerCase()));
+  if (party) filtered = filtered.filter(c => c.party === party);
+  const phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
+  const list = {
+    id: `BL${Date.now()}`,
+    name: name.trim(),
+    filters: { tier: tier || null, mandal: mandal || null, party: party || null },
+    phones,
+    contact_count: phones.length,
+    created_at: new Date().toISOString(),
+    last_sent_at: null,
+    send_history: [],
+  };
+  if (!db.broadcast_lists) db.broadcast_lists = [];
+  db.broadcast_lists.push(list);
+  writeDB(db);
+  res.json({ ok: true, list });
+});
+
+app.put('/api/broadcast-lists/:id/refresh', (req, res) => {
+  const db = readDB();
+  const idx = (db.broadcast_lists || []).findIndex(l => l.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'List not found' });
+  const list = db.broadcast_lists[idx];
+  const { tier, mandal, party } = list.filters;
+  let filtered = db.contacts;
+  if (tier) filtered = filtered.filter(c => c.tier === tier);
+  if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase().includes(mandal.toLowerCase()));
+  if (party) filtered = filtered.filter(c => c.party === party);
+  list.phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
+  list.contact_count = list.phones.length;
+  list.refreshed_at = new Date().toISOString();
+  writeDB(db);
+  res.json({ ok: true, contact_count: list.contact_count });
+});
+
+app.delete('/api/broadcast-lists/:id', (req, res) => {
+  const db = readDB();
+  db.broadcast_lists = (db.broadcast_lists || []).filter(l => l.id !== req.params.id);
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.post('/api/broadcast-lists/:id/send', async (req, res) => {
+  const { message, delay_ms } = req.body;
+  if (!message?.trim()) return res.status(400).json({ error: 'message required' });
+  const db = readDB();
+  const list = (db.broadcast_lists || []).find(l => l.id === req.params.id);
+  if (!list) return res.status(404).json({ error: 'List not found' });
+  if (list.phones.length === 0) return res.status(400).json({ error: 'List has no phone numbers' });
+  const delayMs = Math.max(parseInt(delay_ms) || 2500, 1000); // min 1s to avoid WA ban
+  const jobId = `JOB${Date.now()}`;
+  broadcastJobs.set(jobId, {
+    listId: list.id, listName: list.name,
+    total: list.phones.length, done: 0, sent: 0, failed: 0,
+    status: 'running', startedAt: new Date().toISOString(), finishedAt: null,
+  });
+  res.json({ ok: true, job_id: jobId, total: list.phones.length });
+
+  (async () => {
+    const job = broadcastJobs.get(jobId);
+    try {
+      const wa = await import('./whatsapp.js');
+      for (const phone of list.phones) {
+        if (job.status === 'cancelled') break;
+        const normalized = normalizePhone(phone);
+        try {
+          await wa.default(message.trim(), normalized);
+          job.sent++;
+        } catch {
+          job.failed++;
+        }
+        job.done++;
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+      job.status = job.status === 'cancelled' ? 'cancelled' : 'done';
+      job.finishedAt = new Date().toISOString();
+      const db2 = readDB();
+      const li = (db2.broadcast_lists || []).find(l => l.id === list.id);
+      if (li) {
+        li.last_sent_at = job.finishedAt;
+        li.send_history = [
+          { sent_at: job.finishedAt, sent: job.sent, failed: job.failed, total: job.total, message: message.trim().slice(0, 120) },
+          ...(li.send_history || []),
+        ].slice(0, 10);
+        writeDB(db2);
+      }
+    } catch (e) {
+      const job = broadcastJobs.get(jobId);
+      if (job) { job.status = 'error'; job.error = e.message; job.finishedAt = new Date().toISOString(); }
+    }
+  })();
+});
+
+app.get('/api/broadcast-jobs/:jobId', (req, res) => {
+  const job = broadcastJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  res.json(job);
+});
+
+app.delete('/api/broadcast-jobs/:jobId', (req, res) => {
+  const job = broadcastJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  if (job.status === 'running') job.status = 'cancelled';
+  res.json({ ok: true });
 });
 
 // Health check for Railway

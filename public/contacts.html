@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Contact Directory · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #1a1208;
+  --bg: #fafaf9;
+  --card-bg: #fff;
+  --border: #e5e5e5;
+  --muted: #6b7280;
+  --accent: #b45309;
+  --teal: #0f766e;
+  --teal-light: #ccfbf1;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --shadow: 0 1px 2px rgba(0,0,0,0.05);
+  --radius: 8px;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 1280px; margin: 0 auto; padding: 28px 20px; }
+
+.back-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; color: var(--muted); text-decoration: none;
+  font-weight: 500; margin-bottom: 14px;
+}
+.back-link:hover { color: var(--ink); }
+.back-link [data-lucide] { width: 13px; height: 13px; }
+
+.page-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
+}
+.page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.results-info { font-size: 13px; color: var(--muted); }
+.results-info b { color: var(--ink); }
+
+/* ── Filter bar ── */
+.filter-bar {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 14px 16px; margin-bottom: 18px;
+}
+.search-row { position: relative; margin-bottom: 10px; }
+.search-row [data-lucide] {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; color: var(--muted); pointer-events: none;
+}
+#q {
+  width: 100%; padding: 10px 12px 10px 36px;
+  border: 1px solid #d4d4d4; border-radius: 6px;
+  font-size: 14px; font-family: inherit; background: #fff; color: var(--ink);
+}
+#q:focus { border-color: var(--teal); outline: none; box-shadow: 0 0 0 2px rgba(15,118,110,0.1); }
+
+.filter-row {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.filter-select {
+  padding: 8px 10px; border: 1px solid #d4d4d4; border-radius: 6px;
+  font-size: 13px; font-family: inherit; background: #fff; color: var(--ink);
+  cursor: pointer; min-width: 0; flex: 1 1 150px; max-width: 220px;
+}
+.filter-select:focus { border-color: var(--teal); outline: none; }
+
+.tier-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip {
+  padding: 5px 12px; border-radius: 100px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border); background: #fff; color: var(--muted);
+  cursor: pointer; transition: all 0.12s; white-space: nowrap;
+}
+.chip:hover { border-color: #c4b5a0; color: var(--ink); }
+.chip.active-t1 { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.chip.active-t2 { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
+.chip.active-t3 { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.chip.active-tdp { background: var(--teal-light); color: var(--teal); border-color: #5eead4; }
+.chip.active-jana { background: #eff6ff; color: #1d4ed8; border-color: #93c5fd; }
+.chip.active-bjp { background: #fff7ed; color: #c2410c; border-color: #fdba74; }
+.chip.active-neutral { background: #f8fafc; color: #64748b; border-color: #94a3b8; }
+
+.btn-clear {
+  padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border); background: #fff; color: var(--muted);
+  cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
+  font-family: inherit;
+}
+.btn-clear:hover { background: var(--red-light); color: var(--red); border-color: #fecaca; }
+.btn-clear [data-lucide] { width: 12px; height: 12px; }
+
+/* ── Contact grid ── */
+.contacts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 12px;
+}
+
+.contact-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s; box-shadow: var(--shadow);
+}
+.contact-card:hover { border-color: #b45309; box-shadow: 0 2px 8px rgba(180,83,9,0.08); }
+
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.contact-name { font-weight: 700; font-size: 15px; line-height: 1.3; flex: 1; }
+.pps-badge {
+  flex-shrink: 0; font-size: 11px; font-weight: 700;
+  background: #fef3c7; color: #92400e;
+  padding: 2px 7px; border-radius: 100px; letter-spacing: 0.01em;
+}
+.pps-high { background: #dcfce7; color: #166534; }
+.pps-mid  { background: #fef3c7; color: #92400e; }
+.pps-low  { background: #f1f5f9; color: #64748b; }
+
+.card-role { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.card-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.badge {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 4px; letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.badge-t1 { background: #fef3c7; color: #92400e; }
+.badge-t2 { background: #e0f2fe; color: #0369a1; }
+.badge-t3 { background: #f1f5f9; color: #475569; }
+.badge-tdp { background: var(--teal-light); color: var(--teal); }
+.badge-jana { background: #eff6ff; color: #1d4ed8; }
+.badge-bjp { background: #fff7ed; color: #c2410c; }
+.badge-other { background: #f8fafc; color: #64748b; }
+.badge-grievance { background: var(--red-light); color: var(--red); }
+
+.card-location {
+  display: flex; align-items: flex-start; gap: 5px;
+  font-size: 12px; color: var(--muted); margin-top: 8px;
+}
+.card-location [data-lucide] { width: 12px; height: 12px; flex-shrink: 0; margin-top: 1px; }
+
+.card-phone {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--accent);
+  margin-top: 8px; text-decoration: none;
+}
+.card-phone:hover { text-decoration: underline; }
+.card-phone [data-lucide] { width: 13px; height: 13px; }
+
+.card-footer {
+  display: flex; gap: 6px; margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.card-action-btn {
+  flex: 1; padding: 5px 8px; border-radius: 5px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border); background: #fff; color: var(--muted);
+  cursor: pointer; text-align: center; font-family: inherit;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  transition: all 0.12s;
+}
+.card-action-btn:hover { background: #f5f5f4; color: var(--ink); }
+.card-action-btn [data-lucide] { width: 11px; height: 11px; }
+.card-action-copy:hover { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+
+/* ── Load more ── */
+.load-more-wrap { text-align: center; margin-top: 20px; }
+.btn-load-more {
+  padding: 10px 24px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--border); background: #fff; color: var(--ink);
+  cursor: pointer; font-family: inherit; transition: background 0.12s;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.btn-load-more:hover { background: #f5f5f4; }
+.btn-load-more [data-lucide] { width: 14px; height: 14px; }
+
+/* ── Empty / loading ── */
+.state-msg { text-align: center; color: var(--muted); font-size: 14px; padding: 48px 24px; }
+.state-msg [data-lucide] { width: 36px; height: 36px; margin-bottom: 12px; opacity: 0.3; display: block; margin-left: auto; margin-right: auto; }
+
+/* ── Detail Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  display: none; align-items: center; justify-content: center;
+  z-index: 200; padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--card-bg); border-radius: 10px;
+  width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2); padding: 24px;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.modal-title { font-size: 20px; font-weight: 700; line-height: 1.2; }
+.modal-close {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: none; background: #f1f5f9; cursor: pointer; flex-shrink: 0;
+}
+.modal-close:hover { background: #e2e8f0; }
+.modal-close [data-lucide] { width: 15px; height: 15px; }
+
+.detail-section { margin-bottom: 18px; }
+.detail-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); margin-bottom: 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.detail-row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.detail-label { color: var(--muted); width: 120px; flex-shrink: 0; font-weight: 500; }
+.detail-value { color: var(--ink); font-weight: 400; flex: 1; }
+.detail-phone { color: var(--accent); font-weight: 700; text-decoration: none; }
+.detail-phone:hover { text-decoration: underline; }
+
+.issue-pill {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+  border-radius: 100px; font-size: 12px; font-weight: 600; margin: 3px 3px 3px 0;
+}
+.issue-pill-pending { background: #fef3c7; color: #92400e; }
+.issue-pill-approved { background: var(--teal-light); color: var(--teal); }
+.issue-pill-rejected { background: var(--red-light); color: var(--red); }
+.issue-pill-none { background: #f1f5f9; color: #64748b; }
+
+.modal-actions { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.btn-modal {
+  flex: 1; padding: 9px 14px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: 1px solid transparent; font-family: inherit;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all 0.12s; white-space: nowrap;
+}
+.btn-modal [data-lucide] { width: 13px; height: 13px; }
+.btn-modal-primary { background: var(--teal); color: #fff; border-color: var(--teal); }
+.btn-modal-primary:hover { background: #0d6357; }
+.btn-modal-ghost { background: #fff; color: var(--muted); border-color: var(--border); }
+.btn-modal-ghost:hover { background: #f5f5f4; color: var(--ink); }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .container { padding: 16px; }
+  .filter-row { flex-direction: column; gap: 8px; }
+  .filter-select { max-width: 100%; }
+  .contacts-grid { grid-template-columns: 1fr; }
+  .page-header { flex-direction: column; gap: 4px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <a href="/" class="back-link"><i data-lucide="arrow-left"></i> Back to Portal</a>
+  <div class="page-header">
+    <h1 class="page-title">Contact Directory</h1>
+    <div class="results-info" id="results-info">Loading...</div>
+  </div>
+
+  <!-- ── Filter bar ── -->
+  <div class="filter-bar">
+    <div class="search-row">
+      <i data-lucide="search"></i>
+      <input type="search" id="q" placeholder="Search by name, village, role..." autocomplete="off">
+    </div>
+    <div class="filter-row">
+      <select class="filter-select" id="f-constituency" onchange="onConstituencyChange()">
+        <option value="">All Constituencies</option>
+      </select>
+      <select class="filter-select" id="f-mandal" onchange="applyFilters()">
+        <option value="">All Mandals</option>
+      </select>
+      <select class="filter-select" id="f-role" onchange="applyFilters()">
+        <option value="">All Roles</option>
+      </select>
+      <div class="tier-chips">
+        <button class="chip" id="chip-T1" onclick="toggleTier('T1')">T1</button>
+        <button class="chip" id="chip-T2" onclick="toggleTier('T2')">T2</button>
+        <button class="chip" id="chip-T3" onclick="toggleTier('T3')">T3</button>
+      </div>
+      <div class="tier-chips">
+        <button class="chip" id="chip-TDP" onclick="toggleParty('TDP')">TDP</button>
+        <button class="chip" id="chip-Janasena" onclick="toggleParty('Janasena')">Janasena</button>
+        <button class="chip" id="chip-BJP" onclick="toggleParty('BJP')">BJP</button>
+      </div>
+      <button class="btn-clear" onclick="clearFilters()">
+        <i data-lucide="x"></i> Clear
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Results ── -->
+  <div class="contacts-grid" id="contacts-grid">
+    <div class="state-msg" style="grid-column:1/-1">
+      <i data-lucide="loader"></i> Loading contacts...
+    </div>
+  </div>
+  <div class="load-more-wrap" id="load-more-wrap" style="display:none">
+    <button class="btn-load-more" onclick="showMore()">
+      <i data-lucide="chevron-down"></i> Show more
+    </button>
+  </div>
+</div>
+
+<!-- ── Detail Modal ── -->
+<div class="modal-overlay" id="detail-modal" onclick="closeModal(event)">
+  <div class="modal" id="modal-content">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-name"></div>
+      <button class="modal-close" onclick="closeModalDirect()"><i data-lucide="x"></i></button>
+    </div>
+    <div id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allContacts = [];
+let filteredContacts = [];
+let displayedCount = 0;
+const PAGE_SIZE = 60;
+let filterOptions = { mandals: [], constituencies: [], parties: [], roles: [], mandalsByConstituency: {} };
+let activeTier = '';
+let activeParty = '';
+let searchTimer = null;
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  await loadFilterOptions();
+  await loadContacts();
+  document.getElementById('q').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applyFilters, 280);
+  });
+}
+
+async function loadFilterOptions() {
+  try {
+    const r = await fetch('/api/filter-options');
+    filterOptions = await r.json();
+
+    const cSel = document.getElementById('f-constituency');
+    filterOptions.constituencies.forEach(c => {
+      cSel.insertAdjacentHTML('beforeend', `<option value="${esc(c)}">${esc(c)}</option>`);
+    });
+
+    const roleSel = document.getElementById('f-role');
+    filterOptions.roles.forEach(r => {
+      roleSel.insertAdjacentHTML('beforeend', `<option value="${esc(r)}">${esc(r)}</option>`);
+    });
+
+    populateMandals('');
+  } catch {}
+}
+
+function populateMandals(constituency) {
+  const sel = document.getElementById('f-mandal');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">All Mandals</option>';
+  const list = constituency
+    ? (filterOptions.mandalsByConstituency[constituency] || [])
+    : filterOptions.mandals;
+  list.forEach(m => {
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(m)}">${esc(m)}</option>`);
+  });
+  sel.value = list.includes(prev) ? prev : '';
+}
+
+function onConstituencyChange() {
+  populateMandals(document.getElementById('f-constituency').value);
+  applyFilters();
+}
+
+async function loadContacts() {
+  try {
+    const r = await fetch('/api/contacts?limit=1000');
+    const d = await r.json();
+    allContacts = d.contacts || [];
+    applyFilters();
+  } catch {
+    document.getElementById('contacts-grid').innerHTML =
+      '<div class="state-msg" style="grid-column:1/-1"><i data-lucide="wifi-off"></i>Failed to load contacts.</div>';
+    lucide.createIcons();
+  }
+}
+
+// ── Filters ────────────────────────────────────────────────────────────────
+function toggleTier(tier) {
+  activeTier = activeTier === tier ? '' : tier;
+  ['T1','T2','T3'].forEach(t => {
+    const chip = document.getElementById(`chip-${t}`);
+    chip.className = 'chip' + (activeTier === t ? ` active-t${t[1]}` : '');
+  });
+  applyFilters();
+}
+
+function toggleParty(party) {
+  activeParty = activeParty === party ? '' : party;
+  const classMap = { TDP: 'active-tdp', Janasena: 'active-jana', BJP: 'active-bjp' };
+  ['TDP','Janasena','BJP'].forEach(p => {
+    document.getElementById(`chip-${p}`).className = 'chip' + (activeParty === p ? ` ${classMap[p]}` : '');
+  });
+  applyFilters();
+}
+
+function clearFilters() {
+  document.getElementById('q').value = '';
+  document.getElementById('f-constituency').value = '';
+  document.getElementById('f-role').value = '';
+  populateMandals('');
+  document.getElementById('f-mandal').value = '';
+  activeTier = '';
+  activeParty = '';
+  ['T1','T2','T3'].forEach(t => document.getElementById(`chip-${t}`).className = 'chip');
+  ['TDP','Janasena','BJP'].forEach(p => document.getElementById(`chip-${p}`).className = 'chip');
+  applyFilters();
+}
+
+function applyFilters() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const constituency = document.getElementById('f-constituency').value;
+  const mandal = document.getElementById('f-mandal').value;
+  const role = document.getElementById('f-role').value;
+
+  filteredContacts = allContacts.filter(c => {
+    if (activeTier && c.tier !== activeTier) return false;
+    if (activeParty && c.party !== activeParty) return false;
+    if (constituency && c.constituency !== constituency) return false;
+    if (mandal && c.mandal !== mandal) return false;
+    if (role && c.role !== role) return false;
+    if (q) {
+      const hay = [c.name, c.village, c.mandal, c.constituency, c.role, c.phone, c.remarks]
+        .join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  displayedCount = 0;
+  renderContacts();
+  updateResultsInfo();
+}
+
+function updateResultsInfo() {
+  const total = allContacts.length;
+  const shown = Math.min(displayedCount, filteredContacts.length);
+  const filtered = filteredContacts.length;
+  const el = document.getElementById('results-info');
+  if (filtered === total) {
+    el.innerHTML = `Showing <b>${shown}</b> of <b>${total}</b> contacts`;
+  } else {
+    el.innerHTML = `<b>${filtered}</b> match · showing <b>${shown}</b> of <b>${total}</b> total`;
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderContacts() {
+  const grid = document.getElementById('contacts-grid');
+  const batch = filteredContacts.slice(displayedCount, displayedCount + PAGE_SIZE);
+
+  if (displayedCount === 0) {
+    if (filteredContacts.length === 0) {
+      grid.innerHTML = '<div class="state-msg" style="grid-column:1/-1"><i data-lucide="search-x"></i>No contacts match these filters.</div>';
+      lucide.createIcons();
+      document.getElementById('load-more-wrap').style.display = 'none';
+      return;
+    }
+    grid.innerHTML = '';
+  }
+
+  batch.forEach(c => {
+    grid.insertAdjacentHTML('beforeend', buildCard(c));
+  });
+  displayedCount += batch.length;
+
+  const hasMore = displayedCount < filteredContacts.length;
+  document.getElementById('load-more-wrap').style.display = hasMore ? 'block' : 'none';
+  if (hasMore) {
+    document.getElementById('load-more-wrap').innerHTML =
+      `<button class="btn-load-more" onclick="showMore()"><i data-lucide="chevron-down"></i> Show more <span style="color:var(--muted);font-weight:400">(${filteredContacts.length - displayedCount} remaining)</span></button>`;
+  }
+
+  lucide.createIcons();
+  updateResultsInfo();
+}
+
+function showMore() {
+  renderContacts();
+}
+
+function buildCard(c) {
+  const tierClass = { T1: 'badge-t1', T2: 'badge-t2', T3: 'badge-t3' }[c.tier] || 'badge-t3';
+  const partyClass = { TDP: 'badge-tdp', Janasena: 'badge-jana', BJP: 'badge-bjp' }[c.party] || 'badge-other';
+  const pps = c.pps_score || 0;
+  const ppsClass = pps >= 70 ? 'pps-high' : pps >= 45 ? 'pps-mid' : 'pps-low';
+  const location = [c.village, c.mandal, c.constituency].filter(Boolean).join(', ');
+  const hasIssues = (c.issues || []).some(i => i.status === 'pending');
+  const phone = c.phone ? String(c.phone).trim() : '';
+
+  return `
+  <div class="contact-card" onclick="openModal('${esc(c.id)}')">
+    <div class="card-top">
+      <div class="contact-name">${esc(c.name || '—')}</div>
+      <div class="pps-badge ${ppsClass}">PPS ${pps}</div>
+    </div>
+    <div class="card-role">${esc(c.role || '')}${c.area_of_influence ? ` · ${esc(c.area_of_influence)}` : ''}</div>
+    <div class="card-badges">
+      <span class="badge ${tierClass}">${c.tier || '—'}</span>
+      <span class="badge ${partyClass}">${esc(c.party || 'Other')}</span>
+      ${hasIssues ? '<span class="badge badge-grievance">Pending Issue</span>' : ''}
+      ${c.krishna_follower ? '<span class="badge badge-tdp">Krishna Follower</span>' : ''}
+    </div>
+    ${location ? `<div class="card-location"><i data-lucide="map-pin"></i><span>${esc(location)}</span></div>` : ''}
+    ${phone ? `<a class="card-phone" href="tel:${esc(phone)}" onclick="event.stopPropagation()"><i data-lucide="phone"></i>${esc(phone)}</a>` : ''}
+    <div class="card-footer">
+      <button class="card-action-btn" onclick="event.stopPropagation();openModal('${esc(c.id)}')">
+        <i data-lucide="eye"></i> View
+      </button>
+      ${phone ? `<button class="card-action-btn card-action-copy" onclick="event.stopPropagation();copyPhone('${esc(phone)}')"><i data-lucide="copy"></i> Copy</button>` : ''}
+      <button class="card-action-btn" onclick="event.stopPropagation();logInteraction('${esc(c.id)}', this)">
+        <i data-lucide="check-circle"></i> Log call
+      </button>
+    </div>
+  </div>`;
+}
+
+// ── Copy phone ─────────────────────────────────────────────────────────────
+function copyPhone(phone) {
+  navigator.clipboard.writeText(phone).catch(() => {});
+}
+
+// ── Log interaction ────────────────────────────────────────────────────────
+async function logInteraction(id, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader"></i> Logging...';
+  lucide.createIcons();
+  try {
+    await fetch('/api/log-interaction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: id, type: 'call' }),
+    });
+    btn.innerHTML = '<i data-lucide="check"></i> Logged';
+    btn.style.color = 'var(--teal)';
+    btn.style.borderColor = 'var(--teal)';
+  } catch {
+    btn.innerHTML = '<i data-lucide="x"></i> Error';
+    btn.disabled = false;
+  }
+  lucide.createIcons();
+}
+
+// ── Detail Modal ───────────────────────────────────────────────────────────
+async function openModal(id) {
+  try {
+    const r = await fetch(`/api/contact/${id}`);
+    const c = await r.json();
+    renderModal(c);
+    document.getElementById('detail-modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  } catch {}
+}
+
+function renderModal(c) {
+  document.getElementById('modal-name').textContent = c.name || '—';
+
+  const tierClass = { T1: 'badge-t1', T2: 'badge-t2', T3: 'badge-t3' }[c.tier] || 'badge-t3';
+  const partyClass = { TDP: 'badge-tdp', Janasena: 'badge-jana', BJP: 'badge-bjp' }[c.party] || 'badge-other';
+  const pps = c.pps_score || 0;
+  const ppsClass = pps >= 70 ? 'pps-high' : pps >= 45 ? 'pps-mid' : 'pps-low';
+  const phone = c.phone ? String(c.phone).trim() : '';
+
+  const rows = [
+    ['Phone',        phone ? `<a class="detail-phone" href="tel:${esc(phone)}">${esc(phone)}</a>` : '—'],
+    ['Village',      esc(c.village || '—')],
+    ['Mandal',       esc(c.mandal || '—')],
+    ['Constituency', esc(c.constituency || '—')],
+    ['Role',         esc(c.role || '—')],
+    ['Area',         esc(c.area_of_influence || '—')],
+    ['Party',        `<span class="badge ${partyClass}">${esc(c.party || 'Other')}</span>`],
+    ['Tier',         `<span class="badge ${tierClass}">${c.tier || '—'}</span>`],
+    ['PPS Score',    `<span class="pps-badge ${ppsClass}">PPS ${pps}</span>`],
+    ['Priority',     esc(c.priority_level || '—')],
+    ['Affinity',     esc(c.affinity || '—')],
+    ['Est. Reach',   c.estimated_reach ? `~${c.estimated_reach.toLocaleString()} people` : '—'],
+    ['Krishna Follower', c.krishna_follower ? 'Yes' : 'No'],
+  ].filter(([, v]) => v && v !== '—');
+
+  let body = `
+    <div class="detail-section">
+      <div class="detail-section-title">Contact Info</div>
+      ${rows.map(([l, v]) => `<div class="detail-row"><div class="detail-label">${l}</div><div class="detail-value">${v}</div></div>`).join('')}
+    </div>`;
+
+  if (c.remarks) {
+    body += `
+    <div class="detail-section">
+      <div class="detail-section-title">Remarks</div>
+      <div style="font-size:13px;color:#374151;line-height:1.6">${esc(c.remarks)}</div>
+    </div>`;
+  }
+
+  if (c.ai_reason) {
+    body += `
+    <div class="detail-section">
+      <div class="detail-section-title">AI Brief Reason</div>
+      <div style="font-size:13px;color:#374151;line-height:1.6">${esc(c.ai_reason)}</div>
+    </div>`;
+  }
+
+  const issues = c.issues || [];
+  if (issues.length > 0) {
+    const pillClass = { pending: 'issue-pill-pending', approved: 'issue-pill-approved', rejected: 'issue-pill-rejected', none: 'issue-pill-none' };
+    body += `
+    <div class="detail-section">
+      <div class="detail-section-title">Issues (${issues.length})</div>
+      <div>${issues.map(i => `<span class="issue-pill ${pillClass[i.status] || 'issue-pill-none'}">${esc(i.type)} · ${i.status}</span>`).join('')}</div>
+    </div>`;
+  }
+
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-actions').innerHTML = `
+    ${phone ? `<a href="tel:${esc(phone)}" class="btn-modal btn-modal-primary"><i data-lucide="phone"></i> Call</a>` : ''}
+    ${phone ? `<button class="btn-modal btn-modal-ghost" onclick="copyPhone('${esc(phone)}')"><i data-lucide="copy"></i> Copy number</button>` : ''}
+    <a href="/pa_issues.html" class="btn-modal btn-modal-ghost"><i data-lucide="file-plus"></i> Log issue</a>
+  `;
+  lucide.createIcons();
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('detail-modal')) closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('detail-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+lucide.createIcons();
+init();
+</script>
+</body>
+</html>
