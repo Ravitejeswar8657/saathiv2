@@ -3,21 +3,39 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Submit News · Saathi Palanadu</title>
+<title>News Desk · Saathi Palanadu</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:40px 16px}
-.container{max-width:580px;margin:0 auto}
-.back-link{display:inline-block;margin-bottom:20px;font-size:13px;color:#6b7280;text-decoration:none}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:32px 16px}
+.container{max-width:600px;margin:0 auto}
+.back-link{display:inline-flex;align-items:center;gap:4px;margin-bottom:20px;font-size:13px;color:#6b7280;text-decoration:none;font-weight:500}
 .back-link:hover{color:#1a1208}
-.header{text-align:center;margin-bottom:32px}
-.header h1{font-size:24px;font-weight:700;color:#1a1208;line-height:1.3}
-.header p{font-size:14px;color:#6b7280;margin-top:8px;line-height:1.6}
-.card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:24px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.form-group{margin-bottom:16px}
-.form-group label{display:block;font-size:14px;font-weight:600;color:#374151;margin-bottom:6px}
+.back-link [data-lucide]{width:13px;height:13px}
+
+/* ── Tabs ── */
+.tab-strip{display:flex;gap:0;border:1px solid #e5e5e5;border-radius:8px;background:#fff;padding:4px;margin-bottom:24px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.tab-btn{
+  flex:1;padding:9px 12px;border-radius:5px;border:none;background:none;
+  font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:all .15s;font-family:inherit;
+}
+.tab-btn [data-lucide]{width:13px;height:13px}
+.tab-btn.active{background:#1a1208;color:#fff;font-weight:600}
+.tab-btn:not(.active):hover{background:#f5f5f4;color:#1a1208}
+
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── Shared form styles ── */
+.header{text-align:center;margin-bottom:24px}
+.header h1{font-size:22px;font-weight:700;color:#1a1208;line-height:1.3}
+.header p{font-size:14px;color:#6b7280;margin-top:6px;line-height:1.6}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:22px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.form-group{margin-bottom:15px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
 .form-group input,.form-group textarea,.form-group select{
   width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
   font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
@@ -25,78 +43,195 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
 .form-group input:focus,.form-group textarea:focus,.form-group select:focus{
   outline:none;border-color:#b45309;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
 }
-.form-group textarea{resize:vertical;min-height:120px}
+.form-group textarea{resize:vertical;min-height:110px}
 .required{color:#dc2626}
 .file-hint{font-size:12px;color:#6b7280;margin-top:4px}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:480px){.form-row{grid-template-columns:1fr}}
-.submit-btn{
-  width:100%;padding:12px;background:#1a1208;color:#fff;border:none;
-  border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;
-  display:flex;align-items:center;justify-content:center;gap:8px
+
+.submit-btn,.import-btn,.preview-btn{
+  width:100%;padding:11px;border:none;border-radius:6px;
+  font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;
+  display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;
 }
-.submit-btn:hover{background:#374151}
+.submit-btn{background:#1a1208;color:#fff}
+.submit-btn:hover:not(:disabled){background:#374151}
 .submit-btn:disabled{background:#9ca3af;cursor:not-allowed}
-.success{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:24px;text-align:center;display:none}
-.success h3{font-size:16px;font-weight:600;color:#15803d;margin-bottom:4px}
-.success p{font-size:13px;color:#166534;line-height:1.5}
-.success button{margin-top:14px;padding:9px 20px;background:#1a1208;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
-.success button:hover{background:#374151}
+.preview-btn{background:#b45309;color:#fff;margin-bottom:8px}
+.preview-btn:hover:not(:disabled){background:#92400e}
+.preview-btn:disabled{background:#9ca3af;cursor:not-allowed}
+.import-btn{background:#0f766e;color:#fff}
+.import-btn:hover:not(:disabled){background:#0d6357}
+.import-btn:disabled{background:#9ca3af;cursor:not-allowed}
+
+.success-card{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:24px;text-align:center;display:none}
+.success-card h3{font-size:16px;font-weight:600;color:#15803d;margin-bottom:4px}
+.success-card p{font-size:13px;color:#166534;line-height:1.5;margin-top:4px}
+.success-card button{margin-top:14px;padding:9px 20px;background:#1a1208;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
+.success-card button:hover{background:#374151}
+
+#field-error{color:#dc2626;font-size:13px;margin-top:8px;display:none}
+
+/* ── Upload zone ── */
+.upload-zone{
+  border:2px dashed #d4d4d4;border-radius:8px;padding:28px 20px;
+  text-align:center;cursor:pointer;transition:all .15s;color:#6b7280;margin-bottom:12px;
+}
+.upload-zone:hover,.upload-zone.dragover{border-color:#b45309;background:#fffbf5;color:#b45309}
+.upload-zone [data-lucide]{width:32px;height:32px;margin-bottom:10px}
+.upload-zone .uz-title{font-size:14px;font-weight:600;margin-bottom:3px}
+.upload-zone .uz-hint{font-size:12px}
+
+.selected-file{
+  display:none;align-items:center;gap:10px;padding:10px 14px;
+  background:#f9fafb;border:1px solid #e5e5e5;border-radius:6px;margin-bottom:12px;font-size:13px;
+}
+.selected-file [data-lucide]{width:15px;height:15px;color:#b45309;flex-shrink:0}
+.selected-file .sf-name{font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.selected-file .sf-clear{background:none;border:none;cursor:pointer;color:#6b7280;padding:2px;display:flex;align-items:center}
+.selected-file .sf-clear:hover{color:#dc2626}
+.selected-file .sf-clear [data-lucide]{width:14px;height:14px}
+
+/* ── Preview ── */
+.preview-section{display:none;margin-top:16px}
+.preview-header{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #e5e5e5}
+.preview-item{border:1px solid #e5e5e5;border-radius:6px;padding:10px 12px;margin-bottom:7px;background:#fff}
+.preview-item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.preview-headline{font-weight:600;font-size:13px;flex:1;line-height:1.4}
+.cat-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;white-space:nowrap;flex-shrink:0}
+.cat-national{background:#ccfbf1;color:#0f766e}
+.cat-international{background:#eff6ff;color:#1d4ed8}
+.preview-body{font-size:12px;color:#6b7280;margin-top:4px;line-height:1.5}
+.preview-link{font-size:11px;color:#3b82f6;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.status-msg{font-size:12px;text-align:center;margin-top:8px;min-height:16px}
+.status-ok{color:#0f766e}
+.status-err{color:#dc2626}
+
 .footer{text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;line-height:1.8}
-#error-msg{color:#dc2626;font-size:13px;margin-top:10px;display:none}
+
 @keyframes spin{to{transform:rotate(360deg)}}
+.spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
 </style>
 </head>
 <body>
 <div class="container">
-  <a href="/" class="back-link">&larr; Back to Portal</a>
-  <div class="header">
-    <h1>Submit Field News</h1>
-    <p>Report local events, issues, and developments directly to the MP's office. No login required.</p>
-  </div>
+  <a href="/" class="back-link"><i data-lucide="arrow-left"></i> Back to Portal</a>
 
-  <div class="card" id="form-card">
-    <div class="form-group">
-      <label>Headline <span class="required">*</span></label>
-      <input id="n-headline" placeholder="Short, factual one-liner about what happened" maxlength="200">
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Your name / publication</label>
-        <input id="n-source" placeholder="e.g. Ravi Kumar, TV9">
-      </div>
-      <div class="form-group">
-        <label>Mandal / area</label>
-        <input id="n-mandal" placeholder="e.g. Sattenapalli">
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Priority level</label>
-      <select id="n-priority">
-        <option value="high">High - Urgent, MP needs to know immediately</option>
-        <option value="medium" selected>Medium - Relevant today</option>
-        <option value="low">Low - Background / follow-up later</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Full details</label>
-      <textarea id="n-body" placeholder="What happened, where, who is affected, any quotes or reactions, what action may be needed..."></textarea>
-    </div>
-    <div class="form-group">
-      <label>Attach file (optional)</label>
-      <input id="n-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.mp4,.doc,.docx">
-      <div class="file-hint">Photos, documents, or video clips accepted. Max 10 MB.</div>
-    </div>
-    <button class="submit-btn" id="submit-btn" onclick="submitNews()">
-      <i data-lucide="send" style="width:16px;height:16px"></i> Submit to MP's Office
+  <!-- ── Tab strip ── -->
+  <div class="tab-strip">
+    <button class="tab-btn active" id="tab-field" onclick="switchTab('field')">
+      <i data-lucide="file-text"></i> Field Report
     </button>
-    <div id="error-msg"></div>
+    <button class="tab-btn" id="tab-brief" onclick="switchTab('brief')">
+      <i data-lucide="newspaper"></i> Upload News Brief PDF
+    </button>
   </div>
 
-  <div class="success" id="success-card">
-    <h3>Submitted successfully</h3>
-    <p>Your news has been received and will appear in the MP's daily brief immediately.</p>
-    <button onclick="resetForm()">Submit another</button>
+  <!-- ══════════════════════════════════════════════
+       TAB 1 — Field Report
+  ══════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="panel-field">
+    <div class="header">
+      <h1>Submit Field News</h1>
+      <p>Report local events, issues, and developments directly to the MP's office. No login required.</p>
+    </div>
+
+    <div class="card" id="field-form-card">
+      <div class="form-group">
+        <label>Headline <span class="required">*</span></label>
+        <input id="n-headline" placeholder="Short, factual one-liner about what happened" maxlength="200">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Your name / publication</label>
+          <input id="n-source" placeholder="e.g. Ravi Kumar, TV9">
+        </div>
+        <div class="form-group">
+          <label>Mandal / area</label>
+          <input id="n-mandal" placeholder="e.g. Sattenapalli">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Priority level</label>
+        <select id="n-priority">
+          <option value="high">High — Urgent, MP needs to know immediately</option>
+          <option value="medium" selected>Medium — Relevant today</option>
+          <option value="low">Low — Background / follow-up later</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Full details</label>
+        <textarea id="n-body" placeholder="What happened, where, who is affected, any quotes or reactions…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Attach file <span style="font-weight:400;color:#6b7280">(optional)</span></label>
+        <input id="n-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.mp4,.doc,.docx">
+        <div class="file-hint">Photos, documents, or video clips. Max 10 MB.</div>
+      </div>
+      <button class="submit-btn" id="field-submit-btn" onclick="submitFieldNews()">
+        <i data-lucide="send" style="width:15px;height:15px"></i> Submit to MP's Office
+      </button>
+      <div id="field-error"></div>
+    </div>
+
+    <div class="success-card" id="field-success">
+      <h3>Submitted successfully</h3>
+      <p>Your news has been received and will appear in the MP's daily brief immediately.</p>
+      <button onclick="resetFieldForm()">Submit another</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       TAB 2 — Upload National / International Brief
+  ══════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-brief">
+    <div class="header">
+      <h1>Upload News Brief PDF</h1>
+      <p>Upload the daily <strong>National &amp; International News Brief</strong> PDF. Items are extracted automatically and added to the brief.</p>
+    </div>
+
+    <div class="card" id="brief-card">
+      <!-- Drop / click zone -->
+      <div class="upload-zone" id="upload-zone"
+           onclick="document.getElementById('pdf-input').click()"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <i data-lucide="upload-cloud"></i>
+        <div class="uz-title">Click to choose PDF or drag &amp; drop here</div>
+        <div class="uz-hint">e.g. "June 15th_News Brief_N+I.pdf"</div>
+        <input type="file" id="pdf-input" accept=".pdf" style="display:none" onchange="onPDFSelected(this)">
+      </div>
+
+      <!-- Selected file row -->
+      <div class="selected-file" id="selected-file">
+        <i data-lucide="file-text"></i>
+        <span class="sf-name" id="sf-name"></span>
+        <button class="sf-clear" onclick="clearPDF()"><i data-lucide="x"></i></button>
+      </div>
+
+      <!-- Preview button -->
+      <button class="preview-btn" id="preview-btn" onclick="previewPDF()" style="display:none" disabled>
+        <i data-lucide="eye" style="width:15px;height:15px"></i> Preview Extracted News
+      </button>
+
+      <!-- Preview list -->
+      <div class="preview-section" id="preview-section">
+        <div class="preview-header" id="preview-header"></div>
+        <div id="preview-list"></div>
+        <button class="import-btn" id="import-btn" onclick="importPDF()">
+          <i data-lucide="download" style="width:15px;height:15px"></i>
+          <span id="import-label">Import to News Feed</span>
+        </button>
+      </div>
+
+      <div class="status-msg" id="brief-status"></div>
+    </div>
+
+    <div class="success-card" id="brief-success">
+      <h3>News brief imported</h3>
+      <p id="brief-success-msg"></p>
+      <button onclick="resetBriefForm()">Upload another</button>
+    </div>
   </div>
 
   <div class="footer">
@@ -106,15 +241,24 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+lucide.createIcons();
 
-async function submitNews() {
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+// ── TAB 1: Field report ────────────────────────────────────────────────────
+async function submitFieldNews() {
   const headline = document.getElementById('n-headline').value.trim();
-  if (!headline) { showError('Headline is required.'); return; }
+  if (!headline) { showFieldError('Headline is required.'); return; }
 
-  const btn = document.getElementById('submit-btn');
+  const btn = document.getElementById('field-submit-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span> Submitting...';
+  btn.innerHTML = '<span class="spin"></span> Submitting...';
 
   const fd = new FormData();
   fd.append('headline', headline);
@@ -129,30 +273,156 @@ async function submitNews() {
     const r = await fetch('/api/news', { method: 'POST', body: fd });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Submission failed');
-    document.getElementById('form-card').style.display = 'none';
-    document.getElementById('success-card').style.display = 'block';
+    document.getElementById('field-form-card').style.display = 'none';
+    document.getElementById('field-success').style.display = 'block';
   } catch(e) {
-    showError(e.message);
+    showFieldError(e.message);
     btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px"></i> Submit to MP\'s Office';
+    btn.innerHTML = '<i data-lucide="send" style="width:15px;height:15px"></i> Submit to MP\'s Office';
     lucide.createIcons();
   }
 }
 
-function showError(msg) {
-  const el = document.getElementById('error-msg');
+function showFieldError(msg) {
+  const el = document.getElementById('field-error');
   el.textContent = msg; el.style.display = 'block';
 }
 
-function resetForm() {
-  document.getElementById('form-card').style.display = 'block';
-  document.getElementById('success-card').style.display = 'none';
-  document.getElementById('n-headline').value = '';
-  document.getElementById('n-body').value = '';
-  document.getElementById('n-source').value = '';
-  document.getElementById('n-mandal').value = '';
+function resetFieldForm() {
+  document.getElementById('field-form-card').style.display = 'block';
+  document.getElementById('field-success').style.display = 'none';
+  ['n-headline','n-body','n-source','n-mandal'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('n-file').value = '';
-  document.getElementById('error-msg').style.display = 'none';
+  document.getElementById('field-error').style.display = 'none';
+  document.getElementById('field-submit-btn').innerHTML = '<i data-lucide="send" style="width:15px;height:15px"></i> Submit to MP\'s Office';
+  lucide.createIcons();
+}
+
+// ── TAB 2: PDF upload ──────────────────────────────────────────────────────
+let selectedFile = null;
+
+function onDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('dragover'); }
+function onDragLeave()  { document.getElementById('upload-zone').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) setPDFFile(file);
+}
+function onPDFSelected(input) { if (input.files[0]) setPDFFile(input.files[0]); }
+
+function setPDFFile(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) { setBriefStatus('Only PDF files are accepted.', 'err'); return; }
+  selectedFile = file;
+  document.getElementById('sf-name').textContent = file.name;
+  document.getElementById('selected-file').style.display = 'flex';
+  document.getElementById('preview-btn').style.display = 'flex';
+  document.getElementById('preview-btn').disabled = false;
+  document.getElementById('preview-section').style.display = 'none';
+  setBriefStatus('');
+  lucide.createIcons();
+}
+
+function clearPDF() {
+  selectedFile = null;
+  document.getElementById('pdf-input').value = '';
+  document.getElementById('selected-file').style.display = 'none';
+  document.getElementById('preview-btn').style.display = 'none';
+  document.getElementById('preview-section').style.display = 'none';
+  setBriefStatus('');
+}
+
+async function previewPDF() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('preview-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Parsing PDF...';
+  setBriefStatus('');
+
+  const fd = new FormData();
+  fd.append('pdf', selectedFile);
+
+  try {
+    const r = await fetch('/api/upload-news-brief?preview=1', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok || data.error) { setBriefStatus(data.error || 'Failed to parse PDF.', 'err'); return; }
+    renderPreview(data);
+    setBriefStatus(`Found ${data.count} news items from ${data.briefDate}`, 'ok');
+  } catch(e) {
+    setBriefStatus('Network error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="eye" style="width:15px;height:15px"></i> Preview Extracted News';
+    lucide.createIcons();
+  }
+}
+
+function renderPreview(data) {
+  const nat  = data.items.filter(i => i.category === 'National').length;
+  const intl = data.items.filter(i => i.category === 'International').length;
+  document.getElementById('preview-header').textContent =
+    `${data.briefDate} · ${data.count} items · ${nat} National, ${intl} International`;
+
+  document.getElementById('preview-list').innerHTML = data.items.map(item => `
+    <div class="preview-item">
+      <div class="preview-item-top">
+        <div class="preview-headline">${esc(item.headline)}</div>
+        <span class="cat-badge ${item.category === 'International' ? 'cat-international' : 'cat-national'}">${item.category.toUpperCase()}</span>
+      </div>
+      ${item.body ? `<div class="preview-body">${esc(item.body.slice(0,140))}${item.body.length>140?'…':''}</div>` : ''}
+      ${item.link ? `<div class="preview-link">${esc(item.link)}</div>` : ''}
+    </div>`).join('');
+
+  document.getElementById('import-label').textContent = `Import ${data.count} items to News Feed`;
+  document.getElementById('preview-section').style.display = 'block';
+}
+
+async function importPDF() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('import-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Importing...';
+  setBriefStatus('');
+
+  const fd = new FormData();
+  fd.append('pdf', selectedFile);
+
+  try {
+    const r = await fetch('/api/upload-news-brief', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok || data.error) {
+      setBriefStatus(data.error || 'Import failed.', 'err');
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="download" style="width:15px;height:15px"></i> Import to News Feed';
+      lucide.createIcons();
+      return;
+    }
+    document.getElementById('brief-success-msg').textContent =
+      `${data.count} items from ${data.briefDate} are now in the daily brief.`;
+    document.getElementById('brief-card').style.display = 'none';
+    document.getElementById('brief-success').style.display = 'block';
+  } catch(e) {
+    setBriefStatus('Network error: ' + e.message, 'err');
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="download" style="width:15px;height:15px"></i> Import to News Feed';
+    lucide.createIcons();
+  }
+}
+
+function resetBriefForm() {
+  clearPDF();
+  document.getElementById('brief-card').style.display = 'block';
+  document.getElementById('brief-success').style.display = 'none';
+}
+
+function setBriefStatus(msg, type) {
+  const el = document.getElementById('brief-status');
+  el.textContent = msg;
+  el.className = 'status-msg' + (type === 'ok' ? ' status-ok' : type === 'err' ? ' status-err' : '');
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 </script>
 </body>
