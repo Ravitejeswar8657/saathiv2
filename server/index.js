@@ -816,7 +816,7 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
     return res.status(400).json({ error: 'Only PDF files are accepted' });
 
   try {
-    const pdfParse = require('pdf-parse');
+    const pdfParse = require('pdf-parse/lib/pdf-parse.js');
     const parsed = await pdfParse(req.file.buffer);
     const { briefDate, items } = parseNewsBriefText(parsed.text);
 
