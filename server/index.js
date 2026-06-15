@@ -4,8 +4,11 @@ import cors from 'cors';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, URL as NodeURL } from 'url';
+import { createRequire } from 'module';
 import Fuse from 'fuse.js';
+
+const require = createRequire(import.meta.url);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -721,6 +724,128 @@ app.delete('/api/broadcast-jobs/:jobId', (req, res) => {
   if (!job) return res.status(404).json({ error: 'Job not found' });
   if (job.status === 'running') job.status = 'cancelled';
   res.json({ ok: true });
+});
+
+// ── News Brief PDF parser ───────────────────────────────────────────────────
+function parseNewsBriefText(rawText) {
+  const rawLines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Join URL fragments — PDFs wrap long URLs mid-word across lines
+  const lines = [];
+  for (const line of rawLines) {
+    if (lines.length > 0) {
+      const prev = lines[lines.length - 1];
+      const prevIsPartialUrl =
+        prev.startsWith('http') &&
+        !/\.(ece|html?|php|aspx|com|org|net|in|pdf|json)\b/.test(prev);
+      const lineIsUrlFrag =
+        !line.includes(' ') && /^[a-zA-Z0-9\/\-\._?=%&#]+$/.test(line);
+      if (prevIsPartialUrl && (line.startsWith('/') || lineIsUrlFrag)) {
+        lines[lines.length - 1] = prev + line;
+        continue;
+      }
+    }
+    lines.push(line);
+  }
+
+  // Extract date
+  const dateMatch = rawText.match(/Date[:\s]+(.+)/i);
+  const briefDate = dateMatch ? dateMatch[1].trim() : '';
+
+  // Strip known noise / header rows
+  const NOISE = new Set([
+    'Sl.', 'No.', 'Topic', 'News Summary', 'Link',
+    'National News', 'International News',
+    'Topic News Summary Link', 'Sl. No. Topic News Summary Link',
+    'Sl. No.', 'Topic News Summary Link',
+  ]);
+  const clean = lines.filter(l => !NOISE.has(l) && !/^Date[:\s]/i.test(l));
+
+  const items = [];
+  let i = 0;
+
+  while (i < clean.length) {
+    if (!/^\d+$/.test(clean[i])) { i++; continue; }
+    i++; // skip item number
+
+    const chunk = [];
+    while (i < clean.length && !/^\d+$/.test(clean[i])) {
+      chunk.push(clean[i]);
+      i++;
+    }
+    if (!chunk.length) continue;
+
+    // Extract URL from the end of the chunk
+    let link = '';
+    while (chunk.length && chunk[chunk.length - 1].startsWith('http')) {
+      link = chunk.pop();
+    }
+
+    // Classify by URL path (/national/ vs /international/)
+    const category = link.includes('/international/') ? 'International' : 'National';
+
+    // Split topic (short title-case phrases) from body (sentence prose)
+    const topicParts = [];
+    const bodyParts = [];
+    let inBody = false;
+
+    for (const ln of chunk) {
+      if (!inBody) {
+        const words = ln.split(/\s+/);
+        const hasMidLower = words.slice(1).some(w => /^[a-z]/.test(w) && w.length > 2);
+        if (hasMidLower || ln.length > 60) { inBody = true; bodyParts.push(ln); }
+        else topicParts.push(ln);
+      } else {
+        bodyParts.push(ln);
+      }
+    }
+
+    const headline = topicParts.join(' ').trim();
+    const body = bodyParts.join(' ').trim();
+    if (headline || body) {
+      items.push({ headline: headline || body.slice(0, 80), body, link, category, briefDate });
+    }
+  }
+
+  return { briefDate, items };
+}
+
+app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'PDF file required' });
+  if (!req.file.originalname.toLowerCase().endsWith('.pdf'))
+    return res.status(400).json({ error: 'Only PDF files are accepted' });
+
+  try {
+    const pdfParse = require('pdf-parse');
+    const parsed = await pdfParse(req.file.buffer);
+    const { briefDate, items } = parseNewsBriefText(parsed.text);
+
+    if (!items.length)
+      return res.status(422).json({ error: 'No news items found. Make sure this is a News Brief PDF.' });
+
+    if (req.query.preview === '1')
+      return res.json({ ok: true, briefDate, items, count: items.length });
+
+    // Commit to DB
+    const db = readDB();
+    const ts = Date.now();
+    const saved = items.map((item, idx) => ({
+      id: `NEWS${ts}_${idx}`,
+      headline: item.headline,
+      body: item.body,
+      source: `Brief · ${item.category} · ${item.briefDate || briefDate}`,
+      mandal: item.category,   // 'National' or 'International'
+      priority: 'high',
+      link: item.link || '',
+      submitted_at: new Date().toISOString(),
+    }));
+
+    db.news = [...saved, ...(db.news || [])].slice(0, 100);
+    writeDB(db);
+    res.json({ ok: true, count: saved.length, briefDate });
+  } catch (e) {
+    res.status(500).json({ error: 'PDF parse failed: ' + e.message });
+  }
 });
 
 // Health check for Railway
