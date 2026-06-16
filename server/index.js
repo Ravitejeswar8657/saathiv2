@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath, URL as NodeURL } from 'url';
 import { createRequire } from 'module';
 import Fuse from 'fuse.js';
+import PDFDocument from 'pdfkit';
 
 const require = createRequire(import.meta.url);
 
@@ -21,6 +22,7 @@ const DB_PATH = path.join(VOLUME, 'db.json');
 const WA_AUTH_PATH = path.join(VOLUME, 'wa_auth');
 const BASE_URL = process.env.BASE_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
+const TELUGU_FONT_PATH = path.join(ROOT, 'public', 'fonts', 'NotoSansTelugu.ttf');
 
 // Ensure dirs exist
 fs.mkdirSync(VOLUME, { recursive: true });
@@ -97,19 +99,55 @@ function recomputeBrief(db) {
 }
 
 // ── Google News RSS cache ──────────────────────────────────────────────────
-let newsCache = { data: null, fetchedAt: 0 };
+// Multi-query: a broad English query, a Telugu-language query (most genuine
+// local AP coverage is Telugu and invisible to English-only search), plus
+// per-mandal queries biased toward wherever the MP has events in the next
+// 7 days — bounded to 6 mandals so a busy schedule can't hammer Google News.
+let newsCache = { data: null, fetchedAt: 0, mandalKey: '' };
 const NEWS_CACHE_MS = 15 * 60 * 1000; // 15 minutes
+const linkResolveCache = new Map(); // google redirect link -> resolved publisher URL
 
-async function fetchGoogleNews() {
-  const now = Date.now();
-  if (newsCache.data && (now - newsCache.fetchedAt) < NEWS_CACHE_MS) {
-    return newsCache.data;
-  }
-  const url = 'https://news.google.com/rss/search?q=Palanadu+OR+Narasaraopet+OR+Palnadu&hl=en-IN&gl=IN&ceid=IN:en';
+const TELUGU_PLACE_TERMS = 'పల్నాడు OR నరసరావుపేట OR సత్తెనపల్లి OR మాచర్ల OR గురజాల';
+
+function stripHtml(s) {
+  return (s || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildNewsQueries(db) {
+  const queries = [
+    { q: 'Palanadu OR Narasaraopet OR Palnadu', hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en', mandal_tag: '' },
+    { q: TELUGU_PLACE_TERMS, hl: 'te', gl: 'IN', ceid: 'IN:te', lang: 'te', mandal_tag: '' },
+  ];
+  const todayIST = getISTDateStr();
+  const weekAhead = new Date();
+  weekAhead.setDate(weekAhead.getDate() + 7);
+  const weekAheadStr = weekAhead.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const upcomingMandals = [...new Set(
+    (db.schedule || [])
+      .filter(s => s.date >= todayIST && s.date <= weekAheadStr)
+      .map(s => s.mandal)
+      .filter(Boolean)
+  )].slice(0, 6);
+  upcomingMandals.forEach(m => {
+    queries.push({ q: `"${m}"`, hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en', mandal_tag: m });
+  });
+  return queries;
+}
+
+async function fetchOneNewsQuery({ q, hl, gl, ceid, lang, mandal_tag }) {
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=${hl}&gl=${gl}&ceid=${ceid}`;
   const resp = await fetch(url);
   const xml = await resp.text();
 
-  // Simple regex XML parsing for <item> blocks
   const items = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
@@ -119,10 +157,66 @@ async function fetchGoogleNews() {
     const link = block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim() || '';
     const pubDate = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() || '';
     const source = block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1')?.trim() || '';
-    items.push({ title, link, pubDate, source });
+    // Note: Google News RSS <description> is just "<a href=link>TITLE</a> SOURCE" — no real
+    // snippet text, so we don't bother parsing it. Real detail comes from on-demand full-article
+    // extraction (see /api/live-news/extract) rather than batch-scraping every refresh.
+    items.push({ title, link, pubDate, source, mandal_tag, lang });
+  }
+  return items;
+}
+
+// Note: Google News' <link> is a JS/RPC-obfuscated interstitial, not a real HTTP redirect —
+// following it server-side just returns Google's own page, not the publisher URL (verified by
+// hand: no 3xx, the real article URL isn't present anywhere in the HTML, just an encoded blob
+// Google decodes client-side). So this only helps for sources that *do* use real redirects or
+// already give us a direct link (e.g. the uploaded News Brief PDF). For Google News items the
+// original link is still the right thing to show — it works fine when a human opens it in a
+// browser, which is the only place that JS redirect can run.
+async function resolveNewsLink(link) {
+  if (!link) return link;
+  if (linkResolveCache.has(link)) return linkResolveCache.get(link);
+  try {
+    const resp = await fetch(link, { redirect: 'follow', signal: AbortSignal.timeout(3000) });
+    const resolved = (resp.url && resp.url !== link && !resp.url.includes('news.google.com')) ? resp.url : link;
+    linkResolveCache.set(link, resolved);
+    return resolved;
+  } catch {
+    linkResolveCache.set(link, link);
+    return link;
+  }
+}
+
+async function fetchGoogleNews(db) {
+  const now = Date.now();
+  const queries = buildNewsQueries(db || readDB());
+  const mandalKey = queries.map(q => q.mandal_tag).join('|');
+  if (newsCache.data && newsCache.mandalKey === mandalKey && (now - newsCache.fetchedAt) < NEWS_CACHE_MS) {
+    return newsCache.data;
   }
 
-  newsCache = { data: items, fetchedAt: now };
+  const results = await Promise.allSettled(queries.map(fetchOneNewsQuery));
+  const all = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+
+  // Dedupe across queries by normalized title; keep the mandal tag if any copy had one.
+  const seen = new Map();
+  all.forEach(item => {
+    const key = item.title.toLowerCase().replace(/[^a-z0-9అ-౿]/gi, '').slice(0, 80);
+    if (!key) return;
+    if (!seen.has(key)) seen.set(key, item);
+    else if (!seen.get(key).mandal_tag && item.mandal_tag) seen.get(key).mandal_tag = item.mandal_tag;
+  });
+
+  // Reserve a quota for mandal-tagged items (biased toward where the MP has events coming up) so
+  // they can't be entirely crowded out by a busy general-news day, but cap that quota so they also
+  // can't crowd out the broad constituency/Telugu coverage — best of both, not all-or-nothing.
+  const byRecency = (a, b) => new Date(b.pubDate) - new Date(a.pubDate);
+  const deduped = [...seen.values()];
+  const mandalItems = deduped.filter(i => i.mandal_tag).sort(byRecency);
+  const generalItems = deduped.filter(i => !i.mandal_tag).sort(byRecency);
+  const MANDAL_QUOTA = 12;
+  const items = [...mandalItems.slice(0, MANDAL_QUOTA), ...generalItems].slice(0, 40);
+
+  newsCache = { data: items, fetchedAt: now, mandalKey };
   return items;
 }
 
@@ -204,7 +298,7 @@ async function fetchGoogleNews() {
 })();
 
 // ── WhatsApp ────────────────────────────────────────────────────────────────
-function generateBriefText(brief, news, schedule) {
+function generateBriefText(brief, news, schedule, liveNews) {
   const istOpts = { timeZone: 'Asia/Kolkata' };
   const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', ...istOpts });
   const timeStr = new Date().toLocaleTimeString('en-IN', istOpts);
@@ -256,13 +350,28 @@ function generateBriefText(brief, news, schedule) {
     lines.push('');
   }
 
+  // Auto-scraped local news — display-only suggestions, not a replacement for field reports.
+  // Skip anything that's already a submitted headline so the same story isn't listed twice.
+  const submittedTitles = new Set(todaysNews.map(n => (n.headline || '').toLowerCase().trim()));
+  const autoItems = (liveNews || [])
+    .filter(n => !submittedTitles.has((n.title || '').toLowerCase().trim()))
+    .slice(0, 5);
+  if (autoItems.length) {
+    lines.push(`*📡 In the News (auto-scraped):*`);
+    autoItems.forEach((n, i) => {
+      lines.push(`${i + 1}. ${n.title}${n.source ? ' (' + n.source + ')' : ''}`);
+      lines.push(`   🔗 ${n.link}`);
+    });
+    lines.push('');
+  }
+
   lines.push(`📊 *News Dashboard:* ${BASE_URL}/admin.html#news-dashboard\n`);
   lines.push(`_Prepared by Saathi · ${timeStr}_`);
   return lines.join('\n');
 }
 
-async function sendWhatsAppBrief(brief, news, schedule) {
-  const message = generateBriefText(brief, news, schedule);
+async function sendWhatsAppBrief(brief, news, schedule, liveNews) {
+  const message = generateBriefText(brief, news, schedule, liveNews);
 
   const logEntry = {
     sent_at: new Date().toISOString(),
@@ -291,9 +400,10 @@ async function sendWhatsAppBrief(brief, news, schedule) {
 
 // ── ROUTES ──────────────────────────────────────────────────────────────────
 
-app.get('/api/generate-brief', (req, res) => {
+app.get('/api/generate-brief', async (req, res) => {
   const db = recomputeBrief(readDB());
-  const message = generateBriefText(db.todays_brief, db.news || [], db.todays_schedule || []);
+  const liveNews = await fetchGoogleNews(db).catch(() => []);
+  const message = generateBriefText(db.todays_brief, db.news || [], db.todays_schedule || [], liveNews);
   db.last_brief_message = message;
   writeDB(db);
   res.json({ message });
@@ -374,7 +484,7 @@ app.post('/api/log-interaction', (req, res) => {
 });
 
 app.post('/api/schedule', (req, res) => {
-  const { event_name, date, time, address, village, mandal, description } = req.body;
+  const { event_name, date, time, address, village, mandal, description, event_type } = req.body;
   if (!mandal || !event_name || !date)
     return res.status(400).json({ error: 'event_name, date and mandal required' });
   const db = readDB();
@@ -395,12 +505,22 @@ app.post('/api/schedule', (req, res) => {
     event_name, date, time: time || '',
     address: address || '', village: village || '',
     mandal, description: description || '',
+    event_type: event_type || '',
     nearby_contacts: nearby.map(c => ({
       id: c.id, name: c.name, phone: c.phone,
       village: c.village, role: c.role, tier: c.tier,
       pps_score: c.pps_score, open_grievance: c.open_grievance || '',
+      // Occasion-specific, PA-written brief for this contact at this event — starts empty.
+      // (The reusable "draft seed" — ai_reason/manual_brief — is looked up live from the
+      // contact record at prep time, not frozen here, so edits to a contact stay fresh.)
+      event_brief: '', brief_reviewed: false,
     })),
     nearby_count: nearby.length,
+    // Manual-first content layers — see GET/PATCH /api/schedule/:id/prep. All start empty/
+    // unreviewed; the PA fills these in, the system only ever offers a draft suggestion.
+    speech_points: '', speech_points_reviewed: false,
+    creative_touches: { selected: [], custom: [], reviewed: false },
+    news_selected: [],
     created_at: new Date().toISOString(),
   };
   db.schedule = [event, ...(db.schedule || [])];
@@ -417,6 +537,195 @@ app.delete('/api/schedule/:id', (req, res) => {
   db.schedule = (db.schedule || []).filter(s => s.id !== req.params.id);
   writeDB(db);
   res.json({ ok: true });
+});
+
+// ── Event prep — draft suggestions the PA reviews/edits, never the final answer ────────────
+// Speech-point starter drafts, keyed by event type. Placeholders are filled from real event/
+// contact data in buildSpeechDraft(). These are seeds for an editable textarea, not output.
+const SPEECH_TEMPLATES = {
+  'Public Meeting': [
+    'Greet {village} and acknowledge {top_contact} and other local leaders by name.',
+    'Reaffirm the development commitments for {mandal}.',
+    '{grievance_line}',
+    'Reference today\'s local news to show you are tracking ground realities.',
+    'Close with a direct appeal to the youth and first-time voters.',
+  ],
+  'Grievance Camp': [
+    'Acknowledge the specific issues raised by {village} residents.',
+    '{grievance_line}',
+    'Commit to a concrete follow-up timeline, not just acknowledgement.',
+    'Thank {top_contact} and the local team for coordinating the camp.',
+  ],
+  'Inauguration': [
+    'Thank the contractors, officials and {top_contact} for the work completed.',
+    'Connect this project to the broader development plan for {mandal}.',
+    'Invite local youth for a photo at the new facility.',
+  ],
+  'Condolence Visit': [
+    'Keep remarks brief, personal and respectful — this is not a campaign moment.',
+    'Acknowledge the family\'s standing in {village} and offer concrete support if appropriate.',
+    'Avoid party/political references entirely.',
+  ],
+  'Party Cadre Meeting': [
+    'Thank the cadre for their ground work in {mandal}.',
+    'Set clear expectations for the next phase.',
+    '{grievance_line}',
+    'Recognize {top_contact} and other senior workers by name.',
+  ],
+  'Festival': [
+    'Open with festival greetings in Telugu.',
+    'Keep it warm and informal — this is a goodwill visit, not a policy speech.',
+    'Spend extra time with youngsters and families for photos.',
+  ],
+  'Other': [
+    'Greet {village} and acknowledge {top_contact} and the local team.',
+    '{grievance_line}',
+    'Close with a clear, specific commitment.',
+  ],
+};
+
+function buildSpeechDraft(eventType, event, contactsForEvent) {
+  const template = SPEECH_TEMPLATES[eventType] || SPEECH_TEMPLATES['Other'];
+  const topContact = contactsForEvent[0]?.name || 'the local leaders';
+  const grievanceContact = contactsForEvent.find(c => c.open_grievance);
+  const grievanceLine = grievanceContact
+    ? `Name and commit to a follow-up date for: "${grievanceContact.open_grievance.slice(0, 80)}".`
+    : 'Invite questions or concerns from those present.';
+  const village = event.village || event.mandal || '';
+  return template
+    .map(line => line
+      .replace('{village}', village)
+      .replace('{mandal}', event.mandal || '')
+      .replace('{top_contact}', topContact)
+      .replace('{grievance_line}', grievanceLine))
+    .filter(Boolean)
+    .map(line => `• ${line}`)
+    .join('\n');
+}
+
+// Creative-touch suggestion menu — a checklist the PA picks from, never auto-applied.
+const CREATIVE_LIBRARY = {
+  'Public Meeting': [
+    { id: 'coffee', label: 'Arrive 15 min early for tea/chai with local karyakartas' },
+    { id: 'photo', label: 'Photo-op with the senior-most contact present' },
+    { id: 'youth', label: 'Separate 5-10 min huddle with youth / first-time voters' },
+  ],
+  'Grievance Camp': [
+    { id: 'grievance_ack', label: 'Personally acknowledge the pending issue and commit a follow-up date', condition: 'hasGrievance' },
+    { id: 'photo', label: 'Photo-op handing over a written acknowledgement' },
+  ],
+  'Inauguration': [
+    { id: 'ribbon', label: 'Ribbon-cutting / inaugural photo with contractors and officials' },
+    { id: 'youth', label: 'Invite local youth for a group photo at the new facility' },
+  ],
+  'Condolence Visit': [
+    { id: 'low_key', label: 'Keep it low-key — no banners, no large entourage' },
+  ],
+  'Party Cadre Meeting': [
+    { id: 'recognize', label: 'Publicly recognize 2-3 senior cadre workers by name' },
+  ],
+  'Festival': [
+    { id: 'sweets', label: 'Distribute sweets / take part in the local custom' },
+    { id: 'selfie', label: 'Click a selfie/group photo with families and youngsters' },
+  ],
+  'Other': [
+    { id: 'coffee', label: 'Arrive early for an informal tea/chai stop nearby' },
+    { id: 'selfie', label: 'Click a selfie with the youth/volunteers present' },
+  ],
+};
+const GLOBAL_CREATIVE_EXTRAS = [
+  { id: 'coffee_stop', label: 'Stop for chai/coffee at a known spot en route' },
+  { id: 'walk_market', label: 'A short walk through the local market/main street' },
+  { id: 'youth_separate', label: 'Meet youngsters separately, away from the main crowd' },
+];
+
+function buildCreativeSuggestions(eventType, contactsForEvent) {
+  const base = CREATIVE_LIBRARY[eventType] || CREATIVE_LIBRARY['Other'];
+  const hasGrievance = contactsForEvent.some(c => c.open_grievance);
+  const filtered = base.filter(s => !s.condition || (s.condition === 'hasGrievance' && hasGrievance));
+  const merged = [...filtered, ...GLOBAL_CREATIVE_EXTRAS];
+  const seen = new Set();
+  return merged.filter(s => (seen.has(s.id) ? false : (seen.add(s.id), true)));
+}
+
+app.get('/api/schedule/:id/prep', async (req, res) => {
+  const db = readDB();
+  const event = (db.schedule || []).find(s => s.id === req.params.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  const contactsById = new Map(db.contacts.map(c => [c.id, c]));
+  const contacts = (event.nearby_contacts || []).map(nc => {
+    const c = contactsById.get(nc.id);
+    const standingNote = c?.manual_brief || '';
+    return {
+      ...nc,
+      ai_reason: c?.ai_reason || '',
+      remarks: c?.remarks || '',
+      standing_note: standingNote,
+      // What to show as the starting draft if the PA hasn't written an event-specific brief yet.
+      suggested_brief: nc.event_brief || standingNote || c?.remarks || c?.ai_reason || '',
+    };
+  });
+
+  let newsSuggestions = [];
+  try {
+    const liveNews = await fetchGoogleNews(db);
+    const tagged = liveNews.filter(n => n.mandal_tag === event.mandal);
+    const rest = liveNews.filter(n => n.mandal_tag !== event.mandal);
+    newsSuggestions = [...tagged, ...rest].slice(0, 8);
+  } catch { /* news is best-effort here */ }
+
+  res.json({
+    event,
+    contacts,
+    speech_draft: buildSpeechDraft(event.event_type, event, event.nearby_contacts || []),
+    creative_suggestions: buildCreativeSuggestions(event.event_type, event.nearby_contacts || []),
+    news_suggestions: newsSuggestions,
+  });
+});
+
+app.patch('/api/schedule/:id/prep', (req, res) => {
+  const db = readDB();
+  const idx = (db.schedule || []).findIndex(s => s.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Event not found' });
+  const event = db.schedule[idx];
+
+  const { event_type, contact_briefs, speech_points, speech_points_reviewed, creative_touches, news_selected } = req.body;
+
+  if (event_type !== undefined) event.event_type = event_type;
+
+  if (contact_briefs) {
+    event.nearby_contacts = (event.nearby_contacts || []).map(nc => {
+      const update = contact_briefs[nc.id];
+      if (!update) return nc;
+      if (update.save_to_contact) {
+        const cIdx = db.contacts.findIndex(c => c.id === nc.id);
+        if (cIdx !== -1) db.contacts[cIdx].manual_brief = update.event_brief || '';
+      }
+      return {
+        ...nc,
+        event_brief: update.event_brief !== undefined ? update.event_brief : nc.event_brief,
+        brief_reviewed: update.brief_reviewed !== undefined ? !!update.brief_reviewed : nc.brief_reviewed,
+      };
+    });
+  }
+
+  if (speech_points !== undefined) event.speech_points = speech_points;
+  if (speech_points_reviewed !== undefined) event.speech_points_reviewed = !!speech_points_reviewed;
+
+  if (creative_touches) {
+    event.creative_touches = {
+      selected: Array.isArray(creative_touches.selected) ? creative_touches.selected : (event.creative_touches?.selected || []),
+      custom: Array.isArray(creative_touches.custom) ? creative_touches.custom : (event.creative_touches?.custom || []),
+      reviewed: creative_touches.reviewed !== undefined ? !!creative_touches.reviewed : (event.creative_touches?.reviewed || false),
+    };
+  }
+
+  if (Array.isArray(news_selected)) event.news_selected = news_selected;
+
+  db.schedule[idx] = event;
+  writeDB(db);
+  res.json({ ok: true, event });
 });
 
 app.post('/api/contact', (req, res) => {
@@ -532,7 +841,8 @@ app.delete('/api/news/:id', (req, res) => {
 
 app.post('/api/send-brief', async (req, res) => {
   const db = recomputeBrief(readDB());
-  const result = await sendWhatsAppBrief(db.todays_brief, db.news || [], db.todays_schedule || []);
+  const liveNews = await fetchGoogleNews(db).catch(() => []);
+  const result = await sendWhatsAppBrief(db.todays_brief, db.news || [], db.todays_schedule || [], liveNews);
   res.json(result);
 });
 
@@ -573,6 +883,55 @@ app.get('/api/live-news', async (req, res) => {
     res.json({ news: items, cached: (Date.now() - newsCache.fetchedAt) < 1000 ? false : true });
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch news', detail: e.message });
+  }
+});
+
+// On-demand full-article fetch — deliberately per-item, never batch. Google News RSS only
+// gives a title + link, so "more detail" has to mean actually reading the article behind the
+// link, not scraping every refresh (slow, flaky on regional sites, and a ToS grey area at scale).
+const articleExtractCache = new Map(); // resolved url -> { title, excerpt, text, fetchedAt }
+const ARTICLE_CACHE_MS = 60 * 60 * 1000; // 1 hour
+
+app.get('/api/live-news/extract', async (req, res) => {
+  const link = req.query.link;
+  if (!link) return res.status(400).json({ error: 'link required' });
+
+  try {
+    const resolved = await resolveNewsLink(link);
+    const cached = articleExtractCache.get(resolved);
+    if (cached && (Date.now() - cached.fetchedAt) < ARTICLE_CACHE_MS) {
+      return res.json({ ok: true, ...cached, url: resolved, cached: true });
+    }
+
+    const resp = await fetch(resolved, {
+      signal: AbortSignal.timeout(8000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SaathiBriefBot/1.0)' },
+    });
+    if (!resp.ok) throw new Error(`Article page returned ${resp.status}`);
+    const html = await resp.text();
+
+    const { JSDOM } = require('jsdom');
+    const { Readability } = require('@mozilla/readability');
+    const dom = new JSDOM(html, { url: resolved });
+    const article = new Readability(dom.window.document).parse();
+
+    if (!article || !article.textContent || article.textContent.trim().length < 40) {
+      const hint = resolved.includes('news.google.com')
+        ? 'Google News links open the real article via JavaScript in a browser, so this server can\'t pull the text — open the link directly to read it.'
+        : 'Could not extract readable article text from this page.';
+      return res.status(422).json({ error: hint });
+    }
+
+    const result = {
+      title: article.title || '',
+      excerpt: stripHtml(article.excerpt || '').slice(0, 300),
+      text: stripHtml(article.textContent).slice(0, 4000),
+      fetchedAt: Date.now(),
+    };
+    articleExtractCache.set(resolved, result);
+    res.json({ ok: true, ...result, url: resolved, cached: false });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch/extract article: ' + e.message });
   }
 });
 
@@ -907,6 +1266,166 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: 'PDF parse failed: ' + e.message });
   }
+});
+
+// ── Daily brief PDF ─────────────────────────────────────────────────────────
+function metByForTier(tier) {
+  if (tier === 'T1') return 'MP personally';
+  if (tier === 'T2') return 'PA / team';
+  return 'WhatsApp / call';
+}
+
+function formatDateLong(dateStr) {
+  // dateStr is YYYY-MM-DD; build the Date at noon UTC so timezone shifts can't roll it to the
+  // previous/next day.
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function buildBriefPDF(doc, db, dateStr, liveNews) {
+  let teluguFontOk = false;
+  try {
+    doc.registerFont('Body', TELUGU_FONT_PATH);
+    doc.registerFont('Body-Bold', TELUGU_FONT_PATH); // the variable font has no separate bold instance; weight comes from size/color
+    teluguFontOk = true;
+  } catch {
+    // Falls back to PDFKit's built-in Helvetica — Telugu names will render as boxes, but the
+    // PDF still generates rather than failing outright.
+  }
+  const bodyFont = teluguFontOk ? 'Body' : 'Helvetica';
+  const boldFont = teluguFontOk ? 'Body-Bold' : 'Helvetica-Bold';
+
+  const events = (db.schedule || [])
+    .filter(s => s.date === dateStr)
+    .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+
+  doc.font(boldFont).fontSize(18).fillColor('#1a1208').text('Saathi - MP Daily Brief');
+  doc.font(bodyFont).fontSize(11).fillColor('#6b7280').text('Palanadu Constituency');
+  doc.moveDown(0.3);
+  doc.fontSize(12).fillColor('#1a1208').text(formatDateLong(dateStr));
+  const preparedAt = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
+  doc.fontSize(9).fillColor('#6b7280').text(`Prepared ${preparedAt} IST · ${events.length} engagement${events.length === 1 ? '' : 's'}`);
+  doc.moveDown(1);
+
+  if (events.length === 0) {
+    doc.font(bodyFont).fontSize(11).fillColor('#374151').text('No engagements scheduled for this date.');
+  }
+
+  events.forEach((event, i) => {
+    if (i > 0) {
+      doc.moveDown(0.5);
+      doc.moveTo(doc.x, doc.y).lineTo(555, doc.y).strokeColor('#e5e5e5').stroke();
+      doc.moveDown(0.5);
+    }
+
+    const venue = [event.village, event.mandal].filter(Boolean).join(', ');
+    doc.font(boldFont).fontSize(13).fillColor('#1a1208')
+      .text(`${i + 1}. ${event.event_name}${event.time ? ' · ' + formatTime12h(event.time) : ''}${event.event_type ? ' · ' + event.event_type : ''}`);
+    if (venue) doc.font(bodyFont).fontSize(10).fillColor('#6b7280').text(`Venue: ${venue}`);
+    if (event.description) doc.font(bodyFont).fontSize(10).fillColor('#374151').text(event.description);
+    doc.moveDown(0.5);
+
+    // Contacts — top 8 by priority, same cap as the prep panel, so what the PA reviewed is
+    // what prints. Manual content wins; auto-draft is a clearly labelled fallback.
+    const contactsById = new Map(db.contacts.map(c => [c.id, c]));
+    const allContacts = event.nearby_contacts || [];
+    const shown = allContacts.slice(0, 8);
+    if (shown.length) {
+      doc.font(boldFont).fontSize(10).fillColor('#1a1208').text('Contacts to meet');
+      doc.moveDown(0.2);
+      shown.forEach(nc => {
+        const c = contactsById.get(nc.id);
+        const manualBrief = nc.event_brief && nc.event_brief.trim();
+        const fallbackBrief = c?.manual_brief || c?.remarks || c?.ai_reason || '';
+        const briefText = manualBrief || fallbackBrief;
+        const isAuto = !manualBrief;
+
+        doc.font(boldFont).fontSize(10).fillColor('#1a1208')
+          .text(`${nc.name}`, { continued: true })
+          .font(bodyFont).fillColor('#6b7280')
+          .text(`  ${nc.tier} · ${nc.role || ''} · Met by: ${metByForTier(nc.tier)}${nc.phone ? ' · ' + nc.phone : ''}`);
+        if (briefText) {
+          doc.font(bodyFont).fontSize(9).fillColor(isAuto ? '#9ca3af' : '#374151')
+            .text(`${isAuto ? '(auto-draft) ' : ''}${briefText}`, { width: 500 });
+        }
+        if (nc.open_grievance) {
+          doc.font(bodyFont).fontSize(9).fillColor('#b45309').text(`⚠ ${nc.open_grievance}`, { width: 500 });
+        }
+        doc.moveDown(0.35);
+      });
+      if (allContacts.length > shown.length) {
+        doc.font(bodyFont).fontSize(9).fillColor('#9ca3af')
+          .text(`+ ${allContacts.length - shown.length} more priority contacts in the app.`);
+      }
+      doc.moveDown(0.3);
+    }
+
+    // Speech points — manual content if reviewed/non-empty, else the template draft, clearly marked.
+    const speechIsAuto = !(event.speech_points && event.speech_points.trim());
+    const speechText = speechIsAuto ? buildSpeechDraft(event.event_type, event, allContacts) : event.speech_points;
+    if (speechText) {
+      doc.font(boldFont).fontSize(10).fillColor('#1a1208').text(`Speech points${speechIsAuto ? ' (auto-draft — not reviewed)' : ''}`);
+      doc.font(bodyFont).fontSize(9).fillColor('#374151').text(speechText, { width: 500 });
+      doc.moveDown(0.3);
+    }
+
+    // Creative touches — only what the PA actually selected/typed. Never auto-inject suggestions.
+    const selected = event.creative_touches?.selected || [];
+    const custom = event.creative_touches?.custom || [];
+    if (selected.length || custom.length) {
+      const suggestionLabels = buildCreativeSuggestions(event.event_type, allContacts)
+        .filter(s => selected.includes(s.id)).map(s => s.label);
+      doc.font(boldFont).fontSize(10).fillColor('#1a1208').text('Creative touches');
+      [...suggestionLabels, ...custom].forEach(label => {
+        doc.font(bodyFont).fontSize(9).fillColor('#374151').text(`• ${label}`, { width: 500 });
+      });
+      doc.moveDown(0.3);
+    }
+  });
+
+  // News — shared across the whole day. PA-picked items win; fall back to the top auto-scraped
+  // items (clearly labelled) only if nobody picked any for any event that day.
+  const pickedNews = [];
+  const seenLinks = new Set();
+  events.forEach(ev => (ev.news_selected || []).forEach(n => {
+    if (!seenLinks.has(n.link)) { seenLinks.add(n.link); pickedNews.push(n); }
+  }));
+  const newsIsAuto = pickedNews.length === 0;
+  const newsToShow = newsIsAuto ? (liveNews || []).slice(0, 5) : pickedNews;
+
+  if (newsToShow.length) {
+    doc.moveDown(0.5);
+    doc.moveTo(doc.x, doc.y).lineTo(555, doc.y).strokeColor('#e5e5e5').stroke();
+    doc.moveDown(0.5);
+    doc.font(boldFont).fontSize(12).fillColor('#1a1208').text(`News for this brief${newsIsAuto ? ' (auto-scraped — not reviewed)' : ''}`);
+    doc.moveDown(0.2);
+    newsToShow.forEach((n, i) => {
+      doc.font(bodyFont).fontSize(9).fillColor('#374151').text(`${i + 1}. ${n.title}${n.source ? ' (' + n.source + ')' : ''}`, { width: 500 });
+      doc.fontSize(8).fillColor('#b45309').text(n.link, { width: 500, link: n.link, underline: true });
+      doc.moveDown(0.15);
+    });
+  }
+}
+
+app.get('/api/brief-pdf', async (req, res) => {
+  const dateStr = req.query.date || getISTDateStr();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+
+  const db = readDB();
+  let liveNews = [];
+  try { liveNews = await fetchGoogleNews(db); } catch { /* news is best-effort in the PDF too */ }
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="saathi-brief-${dateStr}.pdf"`);
+
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  doc.pipe(res);
+  try {
+    buildBriefPDF(doc, db, dateStr, liveNews);
+  } catch (e) {
+    console.error('PDF generation error:', e);
+  }
+  doc.end();
 });
 
 // Health check for Railway

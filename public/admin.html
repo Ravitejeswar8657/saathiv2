@@ -788,12 +788,17 @@ async function loadLiveNews() {
     if (!data.news || data.news.length === 0) {
       html = '<div class="empty-state">No live news available</div>';
     } else {
-      data.news.slice(0, 10).forEach(n => {
+      data.news.slice(0, 20).forEach((n, i) => {
         const date = n.pubDate ? new Date(n.pubDate).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
+        const href = n.link;
+        const itemId = `live-news-extract-${i}`;
         html += `
         <div class="live-news-item">
-          <a href="${n.link}" target="_blank">${n.title}</a>
-          <div class="news-meta">${n.source} · ${date}</div>
+          <a href="${href}" target="_blank" rel="noopener">${n.title}</a>
+          <div class="news-meta">${n.source || ''}${n.source && date ? ' · ' : ''}${date}${n.mandal_tag ? ' · ' + n.mandal_tag : ''}${n.lang === 'te' ? ' · తెలుగు' : ''}
+            &nbsp;·&nbsp;<a href="#" onclick="fetchFullArticle('${itemId}','${href.replace(/'/g, "%27")}');return false;" style="color:#b45309">Fetch full text</a>
+          </div>
+          <div id="${itemId}" class="news-body" style="display:none"></div>
         </div>`;
       });
     }
@@ -801,6 +806,20 @@ async function loadLiveNews() {
     lucide.createIcons();
   } catch(e) {
     document.getElementById('live-news-list').innerHTML = '<div class="empty-state">Failed to load live news</div>';
+  }
+}
+
+async function fetchFullArticle(elId, link) {
+  const el = document.getElementById(elId);
+  el.style.display = 'block';
+  el.textContent = 'Fetching full article…';
+  try {
+    const r = await fetch(`/api/live-news/extract?link=${encodeURIComponent(link)}`);
+    const data = await r.json();
+    if (!data.ok) { el.textContent = data.error || 'Could not fetch full article.'; return; }
+    el.textContent = data.text;
+  } catch (e) {
+    el.textContent = 'Could not fetch full article.';
   }
 }
 

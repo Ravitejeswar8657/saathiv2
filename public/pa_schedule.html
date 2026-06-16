@@ -64,6 +64,42 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
 }
 .time-ok-btn:hover{background:#374151}
 .time-confirmed{font-size:12px;color:#0f766e;font-weight:600;margin-top:5px}
+
+.prep-toggle-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;color:#374151;cursor:pointer;margin-top:8px}
+.prep-toggle-btn:hover{background:#f9fafb}
+.prep-panel{margin-top:12px;border-top:1px solid #f3f4f6;padding-top:12px}
+.prep-section{border:1px solid #e5e5e5;border-radius:8px;margin-bottom:10px;overflow:hidden}
+.prep-section-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fafaf9;cursor:pointer}
+.prep-section-title{font-size:13px;font-weight:600;color:#1a1208}
+.prep-section-body{padding:12px;display:none}
+.prep-section-body.open{display:block}
+.status-chip{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+.status-chip.pending{background:#fef3c7;color:#92400e}
+.status-chip.saved{background:#dcfce7;color:#166534}
+.status-chip.skipped{background:#f1f5f9;color:#64748b}
+.contact-brief-card{border:1px solid #f3f4f6;border-radius:6px;padding:10px;margin-bottom:8px}
+.contact-brief-card .cb-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+.contact-brief-card .cb-name{font-size:13px;font-weight:600}
+.contact-brief-card .cb-hint{font-size:11px;color:#9ca3af;margin-bottom:6px}
+.contact-brief-card textarea{width:100%;min-height:50px;padding:8px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit}
+.cb-actions{display:flex;gap:8px;margin-top:6px;align-items:center;font-size:12px}
+.cb-actions label{display:flex;align-items:center;gap:4px;color:#6b7280;font-weight:500}
+.mini-btn{background:#1a1208;color:#fff;border:none;border-radius:5px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer}
+.mini-btn.secondary{background:#fff;color:#374151;border:1px solid #d4d4d4}
+.mini-btn:hover{opacity:.9}
+.checklist-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid #f9fafb}
+.checklist-item:last-child{border:none}
+.checklist-item input[type=checkbox]{margin-top:3px}
+.custom-list{margin-top:8px}
+.custom-pill{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:14px;padding:4px 10px;font-size:12px;margin:4px 6px 0 0}
+.custom-pill button{background:none;border:none;color:#9ca3af;cursor:pointer;font-size:13px}
+.add-row{display:flex;gap:8px;margin-top:8px}
+.add-row input{flex:1;padding:8px 10px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px}
+.reset-link{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;margin-left:8px}
+.speech-textarea{width:100%;min-height:140px;padding:10px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical}
+.prompt-hint{font-size:12px;color:#6b7280;background:#fafaf9;border-radius:6px;padding:8px 10px;margin-bottom:8px}
+.news-pick-item{font-size:12px;color:#374151;line-height:1.5}
+.news-pick-item a{color:#b45309;text-decoration:none}
 </style>
 </head>
 <body>
@@ -113,7 +149,17 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
         </select>
       </div>
     </div>
-    <div class="form-group"><label>Address / village</label><input id="sch-village" placeholder="e.g. Sattenapalli Town"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Address / village</label><input id="sch-village" placeholder="e.g. Sattenapalli Town"></div>
+      <div class="form-group"><label>Event type</label>
+        <select id="sch-event-type">
+          <option value="">Select type</option>
+          <option>Public Meeting</option><option>Grievance Camp</option>
+          <option>Inauguration</option><option>Condolence Visit</option>
+          <option>Party Cadre Meeting</option><option>Festival</option><option>Other</option>
+        </select>
+      </div>
+    </div>
     <div class="form-group"><label>Description</label><textarea id="sch-desc" placeholder="Agenda or notes..."></textarea></div>
     <button class="submit-btn" onclick="submitSchedule()">
       <i data-lucide="calendar-plus" style="width:16px;height:16px"></i> Save & Find Nearby Contacts
@@ -122,11 +168,31 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
 
   <div id="schedule-result"></div>
 
+  <div class="card" style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+    <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
+      <label>Download brief PDF for</label>
+      <input type="date" id="pdf-date">
+    </div>
+    <button class="mini-btn" style="padding:10px 16px;font-size:14px" onclick="downloadBriefPdf()">Download Final Brief PDF</button>
+  </div>
+
   <div id="upcoming-list"></div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  const pdfDateInput = document.getElementById('pdf-date');
+  if (pdfDateInput && !pdfDateInput.value) {
+    pdfDateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  }
+});
+
+function downloadBriefPdf() {
+  const date = document.getElementById('pdf-date').value;
+  if (!date) { alert('Pick a date first.'); return; }
+  window.open(`/api/brief-pdf?date=${date}`, '_blank');
+}
 
 function confirmTime() {
   const h = document.getElementById('sch-hour').value;
@@ -161,7 +227,7 @@ async function loadSchedule() {
     html += `
     <div class="event-card">
       <div style="flex:1">
-        <div class="event-name">${ev.event_name}</div>
+        <div class="event-name">${ev.event_name}${ev.event_type ? ` <span class="tag tag-t2">${ev.event_type}</span>` : ''}</div>
         <div class="event-meta">${ev.date}${ev.time ? ' · ' + fmt12h(ev.time) : ''} &middot; ${ev.mandal}</div>
         ${ev.nearby_contacts?.length ? `
           <div class="event-contacts">
@@ -174,11 +240,245 @@ async function loadSchedule() {
             `).join('')}
           </div>
         ` : ''}
+        <button class="prep-toggle-btn" onclick="togglePrep('${ev.id}')" id="prep-toggle-${ev.id}">Prep this event &#9656;</button>
+        <div id="prep-container-${ev.id}"></div>
       </div>
       <button onclick="deleteSchedule('${ev.id}')" class="delete-btn" title="Delete event">&times;</button>
     </div>`;
   });
   document.getElementById('upcoming-list').innerHTML = html;
+  lucide.createIcons();
+}
+
+// ── Event prep panel ─────────────────────────────────────────────────────
+const prepDataCache = {};   // eventId -> last-fetched prep payload from the server
+const prepOpenState = {};   // eventId -> boolean, whether the panel is expanded
+
+async function togglePrep(eventId) {
+  const container = document.getElementById(`prep-container-${eventId}`);
+  const btn = document.getElementById(`prep-toggle-${eventId}`);
+  const isOpen = prepOpenState[eventId];
+  if (isOpen) {
+    container.innerHTML = '';
+    prepOpenState[eventId] = false;
+    btn.innerHTML = 'Prep this event &#9656;';
+    return;
+  }
+  prepOpenState[eventId] = true;
+  btn.innerHTML = 'Hide prep &#9662;';
+  container.innerHTML = '<p class="empty-state">Loading…</p>';
+  await refreshPrep(eventId);
+}
+
+async function refreshPrep(eventId) {
+  const r = await fetch(`/api/schedule/${eventId}/prep`);
+  const data = await r.json();
+  prepDataCache[eventId] = data;
+  renderPrepPanel(eventId);
+}
+
+function sectionStatus(label, state) {
+  const cls = state === 'saved' ? 'saved' : state === 'skipped' ? 'skipped' : 'pending';
+  const text = state === 'saved' ? 'Saved' : state === 'skipped' ? 'Skipped' : 'Not reviewed';
+  return `<span class="status-chip ${cls}">${label}: ${text}</span>`;
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function renderPrepPanel(eventId) {
+  const data = prepDataCache[eventId];
+  if (!data) return;
+  const { event, contacts, speech_draft, creative_suggestions, news_suggestions } = data;
+
+  const briefsReviewedCount = contacts.filter(c => c.brief_reviewed).length;
+  const briefsState = briefsReviewedCount === contacts.length && contacts.length > 0 ? 'saved' : briefsReviewedCount > 0 ? 'saved' : 'pending';
+  const speechState = event.speech_points_reviewed ? 'saved' : 'pending';
+  const creativeState = event.creative_touches?.reviewed ? 'saved' : 'pending';
+
+  const html = `
+  <div class="prep-panel">
+    <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
+      ${sectionStatus(`Contacts (${briefsReviewedCount}/${contacts.length})`, briefsState)}
+      ${sectionStatus('Speech', speechState)}
+      ${sectionStatus('Creative', creativeState)}
+    </div>
+
+    <div class="prep-section">
+      <div class="prep-section-header" onclick="togglePrepSection('${eventId}','briefs')">
+        <span class="prep-section-title">1. Contact briefs</span>
+        ${sectionStatus('', briefsState)}
+      </div>
+      <div class="prep-section-body" id="prep-body-${eventId}-briefs">
+        ${contacts.length > 8 ? `<div class="cb-hint" style="margin-bottom:8px">Showing the top 8 by priority. <span class="reset-link" onclick="showAllContactBriefs('${eventId}')">Show all ${contacts.length}</span></div>` : ''}
+        <div id="cb-list-${eventId}">${renderContactBriefCards(eventId, contacts.slice(0, 8))}</div>
+        ${contacts.length > 8 ? `<div id="cb-list-rest-${eventId}" style="display:none">${renderContactBriefCards(eventId, contacts.slice(8))}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="prep-section">
+      <div class="prep-section-header" onclick="togglePrepSection('${eventId}','speech')">
+        <span class="prep-section-title">2. Speech points</span>
+        ${sectionStatus('', speechState)}
+      </div>
+      <div class="prep-section-body" id="prep-body-${eventId}-speech">
+        <div class="prompt-hint">Did you cover: a local name-check? a concrete promise? a thank-you to the host?</div>
+        <textarea class="speech-textarea" id="speech-text-${eventId}">${escapeHtml(event.speech_points || speech_draft)}</textarea>
+        <div style="margin-top:8px">
+          <button class="mini-btn" onclick="saveSpeechPoints('${eventId}',true)">&#10003; Looks good</button>
+          <button class="mini-btn secondary" onclick="saveSpeechPoints('${eventId}',false)">Save draft</button>
+          <span class="reset-link" onclick="resetSpeechDraft('${eventId}')">&#8635; Reset to suggested draft</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="prep-section">
+      <div class="prep-section-header" onclick="togglePrepSection('${eventId}','creative')">
+        <span class="prep-section-title">3. Creative touches</span>
+        ${sectionStatus('', creativeState)}
+      </div>
+      <div class="prep-section-body" id="prep-body-${eventId}-creative">
+        ${creative_suggestions.map(s => `
+          <div class="checklist-item">
+            <input type="checkbox" id="ct-${eventId}-${s.id}" ${(event.creative_touches?.selected||[]).includes(s.id) ? 'checked' : ''}>
+            <label for="ct-${eventId}-${s.id}">${s.label}</label>
+          </div>
+        `).join('')}
+        <div class="custom-list" id="ct-custom-list-${eventId}">
+          ${(event.creative_touches?.custom||[]).map((t,i) => `<span class="custom-pill">${t} <button onclick="removeCustomTouch('${eventId}',${i})">&times;</button></span>`).join('')}
+        </div>
+        <div class="add-row">
+          <input type="text" id="ct-custom-input-${eventId}" placeholder="Add your own idea...">
+          <button class="mini-btn secondary" onclick="addCustomTouch('${eventId}')">Add</button>
+        </div>
+        <div style="margin-top:8px">
+          <button class="mini-btn" onclick="saveCreativeTouches('${eventId}',true)">&#10003; Looks good</button>
+          <button class="mini-btn secondary" onclick="saveCreativeTouches('${eventId}',false)">Save draft</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="prep-section">
+      <div class="prep-section-header" onclick="togglePrepSection('${eventId}','news')">
+        <span class="prep-section-title">4. News for this brief</span>
+      </div>
+      <div class="prep-section-body" id="prep-body-${eventId}-news">
+        ${news_suggestions.length === 0 ? '<p class="empty-state">No live news found right now.</p>' : news_suggestions.map((n,i) => `
+          <div class="checklist-item news-pick-item">
+            <input type="checkbox" id="news-${eventId}-${i}" ${(event.news_selected||[]).some(s=>s.link===n.link) ? 'checked' : ''}>
+            <label for="news-${eventId}-${i}"><a href="${n.link}" target="_blank" rel="noopener">${n.title}</a> ${n.mandal_tag ? `· ${n.mandal_tag}` : ''}</label>
+          </div>
+        `).join('')}
+        <div style="margin-top:8px">
+          <button class="mini-btn secondary" onclick="saveNewsSelection('${eventId}')">Save selection</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  document.getElementById(`prep-container-${eventId}`).innerHTML = html;
+  // All sections start collapsed — with up to 20 contacts, auto-expanding briefs by default
+  // buries the other three steps. The PA picks what to open.
+}
+
+function renderContactBriefCards(eventId, list) {
+  return list.map(c => `
+    <div class="contact-brief-card">
+      <div class="cb-head">
+        <span class="cb-name">${c.name} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
+        <span style="font-size:11px;color:#9ca3af">${c.role || ''}</span>
+      </div>
+      ${c.ai_reason ? `<div class="cb-hint">Suggested: ${c.ai_reason}</div>` : ''}
+      <textarea id="cb-text-${eventId}-${c.id}" placeholder="What should the MP know about ${c.name} for this event?">${escapeHtml(c.event_brief || c.suggested_brief)}</textarea>
+      <div class="cb-actions">
+        <button class="mini-btn" onclick="saveContactBrief('${eventId}','${c.id}',true)">&#10003; Looks good</button>
+        <button class="mini-btn secondary" onclick="saveContactBrief('${eventId}','${c.id}',false)">Save draft</button>
+        <label><input type="checkbox" id="cb-save-contact-${eventId}-${c.id}"> Save to contact too</label>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showAllContactBriefs(eventId) {
+  const rest = document.getElementById(`cb-list-rest-${eventId}`);
+  if (rest) rest.style.display = 'block';
+}
+
+function togglePrepSection(eventId, section) {
+  const body = document.getElementById(`prep-body-${eventId}-${section}`);
+  if (body) body.classList.toggle('open');
+}
+
+async function saveContactBrief(eventId, contactId, markReviewed) {
+  const text = document.getElementById(`cb-text-${eventId}-${contactId}`).value;
+  const saveToContact = document.getElementById(`cb-save-contact-${eventId}-${contactId}`).checked;
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contact_briefs: { [contactId]: { event_brief: text, brief_reviewed: markReviewed, save_to_contact: saveToContact } }
+    })
+  });
+  await refreshPrep(eventId);
+}
+
+async function saveSpeechPoints(eventId, markReviewed) {
+  const text = document.getElementById(`speech-text-${eventId}`).value;
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speech_points: text, speech_points_reviewed: markReviewed })
+  });
+  await refreshPrep(eventId);
+}
+
+function resetSpeechDraft(eventId) {
+  const data = prepDataCache[eventId];
+  if (!data) return;
+  document.getElementById(`speech-text-${eventId}`).value = data.speech_draft;
+}
+
+async function saveCreativeTouches(eventId, markReviewed) {
+  const data = prepDataCache[eventId];
+  const selected = data.creative_suggestions
+    .map(s => s.id)
+    .filter(id => document.getElementById(`ct-${eventId}-${id}`)?.checked);
+  const custom = data.event.creative_touches?.custom || [];
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creative_touches: { selected, custom, reviewed: markReviewed } })
+  });
+  await refreshPrep(eventId);
+}
+
+function addCustomTouch(eventId) {
+  const input = document.getElementById(`ct-custom-input-${eventId}`);
+  const text = input.value.trim();
+  if (!text) return;
+  const data = prepDataCache[eventId];
+  data.event.creative_touches = data.event.creative_touches || { selected: [], custom: [], reviewed: false };
+  data.event.creative_touches.custom = [...(data.event.creative_touches.custom||[]), text];
+  input.value = '';
+  renderPrepPanel(eventId);
+}
+
+function removeCustomTouch(eventId, idx) {
+  const data = prepDataCache[eventId];
+  data.event.creative_touches.custom.splice(idx, 1);
+  renderPrepPanel(eventId);
+}
+
+async function saveNewsSelection(eventId) {
+  const data = prepDataCache[eventId];
+  const selected = data.news_suggestions.filter((n,i) => document.getElementById(`news-${eventId}-${i}`)?.checked);
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ news_selected: selected })
+  });
+  await refreshPrep(eventId);
 }
 
 async function submitSchedule() {
@@ -198,7 +498,8 @@ async function submitSchedule() {
         event_name: name, date, mandal,
         time: document.getElementById('sch-time').value,
         village: document.getElementById('sch-village').value,
-        description: document.getElementById('sch-desc').value
+        description: document.getElementById('sch-desc').value,
+        event_type: document.getElementById('sch-event-type').value
       })
     });
     const data = await r.json();

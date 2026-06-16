@@ -165,6 +165,7 @@ const contacts = raw.map((r, i) => {
     last_interaction: null,
     days_since_contact: 90, // default — no date in source data
     remarks: comment,
+    manual_brief: '',
     open_grievance: '',
     previous_commitment: '',
     priority_level: priority,
