@@ -98,16 +98,36 @@ function recomputeBrief(db) {
   return db;
 }
 
-// ── Google News RSS cache ──────────────────────────────────────────────────
-// Multi-query: a broad English query, a Telugu-language query (most genuine
-// local AP coverage is Telugu and invisible to English-only search), plus
-// per-mandal queries biased toward wherever the MP has events in the next
-// 7 days — bounded to 6 mandals so a busy schedule can't hammer Google News.
-let newsCache = { data: null, fetchedAt: 0, mandalKey: '' };
+// ── News cache ──────────────────────────────────────────────────────────────
+// Two sources, fetched in parallel and merged:
+//  1. Real AP-newspaper section feeds (AP_PUBLISHER_FEEDS) — actual publisher RSS, not Google's
+//     JS-obfuscated redirect links, so the URLs really open the article. Verified live by hand
+//     (curl) before shipping: The Hindu's AP and Vijayawada section feeds and Sakshi's AP feed
+//     all return real <item> XML. Eenadu (410 Gone) and Andhra Jyothy (404) have no working RSS
+//     at all — don't add them. There is no true Guntur/Palnadu *district-edition* feed for any
+//     major AP paper; Vijayawada (the nearest city hub) is the closest real "local" proxy.
+//  2. A couple of broad Google News queries (English + Telugu) as a supplement — lower-quality
+//     links, but they catch stories the three curated feeds miss.
+// "Local relevance" is done by substring-tagging titles against the constituency's mandal names,
+// not by firing a separate weak query per mandal (which is what made the old approach noisy).
+let newsCache = { data: null, fetchedAt: 0 };
 const NEWS_CACHE_MS = 15 * 60 * 1000; // 15 minutes
 const linkResolveCache = new Map(); // google redirect link -> resolved publisher URL
 
 const TELUGU_PLACE_TERMS = 'పల్నాడు OR నరసరావుపేట OR సత్తెనపల్లి OR మాచర్ల OR గురజాల';
+
+const PALNADU_MANDALS = [
+  'Amaravathi', 'Atchampet', 'Bellamkonda', 'Krosuru', 'Muppalla', 'Nekarikallu', 'Pedakurapadu',
+  'Rajupalem', 'Sattenapalli', 'Bollapalle', 'Chilakaluripet', 'Edlapadu', 'Ipuru', 'Nadendla',
+  'Narasaraopet', 'Nuzendla', 'Rompicherla', 'Savalyapuram', 'Vinukonda', 'Dachepalle', 'Durgi',
+  'Gurazala', 'Karempudi', 'Machavaram', 'Macherla', 'Piduguralla', 'Rentachintala', 'Veldurthi',
+];
+
+const AP_PUBLISHER_FEEDS = [
+  { url: 'https://www.thehindu.com/news/national/andhra-pradesh/feeder/default.rss', source: 'The Hindu · AP', lang: 'en' },
+  { url: 'https://www.thehindu.com/news/cities/Vijayawada/feeder/default.rss', source: 'The Hindu · Vijayawada', lang: 'en' },
+  { url: 'https://www.sakshi.com/rss/andhra-pradesh.xml', source: 'Sakshi · AP', lang: 'te' },
+];
 
 function stripHtml(s) {
   return (s || '')
@@ -122,55 +142,53 @@ function stripHtml(s) {
     .trim();
 }
 
-function buildNewsQueries(db) {
-  const queries = [
-    { q: 'Palanadu OR Narasaraopet OR Palnadu', hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en', mandal_tag: '' },
-    { q: TELUGU_PLACE_TERMS, hl: 'te', gl: 'IN', ceid: 'IN:te', lang: 'te', mandal_tag: '' },
-  ];
-  const todayIST = getISTDateStr();
-  const weekAhead = new Date();
-  weekAhead.setDate(weekAhead.getDate() + 7);
-  const weekAheadStr = weekAhead.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-  const upcomingMandals = [...new Set(
-    (db.schedule || [])
-      .filter(s => s.date >= todayIST && s.date <= weekAheadStr)
-      .map(s => s.mandal)
-      .filter(Boolean)
-  )].slice(0, 6);
-  upcomingMandals.forEach(m => {
-    queries.push({ q: `"${m}"`, hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en', mandal_tag: m });
-  });
-  return queries;
+function tagMandal(title) {
+  const lower = (title || '').toLowerCase();
+  return PALNADU_MANDALS.find(m => lower.includes(m.toLowerCase())) || '';
 }
 
-async function fetchOneNewsQuery({ q, hl, gl, ceid, lang, mandal_tag }) {
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=${hl}&gl=${gl}&ceid=${ceid}`;
-  const resp = await fetch(url);
-  const xml = await resp.text();
-
+function parseRssItems(xml) {
   const items = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
   while ((match = itemRegex.exec(xml)) !== null) {
     const block = match[1];
     const title = block.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1')?.trim() || '';
-    const link = block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim() || '';
+    const link = block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1')?.trim() || '';
     const pubDate = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() || '';
     const source = block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1')?.trim() || '';
-    // Note: Google News RSS <description> is just "<a href=link>TITLE</a> SOURCE" — no real
-    // snippet text, so we don't bother parsing it. Real detail comes from on-demand full-article
-    // extraction (see /api/live-news/extract) rather than batch-scraping every refresh.
-    items.push({ title, link, pubDate, source, mandal_tag, lang });
+    items.push({ title, link, pubDate, source });
   }
   return items;
+}
+
+async function fetchOneGoogleQuery({ q, hl, gl, ceid, lang }) {
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=${hl}&gl=${gl}&ceid=${ceid}`;
+  const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  const xml = await resp.text();
+  // Note: Google News RSS <description> is just "<a href=link>TITLE</a> SOURCE" — no real
+  // snippet text, so we don't bother parsing it. Real detail comes from on-demand full-article
+  // extraction (see /api/live-news/extract) rather than batch-scraping every refresh.
+  return parseRssItems(xml).map(it => ({ ...it, mandal_tag: tagMandal(it.title), lang }));
+}
+
+async function fetchOnePublisherFeed({ url, source, lang }) {
+  const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!resp.ok) throw new Error(`${url} returned HTTP ${resp.status}`);
+  const xml = await resp.text();
+  return parseRssItems(xml).map(it => ({
+    title: it.title, link: it.link, pubDate: it.pubDate,
+    source: it.source || source, mandal_tag: tagMandal(it.title), lang, is_publisher_feed: true,
+  }));
 }
 
 // Note: Google News' <link> is a JS/RPC-obfuscated interstitial, not a real HTTP redirect —
 // following it server-side just returns Google's own page, not the publisher URL (verified by
 // hand: no 3xx, the real article URL isn't present anywhere in the HTML, just an encoded blob
 // Google decodes client-side). So this only helps for sources that *do* use real redirects or
-// already give us a direct link (e.g. the uploaded News Brief PDF). For Google News items the
-// original link is still the right thing to show — it works fine when a human opens it in a
+// already give us a direct link (e.g. the uploaded News Brief PDF, or the AP_PUBLISHER_FEEDS
+// above, which already give real article links and don't need resolving). For Google News items
+// the original link is still the right thing to show — it works fine when a human opens it in a
 // browser, which is the only place that JS redirect can run.
 async function resolveNewsLink(link) {
   if (!link) return link;
@@ -186,18 +204,31 @@ async function resolveNewsLink(link) {
   }
 }
 
-async function fetchGoogleNews(db) {
+async function fetchGoogleNews() {
   const now = Date.now();
-  const queries = buildNewsQueries(db || readDB());
-  const mandalKey = queries.map(q => q.mandal_tag).join('|');
-  if (newsCache.data && newsCache.mandalKey === mandalKey && (now - newsCache.fetchedAt) < NEWS_CACHE_MS) {
+  if (newsCache.data && (now - newsCache.fetchedAt) < NEWS_CACHE_MS) {
     return newsCache.data;
   }
 
-  const results = await Promise.allSettled(queries.map(fetchOneNewsQuery));
-  const all = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+  const googleQueries = [
+    { q: 'Palanadu OR Narasaraopet OR Palnadu', hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en' },
+    { q: TELUGU_PLACE_TERMS, hl: 'te', gl: 'IN', ceid: 'IN:te', lang: 'te' },
+  ];
 
-  // Dedupe across queries by normalized title; keep the mandal tag if any copy had one.
+  const [googleResults, publisherResults] = await Promise.all([
+    Promise.allSettled(googleQueries.map(fetchOneGoogleQuery)),
+    Promise.allSettled(AP_PUBLISHER_FEEDS.map(fetchOnePublisherFeed)),
+  ]);
+  publisherResults.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.log(`News feed unavailable, skipping: ${AP_PUBLISHER_FEEDS[i].source} — ${r.reason?.message}`);
+    }
+  });
+  // Publisher feeds first so that when the same story appears in both, the dedupe below keeps
+  // the curated publisher's own link rather than Google's redirect-only copy.
+  const all = [...publisherResults, ...googleResults].flatMap(r => r.status === 'fulfilled' ? r.value : []);
+
+  // Dedupe across sources by normalized title; keep the mandal tag if any copy had one.
   const seen = new Map();
   all.forEach(item => {
     const key = item.title.toLowerCase().replace(/[^a-z0-9అ-౿]/gi, '').slice(0, 80);
@@ -206,17 +237,24 @@ async function fetchGoogleNews(db) {
     else if (!seen.get(key).mandal_tag && item.mandal_tag) seen.get(key).mandal_tag = item.mandal_tag;
   });
 
-  // Reserve a quota for mandal-tagged items (biased toward where the MP has events coming up) so
-  // they can't be entirely crowded out by a busy general-news day, but cap that quota so they also
-  // can't crowd out the broad constituency/Telugu coverage — best of both, not all-or-nothing.
+  // Reserve quotas so the curated, verified sources can't be drowned out by Google's much larger
+  // result volume: mandal-relevant items first, then the curated AP publisher feeds, then
+  // whatever's left from the broader Google query fills the remaining cap.
   const byRecency = (a, b) => new Date(b.pubDate) - new Date(a.pubDate);
   const deduped = [...seen.values()];
   const mandalItems = deduped.filter(i => i.mandal_tag).sort(byRecency);
-  const generalItems = deduped.filter(i => !i.mandal_tag).sort(byRecency);
-  const MANDAL_QUOTA = 12;
-  const items = [...mandalItems.slice(0, MANDAL_QUOTA), ...generalItems].slice(0, 40);
+  const mandalKeys = new Set(mandalItems);
+  const publisherItems = deduped.filter(i => !mandalKeys.has(i) && i.is_publisher_feed).sort(byRecency);
+  const publisherKeys = new Set(publisherItems);
+  const googleItems = deduped.filter(i => !mandalKeys.has(i) && !publisherKeys.has(i)).sort(byRecency);
+  const MANDAL_QUOTA = 12, PUBLISHER_QUOTA = 18;
+  const items = [
+    ...mandalItems.slice(0, MANDAL_QUOTA),
+    ...publisherItems.slice(0, PUBLISHER_QUOTA),
+    ...googleItems,
+  ].slice(0, 40);
 
-  newsCache = { data: items, fetchedAt: now, mandalKey };
+  newsCache = { data: items, fetchedAt: now };
   return items;
 }
 
@@ -424,6 +462,15 @@ app.get('/api/dashboard', (req, res) => {
   });
 });
 
+app.patch('/api/metadata', (req, res) => {
+  const { mp_name } = req.body;
+  const db = readDB();
+  db.metadata = db.metadata || {};
+  if (mp_name !== undefined) db.metadata.mp_name = mp_name;
+  writeDB(db);
+  res.json({ ok: true, metadata: db.metadata });
+});
+
 app.get('/api/contacts', (req, res) => {
   const db = readDB();
   let contacts = db.contacts;
@@ -518,7 +565,8 @@ app.post('/api/schedule', (req, res) => {
     nearby_count: nearby.length,
     // Manual-first content layers — see GET/PATCH /api/schedule/:id/prep. All start empty/
     // unreviewed; the PA fills these in, the system only ever offers a draft suggestion.
-    speech_points: '', speech_points_reviewed: false,
+    contacts_approved: false, contacts_approved_at: null,
+    speech_points: '', speech_points_reviewed: false, speech_skipped: false,
     creative_touches: { selected: [], custom: [], reviewed: false },
     news_selected: [],
     created_at: new Date().toISOString(),
@@ -540,6 +588,15 @@ app.delete('/api/schedule/:id', (req, res) => {
 });
 
 // ── Event prep — draft suggestions the PA reviews/edits, never the final answer ────────────
+// Event types where the MP actually addresses a room — a speech-points step makes sense.
+// Grievance Camp (listening, not speaking), Condolence Visit (template itself says "not a
+// campaign moment"), Festival ("not a policy speech"), and Other/unset default to skipped —
+// the PA can always force the step open if they want it anyway.
+const SPEECH_EVENT_TYPES = new Set(['Public Meeting', 'Inauguration', 'Party Cadre Meeting']);
+function isSpeechApplicable(eventType) {
+  return SPEECH_EVENT_TYPES.has(eventType);
+}
+
 // Speech-point starter drafts, keyed by event type. Placeholders are filled from real event/
 // contact data in buildSpeechDraft(). These are seeds for an editable textarea, not output.
 const SPEECH_TEMPLATES = {
@@ -654,16 +711,16 @@ app.get('/api/schedule/:id/prep', async (req, res) => {
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
   const contactsById = new Map(db.contacts.map(c => [c.id, c]));
+  // Default view is name + phone + whatever note the PA already wrote — never an auto-phrased
+  // comment. The old reason text still exists, but only behind an explicit opt-in `reference`
+  // the PA has to choose to look at (see "show comment from records" in the wizard UI).
   const contacts = (event.nearby_contacts || []).map(nc => {
     const c = contactsById.get(nc.id);
-    const standingNote = c?.manual_brief || '';
     return {
-      ...nc,
-      ai_reason: c?.ai_reason || '',
-      remarks: c?.remarks || '',
-      standing_note: standingNote,
-      // What to show as the starting draft if the PA hasn't written an event-specific brief yet.
-      suggested_brief: nc.event_brief || standingNote || c?.remarks || c?.ai_reason || '',
+      id: nc.id, name: nc.name, phone: nc.phone, village: nc.village, role: nc.role,
+      tier: nc.tier, pps_score: nc.pps_score, open_grievance: nc.open_grievance,
+      note: nc.event_brief || '', note_reviewed: nc.brief_reviewed || false,
+      reference: { remarks: c?.remarks || '', ai_reason: c?.ai_reason || '', standing_note: c?.manual_brief || '' },
     };
   });
 
@@ -676,12 +733,29 @@ app.get('/api/schedule/:id/prep', async (req, res) => {
   } catch { /* news is best-effort here */ }
 
   res.json({
-    event,
+    event: { ...event, speech_applicable: isSpeechApplicable(event.event_type) },
     contacts,
-    speech_draft: buildSpeechDraft(event.event_type, event, event.nearby_contacts || []),
-    creative_suggestions: buildCreativeSuggestions(event.event_type, event.nearby_contacts || []),
     news_suggestions: newsSuggestions,
   });
+});
+
+// On-demand only — the wizard calls this when the PA explicitly clicks "insert a suggestion."
+// Keeping this out of the main GET /prep response is what stops auto-phrasing from creeping
+// back in (it happened twice already across rounds 1-2).
+app.get('/api/schedule/:id/suggestions', (req, res) => {
+  const db = readDB();
+  const event = (db.schedule || []).find(s => s.id === req.params.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  const kind = req.query.kind;
+  const allContacts = event.nearby_contacts || [];
+
+  if (kind === 'speech') {
+    return res.json({ speech_draft: buildSpeechDraft(event.event_type, event, allContacts) });
+  }
+  if (kind === 'creative') {
+    return res.json({ creative_suggestions: buildCreativeSuggestions(event.event_type, allContacts) });
+  }
+  res.status(400).json({ error: 'kind must be speech or creative' });
 });
 
 app.patch('/api/schedule/:id/prep', (req, res) => {
@@ -690,7 +764,11 @@ app.patch('/api/schedule/:id/prep', (req, res) => {
   if (idx === -1) return res.status(404).json({ error: 'Event not found' });
   const event = db.schedule[idx];
 
-  const { event_type, contact_briefs, speech_points, speech_points_reviewed, creative_touches, news_selected } = req.body;
+  const {
+    event_type, contact_briefs, contacts_approved,
+    speech_points, speech_points_reviewed, speech_skipped,
+    creative_touches, news_selected,
+  } = req.body;
 
   if (event_type !== undefined) event.event_type = event_type;
 
@@ -710,8 +788,16 @@ app.patch('/api/schedule/:id/prep', (req, res) => {
     });
   }
 
+  // The review-and-approve gate: a deliberate event-level flag, separate from the per-contact
+  // "reviewed" marker, that the wizard uses to unlock the next step.
+  if (contacts_approved !== undefined) {
+    event.contacts_approved = !!contacts_approved;
+    event.contacts_approved_at = contacts_approved ? new Date().toISOString() : null;
+  }
+
   if (speech_points !== undefined) event.speech_points = speech_points;
   if (speech_points_reviewed !== undefined) event.speech_points_reviewed = !!speech_points_reviewed;
+  if (speech_skipped !== undefined) event.speech_skipped = !!speech_skipped;
 
   if (creative_touches) {
     event.creative_touches = {
@@ -725,7 +811,7 @@ app.patch('/api/schedule/:id/prep', (req, res) => {
 
   db.schedule[idx] = event;
   writeDB(db);
-  res.json({ ok: true, event });
+  res.json({ ok: true, event: { ...event, speech_applicable: isSpeechApplicable(event.event_type) } });
 });
 
 app.post('/api/contact', (req, res) => {
@@ -1282,6 +1368,13 @@ function formatDateLong(dateStr) {
   return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+const PDF_LEFT = 40, PDF_RIGHT = 555, PDF_WIDTH = PDF_RIGHT - PDF_LEFT;
+const PDF_COLORS = {
+  saffron: '#C2410C', saffronTint: '#FFF7ED', saffronBorder: '#FDBA74',
+  ink: '#1F2937', slate: '#6b7280', green: '#15803D',
+  grievance: '#92400E', linkBlue: '#1D4ED8', white: '#ffffff',
+};
+
 function buildBriefPDF(doc, db, dateStr, liveNews) {
   let teluguFontOk = false;
   try {
@@ -1294,36 +1387,54 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
   }
   const bodyFont = teluguFontOk ? 'Body' : 'Helvetica';
   const boldFont = teluguFontOk ? 'Body-Bold' : 'Helvetica-Bold';
+  const C = PDF_COLORS;
 
   const events = (db.schedule || [])
     .filter(s => s.date === dateStr)
     .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
 
-  doc.font(boldFont).fontSize(18).fillColor('#1a1208').text('Saathi - MP Daily Brief');
-  doc.font(bodyFont).fontSize(11).fillColor('#6b7280').text('Palanadu Constituency');
-  doc.moveDown(0.3);
-  doc.fontSize(12).fillColor('#1a1208').text(formatDateLong(dateStr));
+  // ── Header band ──────────────────────────────────────────────────────────
+  doc.rect(0, 0, doc.page.width, 86).fill(C.saffron);
+  doc.fillColor(C.white).font(boldFont).fontSize(20).text('Saathi · MP Daily Brief', PDF_LEFT, 24);
+  doc.font(bodyFont).fontSize(11).fillColor('#FFF7ED').text('Palanadu Constituency', PDF_LEFT, 52);
+  doc.y = 104;
+  doc.x = PDF_LEFT;
+
+  // ── Greeting ─────────────────────────────────────────────────────────────
+  // Plain text only — the bundled variable Telugu font is not guaranteed to carry emoji glyphs.
+  const mpName = db.metadata?.mp_name;
+  doc.font(boldFont).fontSize(13).fillColor(C.saffron).text(`Namaste, ${mpName ? mpName + ' garu' : 'Sir/Madam'} —`, PDF_LEFT);
+  doc.font(bodyFont).fontSize(11).fillColor(C.ink).text(`Here is your brief for ${formatDateLong(dateStr)}.`, PDF_LEFT);
   const preparedAt = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
-  doc.fontSize(9).fillColor('#6b7280').text(`Prepared ${preparedAt} IST · ${events.length} engagement${events.length === 1 ? '' : 's'}`);
-  doc.moveDown(1);
+  doc.fontSize(9).fillColor(C.slate).text(`Prepared ${preparedAt} IST · ${events.length} engagement${events.length === 1 ? '' : 's'}`, PDF_LEFT);
+  doc.moveDown(0.8);
 
   if (events.length === 0) {
-    doc.font(bodyFont).fontSize(11).fillColor('#374151').text('No engagements scheduled for this date.');
+    doc.font(bodyFont).fontSize(11).fillColor(C.ink).text('No engagements scheduled for this date.', PDF_LEFT);
   }
 
   events.forEach((event, i) => {
-    if (i > 0) {
-      doc.moveDown(0.5);
-      doc.moveTo(doc.x, doc.y).lineTo(555, doc.y).strokeColor('#e5e5e5').stroke();
-      doc.moveDown(0.5);
-    }
+    // Page-break guard so a new event box never starts right at the bottom edge. (pdfkit
+    // auto-paginates flowing text, but not a box whose border we draw after the fact — if a
+    // single event's content is long enough to overflow a fresh page anyway, the border may
+    // not perfectly wrap the overflow; that's an accepted v1 limitation.)
+    if (doc.y > doc.page.height - 160) doc.addPage();
+
+    const boxTop = doc.y;
+    const titleStripHeight = 24;
+
+    doc.rect(PDF_LEFT, boxTop, PDF_WIDTH, titleStripHeight).fill(C.saffron);
+    doc.fillColor(C.white).font(boldFont).fontSize(10.5)
+      .text(`${i + 1}. ${event.event_name}${event.time ? ' · ' + formatTime12h(event.time) : ''}${event.event_type ? ' · ' + event.event_type : ''}`,
+        PDF_LEFT + 10, boxTop + 6, { width: PDF_WIDTH - 20 });
+
+    doc.x = PDF_LEFT + 12;
+    doc.y = boxTop + titleStripHeight + 8;
 
     const venue = [event.village, event.mandal].filter(Boolean).join(', ');
-    doc.font(boldFont).fontSize(13).fillColor('#1a1208')
-      .text(`${i + 1}. ${event.event_name}${event.time ? ' · ' + formatTime12h(event.time) : ''}${event.event_type ? ' · ' + event.event_type : ''}`);
-    if (venue) doc.font(bodyFont).fontSize(10).fillColor('#6b7280').text(`Venue: ${venue}`);
-    if (event.description) doc.font(bodyFont).fontSize(10).fillColor('#374151').text(event.description);
-    doc.moveDown(0.5);
+    if (venue) doc.font(bodyFont).fontSize(9).fillColor(C.slate).text(`Venue: ${venue}`, { width: PDF_WIDTH - 24 });
+    if (event.description) doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(event.description, { width: PDF_WIDTH - 24 });
+    doc.moveDown(0.4);
 
     // Contacts — top 8 by priority, same cap as the prep panel, so what the PA reviewed is
     // what prints. Manual content wins; auto-draft is a clearly labelled fallback.
@@ -1331,8 +1442,8 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     const allContacts = event.nearby_contacts || [];
     const shown = allContacts.slice(0, 8);
     if (shown.length) {
-      doc.font(boldFont).fontSize(10).fillColor('#1a1208').text('Contacts to meet');
-      doc.moveDown(0.2);
+      doc.font(boldFont).fontSize(9).fillColor(C.green).text('CONTACTS TO MEET', { width: PDF_WIDTH - 24 });
+      doc.moveDown(0.15);
       shown.forEach(nc => {
         const c = contactsById.get(nc.id);
         const manualBrief = nc.event_brief && nc.event_brief.trim();
@@ -1340,32 +1451,33 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
         const briefText = manualBrief || fallbackBrief;
         const isAuto = !manualBrief;
 
-        doc.font(boldFont).fontSize(10).fillColor('#1a1208')
-          .text(`${nc.name}`, { continued: true })
-          .font(bodyFont).fillColor('#6b7280')
+        doc.font(boldFont).fontSize(9.5).fillColor(C.ink)
+          .text(nc.name, PDF_LEFT + 12, doc.y, { continued: true, width: PDF_WIDTH - 24 })
+          .font(bodyFont).fillColor(C.slate)
           .text(`  ${nc.tier} · ${nc.role || ''} · Met by: ${metByForTier(nc.tier)}${nc.phone ? ' · ' + nc.phone : ''}`);
         if (briefText) {
-          doc.font(bodyFont).fontSize(9).fillColor(isAuto ? '#9ca3af' : '#374151')
-            .text(`${isAuto ? '(auto-draft) ' : ''}${briefText}`, { width: 500 });
+          doc.font(bodyFont).fontSize(8.5).fillColor(isAuto ? '#9ca3af' : C.ink)
+            .text(`${isAuto ? '(auto-draft) ' : ''}${briefText}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
         }
         if (nc.open_grievance) {
-          doc.font(bodyFont).fontSize(9).fillColor('#b45309').text(`⚠ ${nc.open_grievance}`, { width: 500 });
+          doc.font(boldFont).fontSize(8.5).fillColor(C.grievance)
+            .text(`⚠ ${nc.open_grievance}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
         }
         doc.moveDown(0.35);
       });
       if (allContacts.length > shown.length) {
         doc.font(bodyFont).fontSize(9).fillColor('#9ca3af')
-          .text(`+ ${allContacts.length - shown.length} more priority contacts in the app.`);
+          .text(`+ ${allContacts.length - shown.length} more priority contacts in the app.`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
       }
       doc.moveDown(0.3);
     }
 
-    // Speech points — manual content if reviewed/non-empty, else the template draft, clearly marked.
-    const speechIsAuto = !(event.speech_points && event.speech_points.trim());
-    const speechText = speechIsAuto ? buildSpeechDraft(event.event_type, event, allContacts) : event.speech_points;
-    if (speechText) {
-      doc.font(boldFont).fontSize(10).fillColor('#1a1208').text(`Speech points${speechIsAuto ? ' (auto-draft — not reviewed)' : ''}`);
-      doc.font(bodyFont).fontSize(9).fillColor('#374151').text(speechText, { width: 500 });
+    // Speech points — only what the PA actually wrote. No template auto-draft printed anymore;
+    // an unwritten/skipped step simply doesn't appear in the PDF.
+    if (event.speech_points && event.speech_points.trim()) {
+      doc.x = PDF_LEFT + 12;
+      doc.font(boldFont).fontSize(9).fillColor(C.green).text('SPEECH POINTS', PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+      doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(event.speech_points, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
       doc.moveDown(0.3);
     }
 
@@ -1375,12 +1487,18 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     if (selected.length || custom.length) {
       const suggestionLabels = buildCreativeSuggestions(event.event_type, allContacts)
         .filter(s => selected.includes(s.id)).map(s => s.label);
-      doc.font(boldFont).fontSize(10).fillColor('#1a1208').text('Creative touches');
+      doc.x = PDF_LEFT + 12;
+      doc.font(boldFont).fontSize(9).fillColor(C.green).text('CREATIVE TOUCHES', PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
       [...suggestionLabels, ...custom].forEach(label => {
-        doc.font(bodyFont).fontSize(9).fillColor('#374151').text(`• ${label}`, { width: 500 });
+        doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(`• ${label}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
       });
       doc.moveDown(0.3);
     }
+
+    const boxBottom = doc.y + 6;
+    doc.roundedRect(PDF_LEFT, boxTop, PDF_WIDTH, boxBottom - boxTop, 4).lineWidth(1).strokeColor(C.saffronBorder).stroke();
+    doc.x = PDF_LEFT;
+    doc.y = boxBottom + 14;
   });
 
   // News — shared across the whole day. PA-picked items win; fall back to the top auto-scraped
@@ -1394,14 +1512,13 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
   const newsToShow = newsIsAuto ? (liveNews || []).slice(0, 5) : pickedNews;
 
   if (newsToShow.length) {
-    doc.moveDown(0.5);
-    doc.moveTo(doc.x, doc.y).lineTo(555, doc.y).strokeColor('#e5e5e5').stroke();
-    doc.moveDown(0.5);
-    doc.font(boldFont).fontSize(12).fillColor('#1a1208').text(`News for this brief${newsIsAuto ? ' (auto-scraped — not reviewed)' : ''}`);
+    if (doc.y > doc.page.height - 120) doc.addPage();
+    doc.x = PDF_LEFT;
+    doc.font(boldFont).fontSize(12).fillColor(C.green).text(`News for this brief${newsIsAuto ? ' (auto-scraped — not reviewed)' : ''}`, PDF_LEFT);
     doc.moveDown(0.2);
     newsToShow.forEach((n, i) => {
-      doc.font(bodyFont).fontSize(9).fillColor('#374151').text(`${i + 1}. ${n.title}${n.source ? ' (' + n.source + ')' : ''}`, { width: 500 });
-      doc.fontSize(8).fillColor('#b45309').text(n.link, { width: 500, link: n.link, underline: true });
+      doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(`${i + 1}. ${n.title}${n.source ? ' (' + n.source + ')' : ''}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
+      doc.fontSize(8).fillColor(C.linkBlue).text(n.link, PDF_LEFT, doc.y, { width: PDF_WIDTH, link: n.link, underline: true });
       doc.moveDown(0.15);
     });
   }

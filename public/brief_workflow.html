@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Prepare Brief · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
+.container{max-width:840px;margin:0 auto;padding:24px 16px}
+.back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:#6b7280;text-decoration:none}
+.back-link:hover{color:#1a1208}
+.header{margin-bottom:16px}
+.header h1{font-size:22px;font-weight:700;color:#1a1208}
+.header p{font-size:14px;color:#6b7280;margin-top:4px}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
+.form-group input,.form-group textarea,.form-group select{
+  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
+  font-size:14px;font-family:inherit;background:#fff
+}
+.form-group textarea{resize:vertical;min-height:80px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:480px){.form-row{grid-template-columns:1fr}}
+.tag{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block;margin-left:6px}
+.tag-t1{background:#fef3c7;color:#92400e}
+.tag-t2{background:#e0f2fe;color:#0369a1}
+.tag-t3{background:#f1f5f9;color:#64748b}
+.phone-link{color:#b45309;text-decoration:none;font-weight:600;font-size:13px}
+.mini-btn{background:#1a1208;color:#fff;border:none;border-radius:5px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.mini-btn.secondary{background:#fff;color:#374151;border:1px solid #d4d4d4}
+.mini-btn:disabled{background:#9ca3af;cursor:not-allowed}
+.mini-btn:hover:not(:disabled){opacity:.9}
+.reset-link{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline}
+.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
+
+.stepper{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.step-pill{flex:1;min-width:90px;text-align:center;padding:8px 6px;border-radius:6px;font-size:12px;font-weight:600;background:#f1f5f9;color:#64748b;cursor:pointer;border:2px solid transparent}
+.step-pill.current{border-color:#b45309;color:#b45309;background:#fff7ed}
+.step-pill.done{background:#dcfce7;color:#166534}
+.step-pill.skipped{background:#f1f5f9;color:#9ca3af;text-decoration:line-through}
+.wizard-nav{display:flex;justify-content:space-between;margin-top:8px}
+
+.contact-row{border:1px solid #f3f4f6;border-radius:6px;padding:10px;margin-bottom:8px}
+.contact-row .cr-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.contact-row .cr-name{font-size:13px;font-weight:600}
+.contact-row textarea{width:100%;min-height:46px;padding:8px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit}
+.cr-ref{font-size:11px;color:#9ca3af;background:#fafaf9;border-radius:5px;padding:6px 8px;margin-top:6px;display:none}
+.cr-ref.open{display:block}
+
+.checklist-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid #f9fafb}
+.checklist-item:last-child{border:none}
+.custom-pill{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:14px;padding:4px 10px;font-size:12px;margin:4px 6px 0 0}
+.custom-pill button{background:none;border:none;color:#9ca3af;cursor:pointer;font-size:13px}
+.add-row{display:flex;gap:8px;margin-top:8px}
+.add-row input{flex:1;padding:8px 10px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px}
+.suggestion-box{background:#fafaf9;border-radius:6px;padding:10px;margin-top:10px}
+
+.preview-section{border-bottom:1px solid #f3f4f6;padding-bottom:14px;margin-bottom:14px}
+.preview-section:last-child{border:none}
+.preview-section h4{font-size:13px;font-weight:700;color:#15803d;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em}
+.preview-contact{font-size:13px;margin-bottom:8px}
+.preview-contact .pc-name{font-weight:600}
+.preview-note{color:#374151;font-size:12px;margin-top:2px}
+.skip-card{background:#f9fafb;border:1px dashed #d4d4d4;border-radius:6px;padding:14px;text-align:center;color:#6b7280;font-size:13px}
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/pa_schedule.html" class="back-link">&larr; Back to Schedule</a>
+  <div class="header">
+    <h1>Prepare Daily Brief</h1>
+    <p id="event-subtitle">Loading…</p>
+  </div>
+
+  <div class="card" style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+    <div class="form-group" style="margin-bottom:0;flex:1;min-width:180px">
+      <label>MP's name (for the PDF greeting)</label>
+      <input id="mp-name-input" placeholder="e.g. Krishna">
+    </div>
+    <button class="mini-btn secondary" onclick="saveMpName()">Save name</button>
+  </div>
+
+  <div id="no-event-form" style="display:none">
+    <div class="card">
+      <div class="section-title">Add new event to prepare a brief for</div>
+      <div class="form-row">
+        <div class="form-group"><label>Event name *</label><input id="sch-name" placeholder="e.g. Public Meeting"></div>
+        <div class="form-group"><label>Date *</label><input id="sch-date" type="date"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Time</label><input id="sch-time-input" type="time"></div>
+        <div class="form-group"><label>Mandal *</label>
+          <select id="sch-mandal">
+            <option value="">Select Mandal</option>
+            <option>Amaravathi</option><option>Atchampet</option><option>Bellamkonda</option><option>Krosuru</option>
+            <option>Muppalla</option><option>Nekarikallu</option><option>Pedakurapadu</option><option>Rajupalem</option>
+            <option>Sattenapalli</option><option>Bollapalle</option><option>Chilakaluripet</option><option>Edlapadu</option>
+            <option>Ipuru</option><option>Nadendla</option><option>Narasaraopet</option><option>Nuzendla</option>
+            <option>Rompicherla</option><option>Savalyapuram</option><option>Vinukonda</option><option>Dachepalle</option>
+            <option>Durgi</option><option>Gurazala</option><option>Karempudi</option><option>Machavaram</option>
+            <option>Macherla</option><option>Piduguralla</option><option>Rentachintala</option><option>Veldurthi</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Address / village</label><input id="sch-village" placeholder="e.g. Sattenapalli Town"></div>
+        <div class="form-group"><label>Event type</label>
+          <select id="sch-event-type">
+            <option value="">Select type</option>
+            <option>Public Meeting</option><option>Grievance Camp</option>
+            <option>Inauguration</option><option>Condolence Visit</option>
+            <option>Party Cadre Meeting</option><option>Festival</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="sch-desc" placeholder="Agenda or notes..."></textarea></div>
+      <button class="mini-btn" style="width:100%;padding:12px" onclick="createEventAndStart()">Create event &amp; start prep</button>
+    </div>
+  </div>
+
+  <div id="wizard" style="display:none">
+    <div class="stepper" id="stepper-rail"></div>
+    <div class="card" id="step-content"></div>
+    <div class="wizard-nav">
+      <button class="mini-btn secondary" id="back-btn" onclick="prevStep()">&larr; Back</button>
+      <button class="mini-btn" id="next-btn" onclick="nextStep()">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+
+const STEP_DEFS = [
+  { id: 'contacts', label: 'Contacts & Notes' },
+  { id: 'speech', label: 'Speech' },
+  { id: 'creative', label: 'Creative' },
+  { id: 'news', label: 'News' },
+  { id: 'preview', label: 'Preview & PDF' },
+];
+
+let eventId = new URLSearchParams(location.search).get('event') || '';
+let prep = null;      // last-fetched GET /prep payload
+let stepIndex = 0;
+let speechForcedOpen = false;
+let showAllContacts = false;
+const newsCheckedCache = {}; // index -> bool, local UI state before save
+
+function stepIndexOf(id) {
+  return visibleSteps().findIndex(s => s.id === id);
+}
+
+function visibleSteps() {
+  return STEP_DEFS.filter(s => {
+    if (s.id !== 'speech') return true;
+    return prep.event.speech_applicable || speechForcedOpen;
+  });
+}
+
+async function loadMpName() {
+  const r = await fetch('/api/dashboard');
+  const data = await r.json();
+  document.getElementById('mp-name-input').value = data.metadata?.mp_name || '';
+}
+
+async function saveMpName() {
+  const mp_name = document.getElementById('mp-name-input').value.trim();
+  await fetch('/api/metadata', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mp_name }) });
+}
+
+async function createEventAndStart() {
+  const name = document.getElementById('sch-name').value;
+  const date = document.getElementById('sch-date').value;
+  const mandal = document.getElementById('sch-mandal').value;
+  if (!name || !date || !mandal) { alert('Fill required fields.'); return; }
+  const r = await fetch('/api/schedule', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      event_name: name, date, mandal,
+      time: document.getElementById('sch-time-input').value,
+      village: document.getElementById('sch-village').value,
+      description: document.getElementById('sch-desc').value,
+      event_type: document.getElementById('sch-event-type').value,
+    }),
+  });
+  const data = await r.json();
+  if (!data.ok) { alert(data.error || 'Could not create event.'); return; }
+  eventId = data.event_id;
+  history.replaceState(null, '', `/brief_workflow.html?event=${eventId}`);
+  document.getElementById('no-event-form').style.display = 'none';
+  document.getElementById('wizard').style.display = 'block';
+  await refreshPrep();
+}
+
+async function refreshPrep() {
+  const r = await fetch(`/api/schedule/${eventId}/prep`);
+  if (!r.ok) { document.getElementById('event-subtitle').textContent = 'Event not found.'; return; }
+  prep = await r.json();
+  const ev = prep.event;
+  const venue = [ev.village, ev.mandal].filter(Boolean).join(', ');
+  document.getElementById('event-subtitle').textContent =
+    `${ev.event_name} · ${ev.date}${ev.time ? ' ' + ev.time : ''} · ${venue}${ev.event_type ? ' · ' + ev.event_type : ''}`;
+  renderAll();
+}
+
+function clampStepIndex() {
+  const steps = visibleSteps();
+  if (stepIndex >= steps.length) stepIndex = steps.length - 1;
+  if (stepIndex < 0) stepIndex = 0;
+}
+
+function renderAll() {
+  clampStepIndex();
+  renderStepper();
+  renderStepContent();
+  renderNav();
+}
+
+function renderStepper() {
+  const steps = visibleSteps();
+  const html = steps.map((s, i) => {
+    let cls = 'step-pill';
+    if (i === stepIndex) cls += ' current';
+    else if (i < stepIndex) cls += ' done';
+    return `<div class="${cls}" onclick="jumpToStep(${i})">${i + 1}. ${s.label}</div>`;
+  }).join('');
+  document.getElementById('stepper-rail').innerHTML = html;
+}
+
+function jumpToStep(i) {
+  // Free navigation backward and to already-reachable steps; forward jump past the gate is
+  // blocked the same way Next is.
+  if (i > stepIndex && stepIndex === 0 && !prep.event.contacts_approved) {
+    alert('Please review & approve the contacts first.');
+    return;
+  }
+  stepIndex = i;
+  renderAll();
+}
+
+function renderNav() {
+  const steps = visibleSteps();
+  document.getElementById('back-btn').style.visibility = stepIndex === 0 ? 'hidden' : 'visible';
+  const nextBtn = document.getElementById('next-btn');
+  if (stepIndex === steps.length - 1) {
+    nextBtn.style.visibility = 'hidden';
+  } else {
+    nextBtn.style.visibility = 'visible';
+    nextBtn.disabled = steps[stepIndex].id === 'contacts' && !prep.event.contacts_approved;
+    nextBtn.textContent = nextBtn.disabled ? 'Approve contacts to continue' : 'Next →';
+  }
+}
+
+function prevStep() { stepIndex = Math.max(0, stepIndex - 1); renderAll(); }
+function nextStep() {
+  const steps = visibleSteps();
+  if (steps[stepIndex].id === 'contacts' && !prep.event.contacts_approved) return;
+  stepIndex = Math.min(steps.length - 1, stepIndex + 1);
+  renderAll();
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function renderStepContent() {
+  const steps = visibleSteps();
+  const stepId = steps[stepIndex].id;
+  const n = stepIndex + 1; // visible position — keeps the heading in sync with the stepper rail
+  const el = document.getElementById('step-content');
+  if (stepId === 'contacts') el.innerHTML = contactsStepHtml(n);
+  else if (stepId === 'speech') el.innerHTML = speechStepHtml(n);
+  else if (stepId === 'creative') el.innerHTML = creativeStepHtml(n);
+  else if (stepId === 'news') el.innerHTML = newsStepHtml(n);
+  else if (stepId === 'preview') el.innerHTML = previewStepHtml(n);
+  lucide.createIcons();
+}
+
+// ── Step 1: Contacts & Notes ────────────────────────────────────────────────
+function contactsStepHtml(n) {
+  const contacts = prep.contacts;
+  const shown = showAllContacts ? contacts : contacts.slice(0, 8);
+  const approved = prep.event.contacts_approved;
+  return `
+    <div class="section-title">${n}. Contacts — add a note, then approve</div>
+    <p class="empty-state" style="margin-top:-8px">Just name and phone by default. Nothing here is auto-written for you.</p>
+    ${contacts.length > 8 && !showAllContacts ? `<p class="empty-state">Showing top 8 by priority. <span class="reset-link" onclick="showAllContacts=true;renderStepContent()">Show all ${contacts.length}</span></p>` : ''}
+    ${shown.map(c => `
+      <div class="contact-row">
+        <div class="cr-head">
+          <span class="cr-name">${c.name} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
+          <a href="tel:${c.phone}" class="phone-link">${c.phone || ''}</a>
+        </div>
+        <textarea id="note-${c.id}" placeholder="What should the MP know about ${c.name}?">${escapeHtml(c.note)}</textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+          <span class="reset-link" onclick="toggleRef('${c.id}')">Show comment from records</span>
+          <button class="mini-btn secondary" onclick="saveNote('${c.id}')">Save note</button>
+        </div>
+        <div class="cr-ref" id="ref-${c.id}">
+          ${c.reference.remarks ? `<div><b>Record:</b> ${escapeHtml(c.reference.remarks)}</div>` : ''}
+          ${c.reference.ai_reason ? `<div><b>System note:</b> ${escapeHtml(c.reference.ai_reason)}</div>` : ''}
+          ${!c.reference.remarks && !c.reference.ai_reason ? 'Nothing on file.' : ''}
+        </div>
+      </div>
+    `).join('')}
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;color:${approved ? '#166534' : '#92400e'};font-weight:600">
+        ${approved ? '✓ Approved' : 'Not yet approved'}
+      </span>
+      <button class="mini-btn" onclick="approveContacts()">Review &amp; Approve contacts</button>
+    </div>
+  `;
+}
+
+function toggleRef(id) {
+  document.getElementById(`ref-${id}`).classList.toggle('open');
+}
+
+async function saveNote(contactId) {
+  const text = document.getElementById(`note-${contactId}`).value;
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contact_briefs: { [contactId]: { event_brief: text, brief_reviewed: !!text.trim() } } }),
+  });
+  await refreshPrep();
+}
+
+async function saveAllVisibleNotes() {
+  const contacts = showAllContacts ? prep.contacts : prep.contacts.slice(0, 8);
+  const contact_briefs = {};
+  contacts.forEach(c => {
+    const el = document.getElementById(`note-${c.id}`);
+    if (el) contact_briefs[c.id] = { event_brief: el.value, brief_reviewed: !!el.value.trim() };
+  });
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contact_briefs }),
+  });
+}
+
+async function approveContacts() {
+  await saveAllVisibleNotes();
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contacts_approved: true }),
+  });
+  await refreshPrep();
+}
+
+// ── Step 2: Speech (conditional) ────────────────────────────────────────────
+function speechStepHtml(n) {
+  if (!prep.event.speech_applicable && !speechForcedOpen) {
+    return `
+      <div class="section-title">${n}. Speech points</div>
+      <div class="skip-card">
+        Skipped — ${prep.event.event_type || 'this event type'} usually doesn't need prepared speech points.
+        <div style="margin-top:8px"><span class="reset-link" onclick="speechForcedOpen=true;renderAll()">Add speech points anyway</span></div>
+      </div>
+    `;
+  }
+  return `
+    <div class="section-title">${n}. Speech points</div>
+    <textarea id="speech-text" style="min-height:140px" placeholder="Write the speech points yourself, or insert a suggested outline below.">${escapeHtml(prep.event.speech_points)}</textarea>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="mini-btn" onclick="saveSpeech()">Save</button>
+      <span class="reset-link" onclick="insertSpeechSuggestion()">Insert a suggested outline</span>
+      ${prep.event.speech_applicable ? `<span class="reset-link" onclick="skipSpeech()">Skip this step</span>` : ''}
+    </div>
+  `;
+}
+
+async function saveSpeech() {
+  const text = document.getElementById('speech-text').value;
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speech_points: text, speech_points_reviewed: !!text.trim(), speech_skipped: false }),
+  });
+  await refreshPrep();
+}
+
+async function skipSpeech() {
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speech_points: '', speech_points_reviewed: false, speech_skipped: true }),
+  });
+  speechForcedOpen = false;
+  await refreshPrep();
+}
+
+async function insertSpeechSuggestion() {
+  const r = await fetch(`/api/schedule/${eventId}/suggestions?kind=speech`);
+  const data = await r.json();
+  const ta = document.getElementById('speech-text');
+  ta.value = ta.value ? ta.value + '\n' + data.speech_draft : data.speech_draft;
+}
+
+// ── Step 3: Creative (manual + optional suggestions) ────────────────────────
+function creativeStepHtml(n) {
+  const custom = prep.event.creative_touches?.custom || [];
+  return `
+    <div class="section-title">${n}. Creative things to do</div>
+    <p class="empty-state" style="margin-top:-8px">Add your own ideas. Suggestions are optional — open below if you want some.</p>
+    <div class="add-row">
+      <input type="text" id="creative-input" placeholder="e.g. Stop for chai at the market on the way">
+      <button class="mini-btn secondary" onclick="addCreative()">Add</button>
+    </div>
+    <div id="creative-list" style="margin-top:8px">
+      ${custom.map((t, i) => `<span class="custom-pill">${escapeHtml(t)} <button onclick="removeCreative(${i})">&times;</button></span>`).join('')}
+    </div>
+    <div style="margin-top:10px"><span class="reset-link" onclick="loadCreativeSuggestions()">Show suggestions</span></div>
+    <div class="suggestion-box" id="creative-suggestion-box" style="display:none"></div>
+  `;
+}
+
+async function addCreative() {
+  const input = document.getElementById('creative-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const custom = [...(prep.event.creative_touches?.custom || []), text];
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creative_touches: { selected: prep.event.creative_touches?.selected || [], custom, reviewed: true } }),
+  });
+  await refreshPrep();
+}
+
+async function removeCreative(idx) {
+  const custom = [...(prep.event.creative_touches?.custom || [])];
+  custom.splice(idx, 1);
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creative_touches: { selected: prep.event.creative_touches?.selected || [], custom, reviewed: true } }),
+  });
+  await refreshPrep();
+}
+
+async function loadCreativeSuggestions() {
+  const r = await fetch(`/api/schedule/${eventId}/suggestions?kind=creative`);
+  const data = await r.json();
+  const selected = prep.event.creative_touches?.selected || [];
+  const box = document.getElementById('creative-suggestion-box');
+  box.style.display = 'block';
+  box.innerHTML = data.creative_suggestions.map(s => `
+    <div class="checklist-item">
+      <input type="checkbox" id="sugg-${s.id}" ${selected.includes(s.id) ? 'checked' : ''} onchange="toggleSuggestion('${s.id}')">
+      <label for="sugg-${s.id}">${s.label}</label>
+    </div>
+  `).join('');
+}
+
+async function toggleSuggestion(id) {
+  const checked = document.getElementById(`sugg-${id}`).checked;
+  let selected = prep.event.creative_touches?.selected || [];
+  selected = checked ? [...new Set([...selected, id])] : selected.filter(s => s !== id);
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creative_touches: { selected, custom: prep.event.creative_touches?.custom || [], reviewed: true } }),
+  });
+  prep.event.creative_touches.selected = selected; // keep local state in sync without a full re-fetch
+}
+
+// ── Step 4: News ─────────────────────────────────────────────────────────────
+function newsStepHtml(n) {
+  const items = prep.news_suggestions || [];
+  const selectedLinks = new Set((prep.event.news_selected || []).map(x => x.link));
+  if (!items.length) return `<div class="section-title">${n}. News for this brief</div><p class="empty-state">No live news found right now.</p>`;
+  return `
+    <div class="section-title">${n}. News for this brief</div>
+    ${items.map((item, i) => `
+      <div class="checklist-item">
+        <input type="checkbox" id="news-${i}" ${selectedLinks.has(item.link) ? 'checked' : ''}>
+        <label for="news-${i}"><a href="${item.link}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a> ${item.mandal_tag ? '· ' + item.mandal_tag : ''} ${item.source ? '· ' + item.source : ''}</label>
+      </div>
+    `).join('')}
+    <div style="margin-top:10px"><button class="mini-btn secondary" onclick="saveNewsSelection()">Save selection</button></div>
+  `;
+}
+
+async function saveNewsSelection() {
+  const items = prep.news_suggestions || [];
+  const selected = items.filter((n, i) => document.getElementById(`news-${i}`)?.checked);
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ news_selected: selected }),
+  });
+  await refreshPrep();
+}
+
+// ── Step 5: Preview & Generate ───────────────────────────────────────────────
+function previewStepHtml(n) {
+  const ev = prep.event;
+  const notedContacts = prep.contacts.filter(c => c.note && c.note.trim());
+  return `
+    <div class="section-title">${n}. Preview — review before generating</div>
+
+    <div class="preview-section">
+      <h4>Contacts with notes (${notedContacts.length} of ${prep.contacts.length})</h4>
+      ${notedContacts.length ? notedContacts.map(c => `
+        <div class="preview-contact"><span class="pc-name">${c.name}</span> · ${c.phone}<div class="preview-note">${escapeHtml(c.note)}</div></div>
+      `).join('') : '<p class="empty-state">No notes written yet.</p>'}
+      <span class="reset-link" onclick="jumpToStep(stepIndexOf('contacts'))">Edit contacts &amp; notes</span>
+    </div>
+
+    <div class="preview-section">
+      <h4>Speech points</h4>
+      <textarea id="preview-speech" style="min-height:90px">${escapeHtml(ev.speech_points)}</textarea>
+      <div style="margin-top:6px"><button class="mini-btn secondary" onclick="savePreviewSpeech()">Save edit</button></div>
+    </div>
+
+    <div class="preview-section">
+      <h4>Creative touches</h4>
+      ${(ev.creative_touches?.custom || []).length || (ev.creative_touches?.selected || []).length
+        ? `<ul style="padding-left:18px;font-size:13px">${[...(ev.creative_touches?.custom||[])].map(t=>`<li>${escapeHtml(t)}</li>`).join('')}</ul>`
+        : '<p class="empty-state">None added yet.</p>'}
+      <span class="reset-link" onclick="jumpToStep(stepIndexOf('creative'))">Edit creative touches</span>
+    </div>
+
+    <div class="preview-section">
+      <h4>News (${(ev.news_selected || []).length} selected)</h4>
+      ${(ev.news_selected || []).length
+        ? `<ul style="padding-left:18px;font-size:13px">${ev.news_selected.map(n=>`<li>${escapeHtml(n.title)}</li>`).join('')}</ul>`
+        : '<p class="empty-state">None picked — the PDF will fall back to top auto-scraped items, clearly labelled.</p>'}
+      <span class="reset-link" onclick="jumpToStep(stepIndexOf('news'))">Edit news picks</span>
+    </div>
+
+    <button class="mini-btn" style="width:100%;padding:14px;font-size:15px" onclick="generatePdf()">
+      Generate Final Brief PDF
+    </button>
+  `;
+}
+
+async function savePreviewSpeech() {
+  const text = document.getElementById('preview-speech').value;
+  await fetch(`/api/schedule/${eventId}/prep`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speech_points: text, speech_points_reviewed: !!text.trim() }),
+  });
+  await refreshPrep();
+}
+
+function generatePdf() {
+  window.open(`/api/brief-pdf?date=${prep.event.date}`, '_blank');
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+(async () => {
+  await loadMpName();
+  if (!eventId) {
+    document.getElementById('no-event-form').style.display = 'block';
+    document.getElementById('event-subtitle').textContent = 'Create an event to begin preparing its brief.';
+    document.getElementById('sch-date').value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  } else {
+    document.getElementById('wizard').style.display = 'block';
+    await refreshPrep();
+  }
+})();
+</script>
+</body>
+</html>
