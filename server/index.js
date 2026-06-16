@@ -53,10 +53,28 @@ function getISTDateStr() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
 }
 
+// ── Time helpers ────────────────────────────────────────────────────────────
+function parseTimeToMinutes(t) {
+  if (!t) return 9999;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+function formatTime12h(t) {
+  if (!t) return '';
+  const [hStr, mStr] = t.split(':');
+  let h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ampm}`;
+}
+
 // ── Scoring helpers ─────────────────────────────────────────────────────────
 function recomputeBrief(db) {
   const todayIST = getISTDateStr();
-  const todaysEvents = (db.schedule || []).filter(s => s.date === todayIST);
+  const todaysEvents = (db.schedule || [])
+    .filter(s => s.date === todayIST)
+    .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
 
   db.todays_schedule = todaysEvents;
 
@@ -196,32 +214,31 @@ function generateBriefText(brief, news, schedule) {
     `*Palanadu Constituency*\n`,
   ];
 
-  // Today's schedule
+  // Today's schedule with event-specific contacts
   const todaySchedule = schedule || [];
   if (todaySchedule.length) {
     lines.push(`*📅 Today's Engagements:*`);
     todaySchedule.forEach((ev, i) => {
-      const timeLabel = ev.time ? ` · ${ev.time}` : '';
+      const time12 = formatTime12h(ev.time);
+      const timeLabel = time12 ? ` · ${time12}` : '';
       const venue = [ev.village, ev.mandal].filter(Boolean).join(', ');
       lines.push(`${i + 1}. *${ev.event_name}*${timeLabel}`);
       if (venue) lines.push(`   📍 ${venue}`);
       if (ev.description) lines.push(`   ${ev.description}`);
+      const contacts = (ev.nearby_contacts || []).slice(0, 3);
+      if (contacts.length) {
+        lines.push(`   👥 Key contacts:`);
+        contacts.forEach(c => {
+          const detail = [c.role, c.village].filter(Boolean).join(', ');
+          lines.push(`   • *${c.name}*${detail ? ' — ' + detail : ''}`);
+          if (c.phone) lines.push(`     📞 ${c.phone}`);
+          if (c.open_grievance) lines.push(`     ⚠️ ${c.open_grievance.slice(0, 60)}`);
+        });
+      }
       lines.push('');
     });
   } else {
     lines.push(`_No engagements scheduled for today._\n`);
-  }
-
-  // Priority contacts for today's events
-  if (brief.length > 0) {
-    lines.push(`*👥 Priority Contacts:*`);
-    brief.slice(0, 8).forEach((c, i) => {
-      const detail = [c.role, c.village].filter(Boolean).join(', ');
-      lines.push(`${i + 1}. *${c.name}*${detail ? ' — ' + detail : ''}`);
-      if (c.phone) lines.push(`   📞 ${c.phone}`);
-      if (c.open_grievance) lines.push(`   ⚠️ Pending: ${c.open_grievance.slice(0, 80)}`);
-    });
-    lines.push('');
   }
 
   // News submitted today (IST)
@@ -775,65 +792,61 @@ app.delete('/api/broadcast-jobs/:jobId', (req, res) => {
 function parseNewsBriefText(rawText) {
   const rawLines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Join URL fragments — PDFs wrap long URLs mid-word across lines
-  const lines = [];
-  for (const line of rawLines) {
-    if (lines.length > 0) {
-      const prev = lines[lines.length - 1];
-      const prevIsPartialUrl =
-        prev.startsWith('http') &&
-        !/\.(ece|html?|php|aspx|com|org|net|in|pdf|json)\b/.test(prev);
-      const lineIsUrlFrag =
-        !line.includes(' ') && /^[a-zA-Z0-9\/\-\._?=%&#]+$/.test(line);
-      if (prevIsPartialUrl && (line.startsWith('/') || lineIsUrlFrag)) {
-        lines[lines.length - 1] = prev + line;
-        continue;
-      }
-    }
-    lines.push(line);
-  }
-
   // Extract date
   const dateMatch = rawText.match(/Date[:\s]+(.+)/i);
   const briefDate = dateMatch ? dateMatch[1].trim() : '';
 
-  // Strip known noise / header rows
+  // Collect all URLs in document order — PDFs sometimes split URLs across lines,
+  // so first join fragments (a line with no spaces immediately following a partial URL).
+  const joinedLines = [];
+  for (const line of rawLines) {
+    if (joinedLines.length > 0) {
+      const prev = joinedLines[joinedLines.length - 1];
+      if (/^https?:\/\//.test(prev) && !line.includes(' ') &&
+          /^[a-zA-Z0-9\/\-\._?=%&#]+$/.test(line)) {
+        joinedLines[joinedLines.length - 1] = prev + line;
+        continue;
+      }
+    }
+    joinedLines.push(line);
+  }
+
+  // All HTTP links in order — item N gets allLinks[N-1]
+  const allLinks = joinedLines.filter(l => /^https?:\/\//.test(l));
+
+  // Text lines with noise and URLs stripped
   const NOISE = new Set([
     'Sl.', 'No.', 'Topic', 'News Summary', 'Link',
     'National News', 'International News',
     'Topic News Summary Link', 'Sl. No. Topic News Summary Link',
     'Sl. No.', 'Topic News Summary Link',
   ]);
-  const clean = lines.filter(l => !NOISE.has(l) && !/^Date[:\s]/i.test(l));
+  const textLines = joinedLines.filter(l =>
+    !NOISE.has(l) && !/^Date[:\s]/i.test(l) && !/^https?:\/\//.test(l));
 
   const items = [];
   let i = 0;
 
-  while (i < clean.length) {
-    if (!/^\d+$/.test(clean[i])) { i++; continue; }
-    i++; // skip item number
+  while (i < textLines.length) {
+    if (!/^\d+$/.test(textLines[i])) { i++; continue; }
+    const serialNum = parseInt(textLines[i], 10);
+    i++;
 
     const chunk = [];
-    while (i < clean.length && !/^\d+$/.test(clean[i])) {
-      chunk.push(clean[i]);
+    while (i < textLines.length && !/^\d+$/.test(textLines[i])) {
+      chunk.push(textLines[i]);
       i++;
     }
     if (!chunk.length) continue;
 
-    // Extract URL from the end of the chunk
-    let link = '';
-    while (chunk.length && chunk[chunk.length - 1].startsWith('http')) {
-      link = chunk.pop();
-    }
-
-    // Classify by URL path (/national/ vs /international/)
+    // Match link by serial number (1-indexed)
+    const link = allLinks[serialNum - 1] || '';
     const category = link.includes('/international/') ? 'International' : 'National';
 
     // Split topic (short title-case phrases) from body (sentence prose)
     const topicParts = [];
     const bodyParts = [];
     let inBody = false;
-
     for (const ln of chunk) {
       if (!inBody) {
         const words = ln.split(/\s+/);
@@ -848,9 +861,12 @@ function parseNewsBriefText(rawText) {
     const headline = topicParts.join(' ').trim();
     const body = bodyParts.join(' ').trim();
     if (headline || body) {
-      items.push({ headline: headline || body.slice(0, 80), body, link, category, briefDate });
+      items.push({ serialNum, headline: headline || body.slice(0, 80), body, link, category, briefDate });
     }
   }
+
+  // Ensure order matches the PDF's serial numbers
+  items.sort((a, b) => a.serialNum - b.serialNum);
 
   return { briefDate, items };
 }

@@ -851,7 +851,7 @@ function ndRender() {
         ${n.source ? `<span><i data-lucide="building-2"></i>${ndEsc(n.source)}</span>` : ''}
         ${n.submitted_at ? `<span><i data-lucide="clock"></i>${ndFmtTime(n.submitted_at)}</span>` : ''}
       </div>
-      ${hasLink ? `<a class="nd-link" href="${ndEsc(n.link)}" target="_blank" rel="noopener">
+      ${hasLink ? `<a class="nd-link" href="${n.link.replace(/"/g,'%22')}" target="_blank" rel="noopener">
         Read full article <i data-lucide="external-link"></i>
       </a>` : ''}
     </div>`;

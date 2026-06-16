@@ -56,6 +56,14 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
 .event-contacts-label{font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px}
 .empty-state{font-size:13px;color:#6b7280;padding:8px 0}
 @keyframes spin{to{transform:rotate(360deg)}}
+.time-picker{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.time-picker select{width:auto;padding:10px 8px}
+.time-ok-btn{
+  padding:10px 14px;background:#1a1208;color:#fff;border:none;border-radius:6px;
+  font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap
+}
+.time-ok-btn:hover{background:#374151}
+.time-confirmed{font-size:12px;color:#0f766e;font-weight:600;margin-top:5px}
 </style>
 </head>
 <body>
@@ -73,7 +81,25 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
       <div class="form-group"><label>Date *</label><input id="sch-date" type="date"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Time</label><input id="sch-time" type="time"></div>
+      <div class="form-group">
+        <label>Time</label>
+        <div class="time-picker">
+          <select id="sch-hour">
+            <option value="">Hr</option>
+            <option>1</option><option>2</option><option>3</option><option>4</option>
+            <option>5</option><option>6</option><option>7</option><option>8</option>
+            <option>9</option><option>10</option><option>11</option><option>12</option>
+          </select>
+          <select id="sch-min">
+            <option value="00">00</option><option value="15">15</option>
+            <option value="30">30</option><option value="45">45</option>
+          </select>
+          <select id="sch-ampm"><option>AM</option><option>PM</option></select>
+          <button type="button" class="time-ok-btn" onclick="confirmTime()">OK</button>
+        </div>
+        <div id="time-confirmed" class="time-confirmed"></div>
+        <input type="hidden" id="sch-time" value=""/>
+      </div>
       <div class="form-group"><label>Mandal *</label>
         <select id="sch-mandal">
           <option value="">Select Mandal</option>
@@ -102,6 +128,29 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
 <script>
 document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
 
+function confirmTime() {
+  const h = document.getElementById('sch-hour').value;
+  const m = document.getElementById('sch-min').value || '00';
+  const ampm = document.getElementById('sch-ampm').value;
+  if (!h) { alert('Please select an hour.'); return; }
+  let hour24 = parseInt(h, 10);
+  if (ampm === 'PM' && hour24 !== 12) hour24 += 12;
+  if (ampm === 'AM' && hour24 === 12) hour24 = 0;
+  const hh = String(hour24).padStart(2, '0');
+  document.getElementById('sch-time').value = `${hh}:${m}`;
+  document.getElementById('time-confirmed').textContent = `✓ Time set: ${h}:${m} ${ampm}`;
+}
+
+function fmt12h(t) {
+  if (!t) return '';
+  const [hStr, mStr] = t.split(':');
+  let h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ap}`;
+}
+
 async function loadSchedule() {
   const r = await fetch('/api/schedule');
   const data = await r.json();
@@ -113,7 +162,7 @@ async function loadSchedule() {
     <div class="event-card">
       <div style="flex:1">
         <div class="event-name">${ev.event_name}</div>
-        <div class="event-meta">${ev.date} ${ev.time || ''} &middot; ${ev.mandal}</div>
+        <div class="event-meta">${ev.date}${ev.time ? ' · ' + fmt12h(ev.time) : ''} &middot; ${ev.mandal}</div>
         ${ev.nearby_contacts?.length ? `
           <div class="event-contacts">
             <div class="event-contacts-label">${ev.nearby_count} priority contacts nearby</div>
