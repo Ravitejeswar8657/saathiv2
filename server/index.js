@@ -239,7 +239,7 @@ function generateBriefText(brief, news, schedule) {
     lines.push('');
   }
 
-  lines.push(`📊 *News Dashboard:* ${BASE_URL}/news-dashboard\n`);
+  lines.push(`📊 *News Dashboard:* ${BASE_URL}/admin.html#news-dashboard\n`);
   lines.push(`_Prepared by Saathi · ${timeStr}_`);
   return lines.join('\n');
 }

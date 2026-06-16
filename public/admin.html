@@ -256,6 +256,87 @@ body {
 .live-news-item a:hover { color: var(--accent); }
 .live-news-item .news-meta { margin-top: 2px; }
 
+/* ── News Dashboard ── */
+.nd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.nd-date {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+.nd-date:focus { outline: none; border-color: var(--accent); }
+.nd-filter {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+.nd-filter.active, .nd-filter:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+.nd-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  background: #f3f4f6;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 9px;
+  font-weight: 500;
+}
+.nd-card {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.nd-card:last-child { border-bottom: none; }
+.nd-card-top { display: flex; align-items: flex-start; gap: 8px; }
+.cat-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.cat-national { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.cat-international { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
+.cat-other { background: #f3f4f6; color: var(--muted); border: 1px solid var(--border); }
+.nd-headline { font-weight: 600; font-size: 14px; line-height: 1.4; }
+.nd-body { font-size: 13px; color: #374151; line-height: 1.5; }
+.nd-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+.nd-meta span { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 3px; }
+.nd-meta span [data-lucide] { width: 11px; height: 11px; }
+.nd-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+.nd-link:hover { opacity: 0.75; }
+.nd-link [data-lucide] { width: 12px; height: 12px; }
+
 /* ── Sidebar ── */
 .sidebar-card {
   background: var(--card-bg);
@@ -402,13 +483,20 @@ body {
         </div>
       </div>
 
-      <!-- Submitted News -->
-      <div class="section-block">
+      <!-- News Dashboard -->
+      <div class="section-block" id="news-dashboard">
         <div class="section-header">
-          <i data-lucide="newspaper"></i> Submitted News
+          <i data-lucide="newspaper"></i> News Dashboard
         </div>
         <div class="card">
-          <div id="news-list"></div>
+          <div class="nd-toolbar">
+            <input type="date" class="nd-date" id="nd-date"/>
+            <button class="nd-filter active" id="nd-all" onclick="ndSetFilter('all')">All</button>
+            <button class="nd-filter" id="nd-national" onclick="ndSetFilter('National')">National</button>
+            <button class="nd-filter" id="nd-intl" onclick="ndSetFilter('International')">International</button>
+            <span class="nd-count" id="nd-count">0 reports</span>
+          </div>
+          <div id="nd-list"></div>
         </div>
       </div>
 
@@ -529,27 +617,10 @@ async function loadData() {
   }
   document.getElementById('wa-responses-list').innerHTML = h3;
 
-  // Load News & Brief Preview
+  // Load Brief Preview
   const r2 = await fetch('/api/dashboard');
   const d2 = await r2.json();
 
-  let h2 = '';
-  const newsItems = (d2.news || []).slice(0, 5);
-  if (newsItems.length === 0) {
-    h2 = '<div class="empty-state">No submitted news</div>';
-  } else {
-    newsItems.forEach(n => {
-      h2 += `
-      <div class="news-item">
-        <div class="news-headline">${n.headline}</div>
-        <div class="news-meta">${n.source} · ${n.mandal}</div>
-        <div class="news-body">${n.body}</div>
-      </div>`;
-    });
-  }
-  document.getElementById('news-list').innerHTML = h2;
-
-  // Brief Preview
   const preview = d2.last_brief_message || "Brief will be generated upon approval.";
   currentBriefText = d2.last_brief_message || "";
   document.getElementById('brief-preview').innerHTML = preview.replace(/\*/g, '<b>').replace(/<b>([^*]*)<\/b>/g, '<b>$1</b>');
@@ -733,10 +804,93 @@ async function loadLiveNews() {
   }
 }
 
-// Initialize
+// ── News Dashboard ────────────────────────────────────────────────────────
+let ndAllNews = [];
+let ndCategory = 'all';
+
+function ndTodayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+function ndFmtTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+function ndEsc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function ndRender() {
+  const filtered = ndCategory === 'all'
+    ? ndAllNews
+    : ndAllNews.filter(n => n.mandal === ndCategory);
+
+  document.getElementById('nd-count').textContent =
+    `${filtered.length} report${filtered.length !== 1 ? 's' : ''}`;
+
+  if (!filtered.length) {
+    document.getElementById('nd-list').innerHTML =
+      '<div class="empty-state">No news reports for this date</div>';
+    return;
+  }
+
+  document.getElementById('nd-list').innerHTML = filtered.map(n => {
+    const cat = n.mandal || '';
+    const badgeCls = cat === 'National' ? 'cat-national' : cat === 'International' ? 'cat-international' : 'cat-other';
+    const hasLink = n.link && n.link.startsWith('http');
+    return `
+    <div class="nd-card">
+      <div class="nd-card-top">
+        <span class="cat-badge ${badgeCls}">${ndEsc(cat) || 'Report'}</span>
+        <div class="nd-headline">${ndEsc(n.headline)}</div>
+      </div>
+      ${n.body ? `<div class="nd-body">${ndEsc(n.body)}</div>` : ''}
+      <div class="nd-meta">
+        ${n.source ? `<span><i data-lucide="building-2"></i>${ndEsc(n.source)}</span>` : ''}
+        ${n.submitted_at ? `<span><i data-lucide="clock"></i>${ndFmtTime(n.submitted_at)}</span>` : ''}
+      </div>
+      ${hasLink ? `<a class="nd-link" href="${ndEsc(n.link)}" target="_blank" rel="noopener">
+        Read full article <i data-lucide="external-link"></i>
+      </a>` : ''}
+    </div>`;
+  }).join('');
+
+  lucide.createIcons();
+}
+
+async function loadNewsDashboard() {
+  const date = document.getElementById('nd-date').value;
+  const url = date ? `/api/news?date=${date}` : '/api/news';
+  try {
+    const r = await fetch(url);
+    const data = await r.json();
+    ndAllNews = data.news || [];
+    ndRender();
+  } catch(e) {
+    document.getElementById('nd-list').innerHTML =
+      '<div class="empty-state">Failed to load news</div>';
+  }
+}
+
+function ndSetFilter(cat) {
+  ndCategory = cat;
+  ['nd-all','nd-national','nd-intl'].forEach(id =>
+    document.getElementById(id).classList.remove('active'));
+  const map = { all:'nd-all', National:'nd-national', International:'nd-intl' };
+  if (map[cat]) document.getElementById(map[cat]).classList.add('active');
+  ndRender();
+}
+
+document.getElementById('nd-date').value = ndTodayIST();
+document.getElementById('nd-date').addEventListener('change', loadNewsDashboard);
+
+// ── Initialize
 lucide.createIcons();
 loadData();
 loadLiveNews();
+loadNewsDashboard();
 checkWAStatus();
 setInterval(checkWAStatus, 5000);
 setInterval(loadLiveNews, 5 * 60 * 1000);
