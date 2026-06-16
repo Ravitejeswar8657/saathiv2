@@ -153,6 +153,10 @@ body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:
         </div>
       </div>
       <div class="form-group">
+        <label>News link <span style="font-weight:400;color:#6b7280">(optional)</span></label>
+        <input id="n-link" placeholder="https://...">
+      </div>
+      <div class="form-group">
         <label>Priority level</label>
         <select id="n-priority">
           <option value="high">High — Urgent, MP needs to know immediately</option>
@@ -264,6 +268,7 @@ async function submitFieldNews() {
   fd.append('headline', headline);
   fd.append('source', document.getElementById('n-source').value);
   fd.append('mandal', document.getElementById('n-mandal').value);
+  fd.append('link', document.getElementById('n-link').value);
   fd.append('priority', document.getElementById('n-priority').value);
   fd.append('body', document.getElementById('n-body').value);
   const file = document.getElementById('n-file').files[0];
@@ -291,7 +296,7 @@ function showFieldError(msg) {
 function resetFieldForm() {
   document.getElementById('field-form-card').style.display = 'block';
   document.getElementById('field-success').style.display = 'none';
-  ['n-headline','n-body','n-source','n-mandal'].forEach(id => document.getElementById(id).value = '');
+  ['n-headline','n-body','n-source','n-mandal','n-link'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('n-file').value = '';
   document.getElementById('field-error').style.display = 'none';
   document.getElementById('field-submit-btn').innerHTML = '<i data-lucide="send" style="width:15px;height:15px"></i> Submit to MP\'s Office';

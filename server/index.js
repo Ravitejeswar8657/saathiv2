@@ -127,6 +127,8 @@ const AP_PUBLISHER_FEEDS = [
   { url: 'https://www.thehindu.com/news/national/andhra-pradesh/feeder/default.rss', source: 'The Hindu · AP', lang: 'en' },
   { url: 'https://www.thehindu.com/news/cities/Vijayawada/feeder/default.rss', source: 'The Hindu · Vijayawada', lang: 'en' },
   { url: 'https://www.sakshi.com/rss/andhra-pradesh.xml', source: 'Sakshi · AP', lang: 'te' },
+  { url: 'https://timesofindia.indiatimes.com/rssfeeds/3947067.cms', source: 'TOI · Andhra Pradesh', lang: 'en' },
+  { url: 'https://www.ndtv.com/feeds/andhra-pradesh', source: 'NDTV · AP', lang: 'en' },
 ];
 
 function stripHtml(s) {
@@ -212,6 +214,7 @@ async function fetchGoogleNews() {
 
   const googleQueries = [
     { q: 'Palanadu OR Narasaraopet OR Palnadu', hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en' },
+    { q: 'Andhra Pradesh News OR Guntur News', hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en' },
     { q: TELUGU_PLACE_TERMS, hl: 'te', gl: 'IN', ceid: 'IN:te', lang: 'te' },
   ];
 
@@ -342,8 +345,8 @@ function generateBriefText(brief, news, schedule, liveNews) {
   const timeStr = new Date().toLocaleTimeString('en-IN', istOpts);
 
   const lines = [
-    `*Morning Brief — ${dateStr}*`,
-    `*Palanadu Constituency*\n`,
+    `*The morning brief — ${dateStr}*`,
+    `good morning sir\n`,
   ];
 
   // Today's schedule with event-specific contacts
@@ -380,25 +383,51 @@ function generateBriefText(brief, news, schedule, liveNews) {
     return new Date(n.submitted_at).toLocaleDateString('en-CA', istOpts) === todayIST;
   });
 
-  if (todaysNews.length) {
+  // Priority news selected in workflow for today's events
+  const selectedNews = [];
+  const seenNewsLinks = new Set();
+  todaySchedule.forEach(ev => {
+    (ev.news_selected || []).forEach(n => {
+      if (n.link && !seenNewsLinks.has(n.link)) {
+        seenNewsLinks.add(n.link);
+        selectedNews.push(n);
+      } else if (!n.link) {
+        selectedNews.push(n);
+      }
+    });
+  });
+
+  const mergedNews = [...selectedNews];
+  const seenMergedLinks = new Set(selectedNews.map(n => n.link).filter(Boolean));
+  todaysNews.forEach(n => {
+    if (n.link && !seenMergedLinks.has(n.link)) {
+      seenMergedLinks.add(n.link);
+      mergedNews.push(n);
+    } else if (!n.link) {
+      mergedNews.push(n);
+    }
+  });
+
+  if (mergedNews.length) {
     lines.push(`*📰 Submitted Reports:*`);
-    todaysNews.slice(0, 6).forEach((n, i) => {
+    mergedNews.slice(0, 10).forEach((n, i) => {
       lines.push(`${i + 1}. ${n.headline}${n.source ? ' (' + n.source + ')' : ''}`);
+      if (n.link) lines.push(`   🔗 ${n.link}`);
     });
     lines.push('');
   }
 
   // Auto-scraped local news — display-only suggestions, not a replacement for field reports.
   // Skip anything that's already a submitted headline so the same story isn't listed twice.
-  const submittedTitles = new Set(todaysNews.map(n => (n.headline || '').toLowerCase().trim()));
+  const submittedTitles = new Set(mergedNews.map(n => (n.headline || '').toLowerCase().trim()));
   const autoItems = (liveNews || [])
-    .filter(n => !submittedTitles.has((n.title || '').toLowerCase().trim()))
+    .filter(n => !submittedTitles.has((n.title || '').toLowerCase().trim()) && (!n.link || !seenMergedLinks.has(n.link)))
     .slice(0, 5);
   if (autoItems.length) {
     lines.push(`*📡 In the News (auto-scraped):*`);
     autoItems.forEach((n, i) => {
       lines.push(`${i + 1}. ${n.title}${n.source ? ' (' + n.source + ')' : ''}`);
-      lines.push(`   🔗 ${n.link}`);
+      if (n.link) lines.push(`   🔗 ${n.link}`);
     });
     lines.push('');
   }
@@ -900,7 +929,7 @@ app.get('/api/news', (req, res) => {
 });
 
 app.post('/api/news', upload.single('attachment'), (req, res) => {
-  const { headline, body, source, mandal, priority } = req.body;
+  const { headline, body, source, mandal, priority, link } = req.body;
   if (!headline) return res.status(400).json({ error: 'headline required' });
   const db = readDB();
   const item = {
@@ -909,6 +938,7 @@ app.post('/api/news', upload.single('attachment'), (req, res) => {
     source: source || 'Field correspondent',
     mandal: mandal || 'General',
     priority: priority || 'medium',
+    link: link || '',
     submitted_at: new Date().toISOString(),
     has_attachment: !!req.file,
     attachment_name: req.file?.originalname || null,
@@ -1370,8 +1400,8 @@ function formatDateLong(dateStr) {
 
 const PDF_LEFT = 40, PDF_RIGHT = 555, PDF_WIDTH = PDF_RIGHT - PDF_LEFT;
 const PDF_COLORS = {
-  saffron: '#C2410C', saffronTint: '#FFF7ED', saffronBorder: '#FDBA74',
-  ink: '#1F2937', slate: '#6b7280', green: '#15803D',
+  amber: '#B45309', amberTint: '#FFF7ED', amberBorder: '#B45309',
+  ink: '#1F2937', slate: '#475569', green: '#15803D',
   grievance: '#92400E', linkBlue: '#1D4ED8', white: '#ffffff',
 };
 
@@ -1394,8 +1424,8 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
 
   // ── Header band ──────────────────────────────────────────────────────────
-  doc.rect(0, 0, doc.page.width, 86).fill(C.saffron);
-  doc.fillColor(C.white).font(boldFont).fontSize(20).text('Saathi · MP Daily Brief', PDF_LEFT, 24);
+  doc.rect(0, 0, doc.page.width, 86).fill(C.slate);
+  doc.fillColor(C.white).font(boldFont).fontSize(20).text('The morning brief', PDF_LEFT, 24);
   doc.font(bodyFont).fontSize(11).fillColor('#FFF7ED').text('Palanadu Constituency', PDF_LEFT, 52);
   doc.y = 104;
   doc.x = PDF_LEFT;
@@ -1403,7 +1433,7 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
   // ── Greeting ─────────────────────────────────────────────────────────────
   // Plain text only — the bundled variable Telugu font is not guaranteed to carry emoji glyphs.
   const mpName = db.metadata?.mp_name;
-  doc.font(boldFont).fontSize(13).fillColor(C.saffron).text(`Namaste, ${mpName ? mpName + ' garu' : 'Sir/Madam'} —`, PDF_LEFT);
+  doc.font(boldFont).fontSize(13).fillColor(C.amber).text(`good morning sir`, PDF_LEFT);
   doc.font(bodyFont).fontSize(11).fillColor(C.ink).text(`Here is your brief for ${formatDateLong(dateStr)}.`, PDF_LEFT);
   const preparedAt = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
   doc.fontSize(9).fillColor(C.slate).text(`Prepared ${preparedAt} IST · ${events.length} engagement${events.length === 1 ? '' : 's'}`, PDF_LEFT);
@@ -1423,7 +1453,7 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     const boxTop = doc.y;
     const titleStripHeight = 24;
 
-    doc.rect(PDF_LEFT, boxTop, PDF_WIDTH, titleStripHeight).fill(C.saffron);
+    doc.rect(PDF_LEFT, boxTop, PDF_WIDTH, titleStripHeight).fill(C.slate);
     doc.fillColor(C.white).font(boldFont).fontSize(10.5)
       .text(`${i + 1}. ${event.event_name}${event.time ? ' · ' + formatTime12h(event.time) : ''}${event.event_type ? ' · ' + event.event_type : ''}`,
         PDF_LEFT + 10, boxTop + 6, { width: PDF_WIDTH - 20 });
@@ -1451,10 +1481,12 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
         const briefText = manualBrief || fallbackBrief;
         const isAuto = !manualBrief;
 
+        const metByText = nc.tier === 'T1' ? '' : ` · Met by: ${metByForTier(nc.tier)}`;
+
         doc.font(boldFont).fontSize(9.5).fillColor(C.ink)
           .text(nc.name, PDF_LEFT + 12, doc.y, { continued: true, width: PDF_WIDTH - 24 })
           .font(bodyFont).fillColor(C.slate)
-          .text(`  ${nc.tier} · ${nc.role || ''} · Met by: ${metByForTier(nc.tier)}${nc.phone ? ' · ' + nc.phone : ''}`);
+          .text(`  ${nc.tier} · ${nc.role || ''}${metByText}${nc.phone ? ' · ' + nc.phone : ''}`);
         if (briefText) {
           doc.font(bodyFont).fontSize(8.5).fillColor(isAuto ? '#9ca3af' : C.ink)
             .text(`${isAuto ? '(auto-draft) ' : ''}${briefText}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
@@ -1496,7 +1528,7 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     }
 
     const boxBottom = doc.y + 6;
-    doc.roundedRect(PDF_LEFT, boxTop, PDF_WIDTH, boxBottom - boxTop, 4).lineWidth(1).strokeColor(C.saffronBorder).stroke();
+    doc.roundedRect(PDF_LEFT, boxTop, PDF_WIDTH, boxBottom - boxTop, 4).lineWidth(1).strokeColor(C.amberBorder).stroke();
     doc.x = PDF_LEFT;
     doc.y = boxBottom + 14;
   });
@@ -1506,7 +1538,12 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
   const pickedNews = [];
   const seenLinks = new Set();
   events.forEach(ev => (ev.news_selected || []).forEach(n => {
-    if (!seenLinks.has(n.link)) { seenLinks.add(n.link); pickedNews.push(n); }
+    if (n.link && !seenLinks.has(n.link)) {
+      seenLinks.add(n.link);
+      pickedNews.push(n);
+    } else if (!n.link) {
+      pickedNews.push(n);
+    }
   }));
   const newsIsAuto = pickedNews.length === 0;
   const newsToShow = newsIsAuto ? (liveNews || []).slice(0, 5) : pickedNews;
@@ -1517,8 +1554,10 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     doc.font(boldFont).fontSize(12).fillColor(C.green).text(`News for this brief${newsIsAuto ? ' (auto-scraped — not reviewed)' : ''}`, PDF_LEFT);
     doc.moveDown(0.2);
     newsToShow.forEach((n, i) => {
-      doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(`${i + 1}. ${n.title}${n.source ? ' (' + n.source + ')' : ''}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
-      doc.fontSize(8).fillColor(C.linkBlue).text(n.link, PDF_LEFT, doc.y, { width: PDF_WIDTH, link: n.link, underline: true });
+      doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(`${i + 1}. ${n.title || n.headline}${n.source ? ' (' + n.source + ')' : ''}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
+      if (n.link) {
+        doc.fontSize(8).fillColor(C.linkBlue).text(n.link, PDF_LEFT, doc.y, { width: PDF_WIDTH, link: n.link, underline: true });
+      }
       doc.moveDown(0.15);
     });
   }
