@@ -19,6 +19,8 @@ const ROOT = path.join(__dirname, '..');
 const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(ROOT, 'data');
 const DB_PATH = path.join(VOLUME, 'db.json');
 const WA_AUTH_PATH = path.join(VOLUME, 'wa_auth');
+const BASE_URL = process.env.BASE_URL ||
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
 
 // Ensure dirs exist
 fs.mkdirSync(VOLUME, { recursive: true });
@@ -46,23 +48,25 @@ function writeDB(db) {
   fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
 }
 
+// ── IST date helper ─────────────────────────────────────────────────────────
+function getISTDateStr() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+}
+
 // ── Scoring helpers ─────────────────────────────────────────────────────────
 function recomputeBrief(db) {
-  const now = Date.now();
-  const upcoming = (db.schedule || []).filter(s => {
-    const d = new Date(s.date).getTime();
-    // Today, Yesterday, Tomorrow
-    return d >= now - 86400000 && d <= now + 86400000 * 2;
-  });
+  const todayIST = getISTDateStr();
+  const todaysEvents = (db.schedule || []).filter(s => s.date === todayIST);
 
-  if (upcoming.length === 0) {
+  db.todays_schedule = todaysEvents;
+
+  if (todaysEvents.length === 0) {
     db.todays_brief = [];
     return db;
   }
 
-  // Use nearby contacts from upcoming schedules
   const briefMap = new Map();
-  upcoming.forEach(event => {
+  todaysEvents.forEach(event => {
     (event.nearby_contacts || []).forEach(c => {
       if (!briefMap.has(c.id)) {
         briefMap.set(c.id, { ...c, schedule_event: event });
@@ -182,36 +186,66 @@ async function fetchGoogleNews() {
 })();
 
 // ── WhatsApp ────────────────────────────────────────────────────────────────
-function generateBriefText(brief, news) {
+function generateBriefText(brief, news, schedule) {
+  const istOpts = { timeZone: 'Asia/Kolkata' };
+  const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', ...istOpts });
+  const timeStr = new Date().toLocaleTimeString('en-IN', istOpts);
+
   const lines = [
-    `*🌅 Saathi Daily Brief — ${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}*`,
-    `_Palanadu District · TDP_\n`,
+    `*Morning Brief — ${dateStr}*`,
+    `*Palanadu Constituency*\n`,
   ];
 
-  if (brief.length > 0) {
-    lines.push(`*📞 Top contacts for today:*`);
-    brief.slice(0, 10).forEach((c, i) => {
-      lines.push(`${i + 1}. *${c.name}* (${c.phone})`);
-      lines.push(`   ${c.village}, ${c.role} · PPS ${c.pps_score}`);
-      if (c.open_grievance) lines.push(`   ⚠️ ${c.open_grievance.slice(0, 60)}`);
-      if (c.schedule_event) lines.push(`   📍 Near: ${c.schedule_event.event_name}`);
+  // Today's schedule
+  const todaySchedule = schedule || [];
+  if (todaySchedule.length) {
+    lines.push(`*📅 Today's Engagements:*`);
+    todaySchedule.forEach((ev, i) => {
+      const timeLabel = ev.time ? ` · ${ev.time}` : '';
+      const venue = [ev.village, ev.mandal].filter(Boolean).join(', ');
+      lines.push(`${i + 1}. *${ev.event_name}*${timeLabel}`);
+      if (venue) lines.push(`   📍 ${venue}`);
+      if (ev.description) lines.push(`   ${ev.description}`);
       lines.push('');
     });
   } else {
-    lines.push(`_No upcoming schedule events to display nearby contacts._\n`);
+    lines.push(`_No engagements scheduled for today._\n`);
   }
 
-  if (news?.length) {
-    lines.push(`*📰 Latest news:*`);
-    news.slice(0, 3).forEach((n, i) => lines.push(`${i + 1}. ${n.headline}`));
+  // Priority contacts for today's events
+  if (brief.length > 0) {
+    lines.push(`*👥 Priority Contacts:*`);
+    brief.slice(0, 8).forEach((c, i) => {
+      const detail = [c.role, c.village].filter(Boolean).join(', ');
+      lines.push(`${i + 1}. *${c.name}*${detail ? ' — ' + detail : ''}`);
+      if (c.phone) lines.push(`   📞 ${c.phone}`);
+      if (c.open_grievance) lines.push(`   ⚠️ Pending: ${c.open_grievance.slice(0, 80)}`);
+    });
     lines.push('');
   }
-  lines.push(`_Sent by Saathi · ${new Date().toLocaleTimeString('en-IN')}_`);
+
+  // News submitted today (IST)
+  const todayIST = getISTDateStr();
+  const todaysNews = (news || []).filter(n => {
+    if (!n.submitted_at) return false;
+    return new Date(n.submitted_at).toLocaleDateString('en-CA', istOpts) === todayIST;
+  });
+
+  if (todaysNews.length) {
+    lines.push(`*📰 Submitted Reports:*`);
+    todaysNews.slice(0, 6).forEach((n, i) => {
+      lines.push(`${i + 1}. ${n.headline}${n.source ? ' (' + n.source + ')' : ''}`);
+    });
+    lines.push('');
+  }
+
+  lines.push(`📊 *News Dashboard:* ${BASE_URL}/news-dashboard\n`);
+  lines.push(`_Prepared by Saathi · ${timeStr}_`);
   return lines.join('\n');
 }
 
-async function sendWhatsAppBrief(brief, news) {
-  const message = generateBriefText(brief, news);
+async function sendWhatsAppBrief(brief, news, schedule) {
+  const message = generateBriefText(brief, news, schedule);
 
   const logEntry = {
     sent_at: new Date().toISOString(),
@@ -242,7 +276,7 @@ async function sendWhatsAppBrief(brief, news) {
 
 app.get('/api/generate-brief', (req, res) => {
   const db = recomputeBrief(readDB());
-  const message = generateBriefText(db.todays_brief, db.news || []);
+  const message = generateBriefText(db.todays_brief, db.news || [], db.todays_schedule || []);
   db.last_brief_message = message;
   writeDB(db);
   res.json({ message });
@@ -442,6 +476,17 @@ app.post('/api/issue/approve', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/news', (req, res) => {
+  const db = readDB();
+  let items = db.news || [];
+  if (req.query.date) {
+    const istOpts = { timeZone: 'Asia/Kolkata' };
+    items = items.filter(n => n.submitted_at &&
+      new Date(n.submitted_at).toLocaleDateString('en-CA', istOpts) === req.query.date);
+  }
+  res.json({ news: items });
+});
+
 app.post('/api/news', upload.single('attachment'), (req, res) => {
   const { headline, body, source, mandal, priority } = req.body;
   if (!headline) return res.status(400).json({ error: 'headline required' });
@@ -470,7 +515,7 @@ app.delete('/api/news/:id', (req, res) => {
 
 app.post('/api/send-brief', async (req, res) => {
   const db = recomputeBrief(readDB());
-  const result = await sendWhatsAppBrief(db.todays_brief, db.news || []);
+  const result = await sendWhatsAppBrief(db.todays_brief, db.news || [], db.todays_schedule || []);
   res.json(result);
 });
 
