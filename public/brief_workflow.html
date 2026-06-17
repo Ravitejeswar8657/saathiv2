@@ -145,7 +145,9 @@ const STEP_DEFS = [
   { id: 'preview', label: 'Preview & PDF' },
 ];
 
-let eventId = new URLSearchParams(location.search).get('event') || '';
+const params = new URLSearchParams(location.search);
+let eventId = params.get('event') || '';
+let dateMode = params.get('date') || '';
 let prep = null;      // last-fetched GET /prep payload
 let stepIndex = 0;
 let speechForcedOpen = false;
@@ -157,6 +159,12 @@ function stepIndexOf(id) {
 }
 
 function visibleSteps() {
+  if (dateMode) {
+    return STEP_DEFS.filter(s => {
+      if (s.id !== 'speech') return true;
+      return (prep.events || []).some(e => e.speech_applicable) || speechForcedOpen;
+    });
+  }
   return STEP_DEFS.filter(s => {
     if (s.id !== 'speech') return true;
     return prep.event.speech_applicable || speechForcedOpen;
@@ -199,13 +207,28 @@ async function createEventAndStart() {
 }
 
 async function refreshPrep() {
-  const r = await fetch(`/api/schedule/${eventId}/prep`);
-  if (!r.ok) { document.getElementById('event-subtitle').textContent = 'Event not found.'; return; }
-  prep = await r.json();
-  const ev = prep.event;
-  const venue = [ev.village, ev.mandal].filter(Boolean).join(', ');
-  document.getElementById('event-subtitle').textContent =
-    `${ev.event_name} · ${ev.date}${ev.time ? ' ' + ev.time : ''} · ${venue}${ev.event_type ? ' · ' + ev.event_type : ''}`;
+  let r;
+  if (dateMode) {
+    r = await fetch(`/api/daily-prep?date=${dateMode}`);
+    if (!r.ok) { document.getElementById('event-subtitle').textContent = 'No events found.'; return; }
+    prep = await r.json();
+    if (!prep.events.length) { document.getElementById('event-subtitle').textContent = 'No events for this date.'; return; }
+    const evNames = prep.events.map(e => e.event_name).join(' + ');
+    document.getElementById('event-subtitle').textContent =
+      `${prep.date} · ${prep.events.length} event${prep.events.length > 1 ? 's' : ''}: ${evNames}`;
+    if (!prep.event) {
+      prep.event = prep.events[0];
+      prep.event.news_selected = prep.news_selected || [];
+    }
+  } else {
+    r = await fetch(`/api/schedule/${eventId}/prep`);
+    if (!r.ok) { document.getElementById('event-subtitle').textContent = 'Event not found.'; return; }
+    prep = await r.json();
+    const ev = prep.event;
+    const venue = [ev.village, ev.mandal].filter(Boolean).join(', ');
+    document.getElementById('event-subtitle').textContent =
+      `${ev.event_name} · ${ev.date}${ev.time ? ' ' + ev.time : ''} · ${venue}${ev.event_type ? ' · ' + ev.event_type : ''}`;
+  }
   renderAll();
 }
 
@@ -233,10 +256,13 @@ function renderStepper() {
   document.getElementById('stepper-rail').innerHTML = html;
 }
 
+function contactsApproved() {
+  if (dateMode) return true;
+  return prep.event.contacts_approved;
+}
+
 function jumpToStep(i) {
-  // Free navigation backward and to already-reachable steps; forward jump past the gate is
-  // blocked the same way Next is.
-  if (i > stepIndex && stepIndex === 0 && !prep.event.contacts_approved) {
+  if (i > stepIndex && stepIndex === 0 && !contactsApproved()) {
     alert('Please review & approve the contacts first.');
     return;
   }
@@ -252,7 +278,7 @@ function renderNav() {
     nextBtn.style.visibility = 'hidden';
   } else {
     nextBtn.style.visibility = 'visible';
-    nextBtn.disabled = steps[stepIndex].id === 'contacts' && !prep.event.contacts_approved;
+    nextBtn.disabled = steps[stepIndex].id === 'contacts' && !contactsApproved();
     nextBtn.textContent = nextBtn.disabled ? 'Approve contacts to continue' : 'Next →';
   }
 }
@@ -260,7 +286,7 @@ function renderNav() {
 function prevStep() { stepIndex = Math.max(0, stepIndex - 1); renderAll(); }
 function nextStep() {
   const steps = visibleSteps();
-  if (steps[stepIndex].id === 'contacts' && !prep.event.contacts_approved) return;
+  if (steps[stepIndex].id === 'contacts' && !contactsApproved()) return;
   stepIndex = Math.min(steps.length - 1, stepIndex + 1);
   renderAll();
 }
@@ -324,37 +350,70 @@ function toggleRef(id) {
 
 async function saveNote(contactId) {
   const text = document.getElementById(`note-${contactId}`).value;
-  await fetch(`/api/schedule/${eventId}/prep`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contact_briefs: { [contactId]: { event_brief: text, brief_reviewed: !!text.trim() } } }),
-  });
+  if (dateMode) {
+    await fetch('/api/daily-prep', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateMode, contacts: [{ id: contactId, note: text }] }),
+    });
+  } else {
+    await fetch(`/api/schedule/${eventId}/prep`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_briefs: { [contactId]: { event_brief: text, brief_reviewed: !!text.trim() } } }),
+    });
+  }
   await refreshPrep();
 }
 
 async function saveAllVisibleNotes() {
   const contacts = showAllContacts ? prep.contacts : prep.contacts.slice(0, 8);
-  const contact_briefs = {};
-  contacts.forEach(c => {
-    const el = document.getElementById(`note-${c.id}`);
-    if (el) contact_briefs[c.id] = { event_brief: el.value, brief_reviewed: !!el.value.trim() };
-  });
-  await fetch(`/api/schedule/${eventId}/prep`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contact_briefs }),
-  });
+  if (dateMode) {
+    const arr = contacts.map(c => {
+      const el = document.getElementById(`note-${c.id}`);
+      return { id: c.id, note: el ? el.value : '' };
+    });
+    await fetch('/api/daily-prep', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateMode, contacts: arr }),
+    });
+  } else {
+    const contact_briefs = {};
+    contacts.forEach(c => {
+      const el = document.getElementById(`note-${c.id}`);
+      if (el) contact_briefs[c.id] = { event_brief: el.value, brief_reviewed: !!el.value.trim() };
+    });
+    await fetch(`/api/schedule/${eventId}/prep`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_briefs }),
+    });
+  }
 }
 
 async function approveContacts() {
   await saveAllVisibleNotes();
-  await fetch(`/api/schedule/${eventId}/prep`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contacts_approved: true }),
-  });
+  if (!dateMode) {
+    await fetch(`/api/schedule/${eventId}/prep`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contacts_approved: true }),
+    });
+  }
   await refreshPrep();
 }
 
 // ── Step 2: Speech (conditional) ────────────────────────────────────────────
 function speechStepHtml(n) {
+  if (dateMode) {
+    const events = prep.events || [];
+    let html = `<div class="section-title">${n}. Speech points</div>`;
+    events.forEach(ev => {
+      html += `
+        <div style="margin-bottom:14px">
+          <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">${escapeHtml(ev.event_name)} — ${ev.mandal}</div>
+          <textarea id="speech-text-${ev.id}" style="min-height:100px" placeholder="Speech points for ${ev.event_name}...">${escapeHtml(ev.speech_points)}</textarea>
+        </div>`;
+    });
+    html += `<div style="margin-top:8px"><button class="mini-btn" onclick="saveSpeechAll()">Save all</button></div>`;
+    return html;
+  }
   if (!prep.event.speech_applicable && !speechForcedOpen) {
     return `
       <div class="section-title">${n}. Speech points</div>
@@ -380,6 +439,18 @@ async function saveSpeech() {
   await fetch(`/api/schedule/${eventId}/prep`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ speech_points: text, speech_points_reviewed: !!text.trim(), speech_skipped: false }),
+  });
+  await refreshPrep();
+}
+
+async function saveSpeechAll() {
+  const updates = (prep.events || []).map(ev => {
+    const el = document.getElementById(`speech-text-${ev.id}`);
+    return { id: ev.id, speech_points: el ? el.value : '' };
+  });
+  await fetch('/api/daily-prep', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date: dateMode, event_updates: updates }),
   });
   await refreshPrep();
 }
@@ -418,30 +489,52 @@ function creativeStepHtml(n) {
   `;
 }
 
+function getActiveEventId() {
+  return dateMode ? (prep.events[0]?.id || '') : eventId;
+}
+
 async function addCreative() {
   const input = document.getElementById('creative-input');
   const text = input.value.trim();
   if (!text) return;
   const custom = [...(prep.event.creative_touches?.custom || []), text];
-  await fetch(`/api/schedule/${eventId}/prep`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ creative_touches: { selected: prep.event.creative_touches?.selected || [], custom, reviewed: true } }),
-  });
+  const payload = { creative_touches: { selected: prep.event.creative_touches?.selected || [], custom, reviewed: true } };
+  if (dateMode) {
+    await fetch('/api/daily-prep', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateMode, event_updates: [{ id: getActiveEventId(), ...payload }] }),
+    });
+  } else {
+    await fetch(`/api/schedule/${eventId}/prep`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
   await refreshPrep();
 }
 
 async function removeCreative(idx) {
   const custom = [...(prep.event.creative_touches?.custom || [])];
   custom.splice(idx, 1);
-  await fetch(`/api/schedule/${eventId}/prep`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ creative_touches: { selected: prep.event.creative_touches?.selected || [], custom, reviewed: true } }),
-  });
+  const payload = { creative_touches: { selected: prep.event.creative_touches?.selected || [], custom, reviewed: true } };
+  if (dateMode) {
+    await fetch('/api/daily-prep', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateMode, event_updates: [{ id: getActiveEventId(), ...payload }] }),
+    });
+  } else {
+    await fetch(`/api/schedule/${eventId}/prep`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
   await refreshPrep();
 }
 
 async function loadCreativeSuggestions() {
-  const r = await fetch(`/api/schedule/${eventId}/suggestions?kind=creative`);
+  const eid = getActiveEventId();
+  if (!eid) return;
+  const r = await fetch(`/api/schedule/${eid}/suggestions?kind=creative`);
   const data = await r.json();
   const selected = prep.event.creative_touches?.selected || [];
   const box = document.getElementById('creative-suggestion-box');
@@ -458,58 +551,113 @@ async function toggleSuggestion(id) {
   const checked = document.getElementById(`sugg-${id}`).checked;
   let selected = prep.event.creative_touches?.selected || [];
   selected = checked ? [...new Set([...selected, id])] : selected.filter(s => s !== id);
-  await fetch(`/api/schedule/${eventId}/prep`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ creative_touches: { selected, custom: prep.event.creative_touches?.custom || [], reviewed: true } }),
-  });
-  prep.event.creative_touches.selected = selected; // keep local state in sync without a full re-fetch
+  const payload = { creative_touches: { selected, custom: prep.event.creative_touches?.custom || [], reviewed: true } };
+  if (dateMode) {
+    await fetch('/api/daily-prep', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateMode, event_updates: [{ id: getActiveEventId(), ...payload }] }),
+    });
+  } else {
+    await fetch(`/api/schedule/${eventId}/prep`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
+  prep.event.creative_touches.selected = selected;
 }
 
 // ── Step 4: News ─────────────────────────────────────────────────────────────
+function getAllNewsItems() {
+  const field = (prep.field_news || []).map(n => ({ ...n, _source_type: 'field' }));
+  const live = (prep.news_suggestions || []).map(n => ({ ...n, _source_type: 'live' }));
+  return [...field, ...live];
+}
+
 function newsStepHtml(n) {
-  const items = prep.news_suggestions || [];
+  const items = getAllNewsItems();
   const selectedLinks = new Set((prep.event.news_selected || []).map(x => x.link));
-  if (!items.length) return `<div class="section-title">${n}. News for this brief</div><p class="empty-state">No live news found right now.</p>`;
-  return `
-    <div class="section-title">${n}. News for this brief</div>
-    ${items.map((item, i) => `
-      <div class="checklist-item">
-        <input type="checkbox" id="news-${i}" ${selectedLinks.has(item.link) ? 'checked' : ''}>
-        <label for="news-${i}"><a href="${item.link}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a> ${item.mandal_tag ? '· ' + item.mandal_tag : ''} ${item.source ? '· ' + item.source : ''}</label>
-      </div>
-    `).join('')}
-    <div style="margin-top:10px"><button class="mini-btn secondary" onclick="saveNewsSelection()">Save selection</button></div>
-  `;
+  const fieldItems = items.filter(x => x._source_type === 'field');
+  const liveItems = items.filter(x => x._source_type === 'live');
+
+  if (!items.length) return `<div class="section-title">${n}. News for this brief</div><p class="empty-state">No news found right now.</p>`;
+
+  let html = `<div class="section-title">${n}. News for this brief</div>`;
+  let idx = 0;
+
+  if (fieldItems.length) {
+    html += `<div style="font-size:12px;font-weight:600;color:#b45309;margin:10px 0 6px;text-transform:uppercase;letter-spacing:0.5px">Field Reports (submitted today)</div>`;
+    fieldItems.forEach(item => {
+      const checked = selectedLinks.has(item.link) ? 'checked' : '';
+      html += `<div class="checklist-item"><input type="checkbox" id="news-${idx}" ${checked}><label for="news-${idx}">${item.link ? `<a href="${item.link}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a>` : escapeHtml(item.title)} ${item.source ? '· ' + item.source : ''}</label></div>`;
+      idx++;
+    });
+  }
+
+  if (liveItems.length) {
+    html += `<div style="font-size:12px;font-weight:600;color:#6b7280;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px">Live News (auto-scraped)</div>`;
+    liveItems.forEach(item => {
+      const checked = selectedLinks.has(item.link) ? 'checked' : '';
+      html += `<div class="checklist-item"><input type="checkbox" id="news-${idx}" ${checked}><label for="news-${idx}"><a href="${item.link}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a> ${item.mandal_tag ? '· ' + item.mandal_tag : ''} ${item.source ? '· ' + item.source : ''}</label></div>`;
+      idx++;
+    });
+  }
+
+  html += `<div style="margin-top:10px"><button class="mini-btn secondary" onclick="saveNewsSelection()">Save selection</button></div>`;
+  return html;
 }
 
 async function saveNewsSelection() {
-  const items = prep.news_suggestions || [];
-  const selected = items.filter((n, i) => document.getElementById(`news-${i}`)?.checked);
-  await fetch(`/api/schedule/${eventId}/prep`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ news_selected: selected }),
-  });
+  const items = getAllNewsItems();
+  const selected = items.filter((n, i) => document.getElementById(`news-${i}`)?.checked)
+    .map(({ _source_type, ...rest }) => rest);
+  if (dateMode) {
+    await fetch('/api/daily-prep', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateMode, news_selected: selected }),
+    });
+  } else {
+    await fetch(`/api/schedule/${eventId}/prep`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ news_selected: selected }),
+    });
+  }
   await refreshPrep();
 }
 
 // ── Step 5: Preview & Generate ───────────────────────────────────────────────
 function previewStepHtml(n) {
-  const ev = prep.event;
   const notedContacts = prep.contacts.filter(c => c.note && c.note.trim());
+  const newsSelected = dateMode ? (prep.news_selected || []) : (prep.event.news_selected || []);
+
+  let speechHtml = '';
+  if (dateMode) {
+    (prep.events || []).forEach(ev => {
+      speechHtml += `
+        <div style="margin-bottom:8px">
+          <div style="font-size:12px;font-weight:600;color:#6b7280">${escapeHtml(ev.event_name)}</div>
+          <textarea id="preview-speech-${ev.id}" style="min-height:70px">${escapeHtml(ev.speech_points)}</textarea>
+        </div>`;
+    });
+  } else {
+    speechHtml = `<textarea id="preview-speech" style="min-height:90px">${escapeHtml(prep.event.speech_points)}</textarea>`;
+  }
+
+  const ev = dateMode ? (prep.events[0] || {}) : prep.event;
+
   return `
     <div class="section-title">${n}. Preview — review before generating</div>
 
     <div class="preview-section">
       <h4>Contacts with notes (${notedContacts.length} of ${prep.contacts.length})</h4>
       ${notedContacts.length ? notedContacts.map(c => `
-        <div class="preview-contact"><span class="pc-name">${c.name}</span> · ${c.phone}<div class="preview-note">${escapeHtml(c.note)}</div></div>
+        <div class="preview-contact"><span class="pc-name">${c.name}</span> · ${c.phone}${c.event_name ? ` · <span style="font-size:11px;color:#6b7280">${c.event_name}</span>` : ''}<div class="preview-note">${escapeHtml(c.note)}</div></div>
       `).join('') : '<p class="empty-state">No notes written yet.</p>'}
       <span class="reset-link" onclick="jumpToStep(stepIndexOf('contacts'))">Edit contacts &amp; notes</span>
     </div>
 
     <div class="preview-section">
-      <h4>Speech points</h4>
-      <textarea id="preview-speech" style="min-height:90px">${escapeHtml(ev.speech_points)}</textarea>
+      <h4>Speech points${dateMode && prep.events.length > 1 ? ` (${prep.events.length} events)` : ''}</h4>
+      ${speechHtml}
       <div style="margin-top:6px"><button class="mini-btn secondary" onclick="savePreviewSpeech()">Save edit</button></div>
     </div>
 
@@ -522,9 +670,9 @@ function previewStepHtml(n) {
     </div>
 
     <div class="preview-section">
-      <h4>News (${(ev.news_selected || []).length} selected)</h4>
-      ${(ev.news_selected || []).length
-        ? `<ul style="padding-left:18px;font-size:13px">${ev.news_selected.map(n=>`<li>${escapeHtml(n.title)}</li>`).join('')}</ul>`
+      <h4>News (${newsSelected.length} selected)</h4>
+      ${newsSelected.length
+        ? `<ul style="padding-left:18px;font-size:13px">${newsSelected.map(n=>`<li>${escapeHtml(n.title)}</li>`).join('')}</ul>`
         : '<p class="empty-state">None picked — the PDF will fall back to top auto-scraped items, clearly labelled.</p>'}
       <span class="reset-link" onclick="jumpToStep(stepIndexOf('news'))">Edit news picks</span>
     </div>
@@ -536,22 +684,37 @@ function previewStepHtml(n) {
 }
 
 async function savePreviewSpeech() {
-  const text = document.getElementById('preview-speech').value;
-  await fetch(`/api/schedule/${eventId}/prep`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ speech_points: text, speech_points_reviewed: !!text.trim() }),
-  });
+  if (dateMode) {
+    const updates = (prep.events || []).map(ev => {
+      const el = document.getElementById(`preview-speech-${ev.id}`);
+      return { id: ev.id, speech_points: el ? el.value : (ev.speech_points || '') };
+    });
+    await fetch('/api/daily-prep', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateMode, event_updates: updates }),
+    });
+  } else {
+    const text = document.getElementById('preview-speech').value;
+    await fetch(`/api/schedule/${eventId}/prep`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speech_points: text, speech_points_reviewed: !!text.trim() }),
+    });
+  }
   await refreshPrep();
 }
 
 function generatePdf() {
-  window.open(`/api/brief-pdf?date=${prep.event.date}`, '_blank');
+  const d = dateMode || prep.event.date;
+  window.open(`/api/brief-pdf?date=${d}`, '_blank');
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 (async () => {
   await loadMpName();
-  if (!eventId) {
+  if (dateMode) {
+    document.getElementById('wizard').style.display = 'block';
+    await refreshPrep();
+  } else if (!eventId) {
     document.getElementById('no-event-form').style.display = 'block';
     document.getElementById('event-subtitle').textContent = 'Create an event to begin preparing its brief.';
     document.getElementById('sch-date').value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });

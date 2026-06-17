@@ -411,8 +411,12 @@ function generateBriefText(brief, news, schedule, liveNews) {
   if (mergedNews.length) {
     lines.push(`*📰 Submitted Reports:*`);
     mergedNews.slice(0, 10).forEach((n, i) => {
-      lines.push(`${i + 1}. ${n.headline}${n.source ? ' (' + n.source + ')' : ''}`);
-      if (n.link) lines.push(`   🔗 ${n.link}`);
+      const headline = n.headline || n.title || 'News item';
+      if (n.link) {
+        lines.push(`${i + 1}. ${headline} — ${n.link}${n.source ? ' (' + n.source + ')' : ''}`);
+      } else {
+        lines.push(`${i + 1}. ${headline}${n.source ? ' (' + n.source + ')' : ''}`);
+      }
     });
     lines.push('');
   }
@@ -426,8 +430,12 @@ function generateBriefText(brief, news, schedule, liveNews) {
   if (autoItems.length) {
     lines.push(`*📡 In the News (auto-scraped):*`);
     autoItems.forEach((n, i) => {
-      lines.push(`${i + 1}. ${n.title}${n.source ? ' (' + n.source + ')' : ''}`);
-      if (n.link) lines.push(`   🔗 ${n.link}`);
+      const title = n.title || 'News item';
+      if (n.link) {
+        lines.push(`${i + 1}. ${title} — ${n.link}${n.source ? ' (' + n.source + ')' : ''}`);
+      } else {
+        lines.push(`${i + 1}. ${title}${n.source ? ' (' + n.source + ')' : ''}`);
+      }
     });
     lines.push('');
   }
@@ -734,6 +742,112 @@ function buildCreativeSuggestions(eventType, contactsForEvent) {
   return merged.filter(s => (seen.has(s.id) ? false : (seen.add(s.id), true)));
 }
 
+app.get('/api/daily-prep', async (req, res) => {
+  const db = readDB();
+  const dateStr = req.query.date || getISTDateStr();
+  const events = (db.schedule || []).filter(s => s.date === dateStr)
+    .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+
+  if (!events.length) return res.json({ events: [], contacts: [], news_suggestions: [], field_news: [] });
+
+  const contactsById = new Map(db.contacts.map(c => [c.id, c]));
+  const allContacts = [];
+  const seenContactIds = new Set();
+
+  events.forEach(event => {
+    (event.nearby_contacts || []).forEach(nc => {
+      if (seenContactIds.has(nc.id)) return;
+      seenContactIds.add(nc.id);
+      const c = contactsById.get(nc.id);
+      allContacts.push({
+        id: nc.id, name: nc.name, phone: nc.phone, village: nc.village, role: nc.role,
+        tier: nc.tier, pps_score: nc.pps_score, open_grievance: nc.open_grievance,
+        note: nc.event_brief || '', note_reviewed: nc.brief_reviewed || false,
+        event_name: event.event_name,
+        reference: { remarks: c?.remarks || '', ai_reason: c?.ai_reason || '', standing_note: c?.manual_brief || '' },
+      });
+    });
+  });
+
+  allContacts.sort((a, b) => b.pps_score - a.pps_score);
+
+  let newsSuggestions = [];
+  try {
+    const liveNews = await fetchGoogleNews(db);
+    const mandals = new Set(events.map(e => e.mandal));
+    const tagged = liveNews.filter(n => mandals.has(n.mandal_tag));
+    const rest = liveNews.filter(n => !mandals.has(n.mandal_tag));
+    newsSuggestions = [...tagged, ...rest].slice(0, 10);
+  } catch { /* best-effort */ }
+
+  const todayIST = getISTDateStr();
+  const fieldNews = (db.news || [])
+    .filter(n => n.submitted_at && new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === todayIST)
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true }));
+
+  const combinedNewsSelected = [];
+  const seenLinks = new Set();
+  events.forEach(ev => {
+    (ev.news_selected || []).forEach(n => {
+      if (n.link && seenLinks.has(n.link)) return;
+      if (n.link) seenLinks.add(n.link);
+      combinedNewsSelected.push(n);
+    });
+  });
+
+  res.json({
+    date: dateStr,
+    events: events.map(ev => ({
+      id: ev.id, event_name: ev.event_name, time: ev.time, mandal: ev.mandal,
+      village: ev.village, event_type: ev.event_type, description: ev.description,
+      speech_points: ev.speech_points || '',
+      creative_touches: ev.creative_touches || { selected: [], custom: [] },
+      speech_applicable: isSpeechApplicable(ev.event_type),
+    })),
+    contacts: allContacts,
+    news_suggestions: newsSuggestions,
+    field_news: fieldNews,
+    news_selected: combinedNewsSelected,
+  });
+});
+
+app.patch('/api/daily-prep', (req, res) => {
+  const db = readDB();
+  const dateStr = req.body.date || getISTDateStr();
+  const events = (db.schedule || []).filter(s => s.date === dateStr);
+  if (!events.length) return res.status(404).json({ error: 'No events for this date' });
+
+  const { contacts, news_selected, event_updates } = req.body;
+
+  if (contacts) {
+    const noteMap = new Map(contacts.map(c => [c.id, c.note]));
+    events.forEach(event => {
+      (event.nearby_contacts || []).forEach(nc => {
+        if (noteMap.has(nc.id)) {
+          nc.event_brief = noteMap.get(nc.id);
+          nc.brief_reviewed = true;
+        }
+      });
+    });
+  }
+
+  if (news_selected) {
+    events.forEach(ev => { ev.news_selected = news_selected; });
+  }
+
+  if (event_updates) {
+    event_updates.forEach(u => {
+      const ev = events.find(e => e.id === u.id);
+      if (!ev) return;
+      if (u.speech_points !== undefined) { ev.speech_points = u.speech_points; ev.speech_points_reviewed = !!u.speech_points.trim(); }
+      if (u.creative_touches !== undefined) ev.creative_touches = u.creative_touches;
+    });
+  }
+
+  writeDB(db);
+  res.json({ ok: true });
+});
+
 app.get('/api/schedule/:id/prep', async (req, res) => {
   const db = readDB();
   const event = (db.schedule || []).find(s => s.id === req.params.id);
@@ -761,10 +875,16 @@ app.get('/api/schedule/:id/prep', async (req, res) => {
     newsSuggestions = [...tagged, ...rest].slice(0, 8);
   } catch { /* news is best-effort here */ }
 
+  const todayIST = getISTDateStr();
+  const fieldNews = (db.news || [])
+    .filter(n => n.submitted_at && new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === todayIST)
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true }));
+
   res.json({
     event: { ...event, speech_applicable: isSpeechApplicable(event.event_type) },
     contacts,
     news_suggestions: newsSuggestions,
+    field_news: fieldNews,
   });
 });
 
@@ -1426,7 +1546,7 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
   // ── Header band ──────────────────────────────────────────────────────────
   doc.rect(0, 0, doc.page.width, 86).fill(C.slate);
   doc.fillColor(C.white).font(boldFont).fontSize(20).text('The morning brief', PDF_LEFT, 24);
-  doc.font(bodyFont).fontSize(11).fillColor('#FFF7ED').text('Palanadu Constituency', PDF_LEFT, 52);
+  doc.font(bodyFont).fontSize(11).fillColor('#FFF7ED').text('Narasaraopet Constituency · Palanadu District', PDF_LEFT, 52);
   doc.y = 104;
   doc.x = PDF_LEFT;
 
@@ -1545,18 +1665,31 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
       pickedNews.push(n);
     }
   }));
+  const todayISTForPdf = getISTDateStr();
+  const fieldNewsForPdf = (db.news || [])
+    .filter(n => n.submitted_at && new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === todayISTForPdf)
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report' }));
+
   const newsIsAuto = pickedNews.length === 0;
-  const newsToShow = newsIsAuto ? (liveNews || []).slice(0, 5) : pickedNews;
+  const newsToShow = newsIsAuto ? [...fieldNewsForPdf, ...(liveNews || [])].slice(0, 8) : pickedNews;
 
   if (newsToShow.length) {
     if (doc.y > doc.page.height - 120) doc.addPage();
     doc.x = PDF_LEFT;
-    doc.font(boldFont).fontSize(12).fillColor(C.green).text(`News for this brief${newsIsAuto ? ' (auto-scraped — not reviewed)' : ''}`, PDF_LEFT);
+    const newsLabel = newsIsAuto
+      ? (fieldNewsForPdf.length ? ' (field reports + auto-scraped)' : ' (auto-scraped — not reviewed)')
+      : '';
+    doc.font(boldFont).fontSize(12).fillColor(C.green).text(`News for this brief${newsLabel}`, PDF_LEFT);
     doc.moveDown(0.2);
     newsToShow.forEach((n, i) => {
-      doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(`${i + 1}. ${n.title || n.headline}${n.source ? ' (' + n.source + ')' : ''}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
+      const title = n.title || n.headline || 'News item';
       if (n.link) {
-        doc.fontSize(8).fillColor(C.linkBlue).text(n.link, PDF_LEFT, doc.y, { width: PDF_WIDTH, link: n.link, underline: true });
+        doc.font(bodyFont).fontSize(9).fillColor(C.ink)
+          .text(`${i + 1}. `, PDF_LEFT, doc.y, { continued: true, width: PDF_WIDTH });
+        doc.fillColor(C.linkBlue).text(title, { link: n.link, underline: true, continued: true });
+        doc.fillColor(C.ink).text(`${n.source ? ' (' + n.source + ')' : ''}`, { link: null, underline: false });
+      } else {
+        doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(`${i + 1}. ${title}${n.source ? ' (' + n.source + ')' : ''}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
       }
       doc.moveDown(0.15);
     });
