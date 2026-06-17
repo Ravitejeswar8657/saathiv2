@@ -20,11 +20,13 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);height:100vh;overflow:hidden;display:flex;flex-direction:column}
-  
+  body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999;flex-shrink:0}
+
   /* Header */
   .top-nav {
     background: #fff;
     border-bottom: 1px solid var(--border);
+    margin-top: 3px;
     padding: 0 24px;
     height: 64px;
     display: flex;

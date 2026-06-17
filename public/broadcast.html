@@ -36,15 +36,20 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+body::before {
+  content:'';display:block;height:3px;
+  background:linear-gradient(90deg,#b45309,#d97706,#b45309);
+  position:fixed;top:0;left:0;right:0;z-index:999;
+}
 
-.container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+.container { width: 100%; padding: 32px 32px; margin-top: 3px; }
 
 .back-link {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 13px; color: var(--muted); text-decoration: none;
+  font-size: 13px; color: var(--accent); text-decoration: none;
   font-weight: 500; margin-bottom: 16px; transition: color 0.15s;
 }
-.back-link:hover { color: var(--ink); }
+.back-link:hover { color: var(--accent-hover); }
 .back-link [data-lucide] { width: 14px; height: 14px; }
 
 .header { margin-bottom: 28px; }

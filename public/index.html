@@ -16,16 +16,22 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
   }
+  body::before {
+    content:'';display:block;height:3px;
+    background:linear-gradient(90deg,#b45309,#d97706,#b45309);
+    position:fixed;top:0;left:0;right:0;z-index:999;
+  }
 
   /* Government header bar */
   .gov-header {
-    background: #fff;
+    background: #fffbeb;
     border-bottom: 1px solid #e5e5e5;
     padding: 10px 24px;
+    margin-top: 3px;
   }
   .gov-header-inner {
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    padding: 0 8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -47,15 +53,15 @@
 
   /* Main content */
   .container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 40px 24px 80px;
+    width: 100%;
+    padding: 40px 32px 80px;
   }
 
   /* MP Hero */
   .mp-hero {
     background: #fff;
     border: 1px solid #e5e5e5;
+    border-left: 4px solid #b45309;
     border-radius: 10px;
     padding: 32px;
     display: flex;
@@ -117,6 +123,8 @@
     letter-spacing: 0.8px;
     color: #a8a29e;
     margin-bottom: 16px;
+    padding-left: 12px;
+    border-left: 3px solid #d97706;
   }
 
   /* Nav grid */
@@ -139,6 +147,7 @@
   }
   .nav-card:hover {
     border-color: #d6d3d1;
+    border-left: 3px solid #d97706;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
     transform: translateY(-2px);
   }

@@ -8,10 +8,11 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:32px 16px}
-.container{max-width:600px;margin:0 auto}
-.back-link{display:inline-flex;align-items:center;gap:4px;margin-bottom:20px;font-size:13px;color:#6b7280;text-decoration:none;font-weight:500}
-.back-link:hover{color:#1a1208}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
+body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999}
+.container{width:100%;padding:32px 32px;margin-top:3px}
+.back-link{display:inline-flex;align-items:center;gap:4px;margin-bottom:20px;font-size:13px;color:#b45309;text-decoration:none;font-weight:500}
+.back-link:hover{color:#92400e}
 .back-link [data-lucide]{width:13px;height:13px}
 
 /* ── Tabs ── */
