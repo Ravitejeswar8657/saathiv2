@@ -225,6 +225,7 @@ async function loadSchedule() {
             `).join('')}
           </div>
         ` : ''}
+        <a class="prep-link-btn" href="/brief_workflow.html?event=${ev.id}">Prepare brief &rarr;</a>
       </div>
       <button onclick="deleteSchedule('${ev.id}')" class="delete-btn" title="Delete event">&times;</button>
     </div>`;
