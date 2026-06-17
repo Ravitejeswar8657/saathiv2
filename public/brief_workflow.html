@@ -309,32 +309,47 @@ function renderStepContent() {
 }
 
 // ── Step 1: Contacts & Notes ────────────────────────────────────────────────
+function contactKey(c) {
+  return c.event_id ? `${c.event_id}_${c.id}` : c.id;
+}
+
 function contactsStepHtml(n) {
   const contacts = prep.contacts;
+  const approved = contactsApproved();
+
+  if (dateMode && prep.events.length > 1) {
+    const byEvent = {};
+    contacts.forEach(c => {
+      const eid = c.event_id || '_';
+      if (!byEvent[eid]) byEvent[eid] = [];
+      byEvent[eid].push(c);
+    });
+
+    let html = `<div class="section-title">${n}. Contacts — add notes per event</div>
+      <p class="empty-state" style="margin-top:-8px">Contacts grouped by event. Add notes for each.</p>`;
+
+    (prep.events || []).forEach(ev => {
+      const evContacts = byEvent[ev.id] || [];
+      const shown = showAllContacts ? evContacts : evContacts.slice(0, 8);
+      html += `<div style="margin-top:16px;margin-bottom:8px;font-size:13px;font-weight:700;color:#92400e;padding:8px 12px;background:#fffbeb;border-radius:6px;border-left:3px solid #d97706">${escapeHtml(ev.event_name)} — ${ev.mandal} (${evContacts.length} contacts)</div>`;
+      html += shown.map(c => contactRowHtml(c)).join('');
+      if (evContacts.length > 8 && !showAllContacts) {
+        html += `<p class="empty-state">Showing top 8. <span class="reset-link" onclick="showAllContacts=true;renderStepContent()">Show all ${evContacts.length}</span></p>`;
+      }
+    });
+
+    html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid #f3f4f6;text-align:right">
+      <button class="mini-btn" onclick="approveContacts()">Save all &amp; continue</button>
+    </div>`;
+    return html;
+  }
+
   const shown = showAllContacts ? contacts : contacts.slice(0, 8);
-  const approved = prep.event.contacts_approved;
   return `
     <div class="section-title">${n}. Contacts — add a note, then approve</div>
     <p class="empty-state" style="margin-top:-8px">Just name and phone by default. Nothing here is auto-written for you.</p>
     ${contacts.length > 8 && !showAllContacts ? `<p class="empty-state">Showing top 8 by priority. <span class="reset-link" onclick="showAllContacts=true;renderStepContent()">Show all ${contacts.length}</span></p>` : ''}
-    ${shown.map(c => `
-      <div class="contact-row">
-        <div class="cr-head">
-          <span class="cr-name">${c.name} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
-          <a href="tel:${c.phone}" class="phone-link">${c.phone || ''}</a>
-        </div>
-        <textarea id="note-${c.id}" placeholder="What should the MP know about ${c.name}?">${escapeHtml(c.note)}</textarea>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-          <span class="reset-link" onclick="toggleRef('${c.id}')">Show comment from records</span>
-          <button class="mini-btn secondary" onclick="saveNote('${c.id}')">Save note</button>
-        </div>
-        <div class="cr-ref" id="ref-${c.id}">
-          ${c.reference.remarks ? `<div><b>Record:</b> ${escapeHtml(c.reference.remarks)}</div>` : ''}
-          ${c.reference.ai_reason ? `<div><b>System note:</b> ${escapeHtml(c.reference.ai_reason)}</div>` : ''}
-          ${!c.reference.remarks && !c.reference.ai_reason ? 'Nothing on file.' : ''}
-        </div>
-      </div>
-    `).join('')}
+    ${shown.map(c => contactRowHtml(c)).join('')}
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center">
       <span style="font-size:13px;color:${approved ? '#166534' : '#92400e'};font-weight:600">
         ${approved ? '✓ Approved' : 'Not yet approved'}
@@ -344,16 +359,38 @@ function contactsStepHtml(n) {
   `;
 }
 
+function contactRowHtml(c) {
+  const key = contactKey(c);
+  return `
+    <div class="contact-row">
+      <div class="cr-head">
+        <span class="cr-name">${c.name} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
+        <a href="tel:${c.phone}" class="phone-link">${c.phone || ''}</a>
+      </div>
+      <textarea id="note-${key}" placeholder="What should the MP know about ${c.name}?">${escapeHtml(c.note)}</textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+        <span class="reset-link" onclick="toggleRef('${key}')">Show comment from records</span>
+        <button class="mini-btn secondary" onclick="saveNote('${c.id}','${c.event_id || ''}')">Save note</button>
+      </div>
+      <div class="cr-ref" id="ref-${key}">
+        ${c.reference.remarks ? `<div><b>Record:</b> ${escapeHtml(c.reference.remarks)}</div>` : ''}
+        ${c.reference.ai_reason ? `<div><b>System note:</b> ${escapeHtml(c.reference.ai_reason)}</div>` : ''}
+        ${!c.reference.remarks && !c.reference.ai_reason ? 'Nothing on file.' : ''}
+      </div>
+    </div>`;
+}
+
 function toggleRef(id) {
   document.getElementById(`ref-${id}`).classList.toggle('open');
 }
 
-async function saveNote(contactId) {
-  const text = document.getElementById(`note-${contactId}`).value;
+async function saveNote(contactId, eventIdForContact) {
+  const key = eventIdForContact ? `${eventIdForContact}_${contactId}` : contactId;
+  const text = document.getElementById(`note-${key}`).value;
   if (dateMode) {
     await fetch('/api/daily-prep', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: dateMode, contacts: [{ id: contactId, note: text }] }),
+      body: JSON.stringify({ date: dateMode, contacts: [{ id: contactId, event_id: eventIdForContact || undefined, note: text }] }),
     });
   } else {
     await fetch(`/api/schedule/${eventId}/prep`, {
@@ -365,17 +402,19 @@ async function saveNote(contactId) {
 }
 
 async function saveAllVisibleNotes() {
-  const contacts = showAllContacts ? prep.contacts : prep.contacts.slice(0, 8);
   if (dateMode) {
-    const arr = contacts.map(c => {
-      const el = document.getElementById(`note-${c.id}`);
-      return { id: c.id, note: el ? el.value : '' };
+    const arr = [];
+    prep.contacts.forEach(c => {
+      const key = contactKey(c);
+      const el = document.getElementById(`note-${key}`);
+      if (el) arr.push({ id: c.id, event_id: c.event_id || undefined, note: el.value });
     });
     await fetch('/api/daily-prep', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: dateMode, contacts: arr }),
     });
   } else {
+    const contacts = showAllContacts ? prep.contacts : prep.contacts.slice(0, 8);
     const contact_briefs = {};
     contacts.forEach(c => {
       const el = document.getElementById(`note-${c.id}`);

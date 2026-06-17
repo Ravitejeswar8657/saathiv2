@@ -752,24 +752,20 @@ app.get('/api/daily-prep', async (req, res) => {
 
   const contactsById = new Map(db.contacts.map(c => [c.id, c]));
   const allContacts = [];
-  const seenContactIds = new Set();
 
   events.forEach(event => {
     (event.nearby_contacts || []).forEach(nc => {
-      if (seenContactIds.has(nc.id)) return;
-      seenContactIds.add(nc.id);
       const c = contactsById.get(nc.id);
       allContacts.push({
         id: nc.id, name: nc.name, phone: nc.phone, village: nc.village, role: nc.role,
         tier: nc.tier, pps_score: nc.pps_score, open_grievance: nc.open_grievance,
         note: nc.event_brief || '', note_reviewed: nc.brief_reviewed || false,
+        event_id: event.id,
         event_name: event.event_name,
         reference: { remarks: c?.remarks || '', ai_reason: c?.ai_reason || '', standing_note: c?.manual_brief || '' },
       });
     });
   });
-
-  allContacts.sort((a, b) => b.pps_score - a.pps_score);
 
   let newsSuggestions = [];
   try {
@@ -820,14 +816,18 @@ app.patch('/api/daily-prep', (req, res) => {
   const { contacts, news_selected, event_updates } = req.body;
 
   if (contacts) {
-    const noteMap = new Map(contacts.map(c => [c.id, c.note]));
-    events.forEach(event => {
-      (event.nearby_contacts || []).forEach(nc => {
-        if (noteMap.has(nc.id)) {
-          nc.event_brief = noteMap.get(nc.id);
-          nc.brief_reviewed = true;
-        }
-      });
+    contacts.forEach(c => {
+      if (c.event_id) {
+        const ev = events.find(e => e.id === c.event_id);
+        if (!ev) return;
+        const nc = (ev.nearby_contacts || []).find(nc => nc.id === c.id);
+        if (nc) { nc.event_brief = c.note; nc.brief_reviewed = true; }
+      } else {
+        events.forEach(event => {
+          const nc = (event.nearby_contacts || []).find(nc => nc.id === c.id);
+          if (nc) { nc.event_brief = c.note; nc.brief_reviewed = true; }
+        });
+      }
     });
   }
 
@@ -1563,13 +1563,12 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     doc.font(bodyFont).fontSize(11).fillColor(C.ink).text('No engagements scheduled for this date.', PDF_LEFT);
   }
 
+  const contactsById = new Map(db.contacts.map(c => [c.id, c]));
+
   events.forEach((event, i) => {
-    // Page-break guard so a new event box never starts right at the bottom edge. (pdfkit
-    // auto-paginates flowing text, but not a box whose border we draw after the fact — if a
-    // single event's content is long enough to overflow a fresh page anyway, the border may
-    // not perfectly wrap the overflow; that's an accepted v1 limitation.)
     if (doc.y > doc.page.height - 160) doc.addPage();
 
+    const boxStartPage = doc.bufferedPageRange().count + doc._pageBufferStart;
     const boxTop = doc.y;
     const titleStripHeight = 24;
 
@@ -1586,9 +1585,6 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     if (event.description) doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(event.description, { width: PDF_WIDTH - 24 });
     doc.moveDown(0.4);
 
-    // Contacts — top 8 by priority, same cap as the prep panel, so what the PA reviewed is
-    // what prints. Manual content wins; auto-draft is a clearly labelled fallback.
-    const contactsById = new Map(db.contacts.map(c => [c.id, c]));
     const allContacts = event.nearby_contacts || [];
     const shown = allContacts.slice(0, 8);
     if (shown.length) {
@@ -1602,18 +1598,19 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
         const isAuto = !manualBrief;
 
         const metByText = nc.tier === 'T1' ? '' : ` · Met by: ${metByForTier(nc.tier)}`;
+        const metaStr = `  ${nc.tier} · ${nc.role || ''}${metByText}${nc.phone ? ' · ' + nc.phone : ''}`;
 
         doc.font(boldFont).fontSize(9.5).fillColor(C.ink)
-          .text(nc.name, PDF_LEFT + 12, doc.y, { continued: true, width: PDF_WIDTH - 24 })
-          .font(bodyFont).fillColor(C.slate)
-          .text(`  ${nc.tier} · ${nc.role || ''}${metByText}${nc.phone ? ' · ' + nc.phone : ''}`);
+          .text(`${nc.name}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+        doc.font(bodyFont).fontSize(8.5).fillColor(C.slate)
+          .text(metaStr.trim(), PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
         if (briefText) {
           doc.font(bodyFont).fontSize(8.5).fillColor(isAuto ? '#9ca3af' : C.ink)
             .text(`${isAuto ? '(auto-draft) ' : ''}${briefText}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
         }
         if (nc.open_grievance) {
           doc.font(boldFont).fontSize(8.5).fillColor(C.grievance)
-            .text(`⚠ ${nc.open_grievance}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+            .text(`Open issue: ${nc.open_grievance}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
         }
         doc.moveDown(0.35);
       });
@@ -1624,8 +1621,6 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
       doc.moveDown(0.3);
     }
 
-    // Speech points — only what the PA actually wrote. No template auto-draft printed anymore;
-    // an unwritten/skipped step simply doesn't appear in the PDF.
     if (event.speech_points && event.speech_points.trim()) {
       doc.x = PDF_LEFT + 12;
       doc.font(boldFont).fontSize(9).fillColor(C.green).text('SPEECH POINTS', PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
@@ -1633,7 +1628,6 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
       doc.moveDown(0.3);
     }
 
-    // Creative touches — only what the PA actually selected/typed. Never auto-inject suggestions.
     const selected = event.creative_touches?.selected || [];
     const custom = event.creative_touches?.custom || [];
     if (selected.length || custom.length) {
@@ -1647,8 +1641,25 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
       doc.moveDown(0.3);
     }
 
+    // Draw event border — if content stayed on one page, draw a single rect.
+    // If it spanned pages, draw a top-open/bottom-open pair so borders don't cross pages.
+    const boxEndPage = doc.bufferedPageRange().count + doc._pageBufferStart;
     const boxBottom = doc.y + 6;
-    doc.roundedRect(PDF_LEFT, boxTop, PDF_WIDTH, boxBottom - boxTop, 4).lineWidth(1).strokeColor(C.amberBorder).stroke();
+
+    if (boxEndPage === boxStartPage) {
+      doc.roundedRect(PDF_LEFT, boxTop, PDF_WIDTH, boxBottom - boxTop, 4).lineWidth(1).strokeColor(C.amberBorder).stroke();
+    } else {
+      // Content crossed a page — draw a left/right/top border on the start page (open bottom),
+      // and skip the border entirely to avoid broken rendering. A thin top line on the current
+      // page signals continuation.
+      doc.save();
+      doc.lineWidth(1).strokeColor(C.amberBorder);
+      doc.moveTo(PDF_LEFT, boxBottom).lineTo(PDF_LEFT, boxBottom - Math.min(boxBottom - 40, boxBottom)).stroke();
+      doc.moveTo(PDF_LEFT + PDF_WIDTH, boxBottom).lineTo(PDF_LEFT + PDF_WIDTH, boxBottom - Math.min(boxBottom - 40, boxBottom)).stroke();
+      doc.moveTo(PDF_LEFT, boxBottom).lineTo(PDF_LEFT + PDF_WIDTH, boxBottom).stroke();
+      doc.restore();
+    }
+
     doc.x = PDF_LEFT;
     doc.y = boxBottom + 14;
   });
@@ -1683,14 +1694,13 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     doc.moveDown(0.2);
     newsToShow.forEach((n, i) => {
       const title = n.title || n.headline || 'News item';
-      if (n.link) {
-        doc.font(bodyFont).fontSize(9).fillColor(C.ink)
-          .text(`${i + 1}. `, PDF_LEFT, doc.y, { continued: true, width: PDF_WIDTH });
-        doc.fillColor(C.linkBlue).text(title, { link: n.link, underline: true, continued: true });
-        doc.fillColor(C.ink).text(`${n.source ? ' (' + n.source + ')' : ''}`, { link: null, underline: false });
-      } else {
-        doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(`${i + 1}. ${title}${n.source ? ' (' + n.source + ')' : ''}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
-      }
+      const sourceStr = n.source ? ` (${n.source})` : '';
+      doc.font(bodyFont).fontSize(9).fillColor(C.ink)
+        .text(`${i + 1}. ${title}${sourceStr}`, PDF_LEFT, doc.y, {
+          width: PDF_WIDTH,
+          link: n.link || undefined,
+          underline: !!n.link,
+        });
       doc.moveDown(0.15);
     });
   }
