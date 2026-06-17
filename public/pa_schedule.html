@@ -191,45 +191,57 @@ async function loadSchedule() {
   const data = await r.json();
   const schedule = data.schedule || [];
 
+  // Group events by date
+  const byDate = {};
+  schedule.forEach(ev => {
+    if (!byDate[ev.date]) byDate[ev.date] = [];
+    byDate[ev.date].push(ev);
+  });
+  const dates = Object.keys(byDate).sort();
   const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-  const todaysEvents = schedule.filter(ev => ev.date === todayIST);
 
   let html = '';
-
-  if (todaysEvents.length > 0) {
-    html += `<div style="margin-top:24px;margin-bottom:16px;padding:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <div>
-        <div style="font-size:15px;font-weight:700;color:#92400e">${todaysEvents.length} event${todaysEvents.length > 1 ? 's' : ''} today</div>
-        <div style="font-size:12px;color:#78716c;margin-top:2px">Prepare a single combined brief for all today's events</div>
-      </div>
-      <a href="/brief_workflow.html?date=${todayIST}" style="display:inline-flex;align-items:center;gap:6px;padding:10px 18px;background:#b45309;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600">Prepare today's brief &rarr;</a>
-    </div>`;
+  if (schedule.length === 0) {
+    html += '<div class="section-title" style="margin-top:24px;margin-bottom:12px">Upcoming events</div>';
+    html += '<p class="empty-state">No events scheduled yet.</p>';
   }
 
-  html += '<div class="section-title" style="margin-top:24px;margin-bottom:12px">Upcoming events</div>';
-  if (schedule.length === 0) html += '<p class="empty-state">No events scheduled yet.</p>';
-  schedule.forEach(ev => {
-    html += `
-    <div class="event-card">
-      <div style="flex:1">
-        <div class="event-name">${ev.event_name}${ev.event_type ? ` <span class="tag tag-t2">${ev.event_type}</span>` : ''}</div>
-        <div class="event-meta">${ev.date}${ev.time ? ' · ' + fmt12h(ev.time) : ''} &middot; ${ev.mandal}</div>
-        ${ev.nearby_contacts?.length ? `
-          <div class="event-contacts">
-            <div class="event-contacts-label">${ev.nearby_count} priority contacts nearby</div>
-            ${ev.nearby_contacts.slice(0,5).map(c => `
-              <div class="nearby-item">
-                <span><strong>${c.name}</strong> &middot; ${c.village} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
-                <a href="tel:${c.phone}" class="phone-link">${c.phone}</a>
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
-        <a class="prep-link-btn" href="/brief_workflow.html?event=${ev.id}">Prepare brief &rarr;</a>
+  dates.forEach(date => {
+    const evts = byDate[date];
+    const isToday = date === todayIST;
+    const dateLabel = isToday ? 'Today' : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+
+    html += `<div style="margin-top:24px;margin-bottom:12px;padding:14px 16px;background:${isToday ? '#fffbeb' : '#f9fafb'};border:1px solid ${isToday ? '#fde68a' : '#e5e5e5'};border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:${isToday ? '#92400e' : '#374151'}">${dateLabel} · ${evts.length} event${evts.length > 1 ? 's' : ''}</div>
+        <div style="font-size:12px;color:#78716c;margin-top:2px">${date}</div>
       </div>
-      <button onclick="deleteSchedule('${ev.id}')" class="delete-btn" title="Delete event">&times;</button>
+      <a href="/brief_workflow.html?date=${date}" style="display:inline-flex;align-items:center;gap:6px;padding:10px 18px;background:${isToday ? '#b45309' : '#1a1208'};color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600">Prepare brief &rarr;</a>
     </div>`;
+
+    evts.forEach(ev => {
+      html += `
+      <div class="event-card">
+        <div style="flex:1">
+          <div class="event-name">${ev.event_name}${ev.event_type ? ` <span class="tag tag-t2">${ev.event_type}</span>` : ''}</div>
+          <div class="event-meta">${ev.time ? fmt12h(ev.time) + ' · ' : ''}${ev.mandal}</div>
+          ${ev.nearby_contacts?.length ? `
+            <div class="event-contacts">
+              <div class="event-contacts-label">${ev.nearby_count} priority contacts nearby</div>
+              ${ev.nearby_contacts.slice(0,5).map(c => `
+                <div class="nearby-item">
+                  <span><strong>${c.name}</strong> &middot; ${c.village} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
+                  <a href="tel:${c.phone}" class="phone-link">${c.phone}</a>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+        <button onclick="deleteSchedule('${ev.id}')" class="delete-btn" title="Delete event">&times;</button>
+      </div>`;
+    });
   });
+
   document.getElementById('upcoming-list').innerHTML = html;
   lucide.createIcons();
 }
