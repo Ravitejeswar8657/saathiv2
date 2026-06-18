@@ -1080,6 +1080,21 @@ app.post('/api/news', upload.single('attachment'), (req, res) => {
   res.json({ ok: true, id: item.id, message: 'Submitted. Appearing in today\'s brief now.' });
 });
 
+app.patch('/api/news/:id', (req, res) => {
+  const db = readDB();
+  const item = (db.news || []).find(n => n.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'News item not found' });
+  const { headline, link, source, body, mandal, priority } = req.body;
+  if (headline !== undefined) item.headline = headline;
+  if (link !== undefined) item.link = link;
+  if (source !== undefined) item.source = source;
+  if (body !== undefined) item.body = body;
+  if (mandal !== undefined) item.mandal = mandal;
+  if (priority !== undefined) item.priority = priority;
+  writeDB(db);
+  res.json({ ok: true, item });
+});
+
 app.delete('/api/news/:id', (req, res) => {
   const db = readDB();
   db.news = (db.news || []).filter(n => n.id !== req.params.id);
@@ -1551,6 +1566,15 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
   const boldFont = teluguFontOk ? 'Body-Bold' : 'Helvetica-Bold';
   const C = PDF_COLORS;
 
+  function safeText(text, opts) {
+    try { doc.text(text, opts); }
+    catch { doc.font('Helvetica').fontSize(9).text(text, opts); doc.font(bodyFont); }
+  }
+  function safeHeight(text, opts) {
+    try { return doc.heightOfString(text, opts); }
+    catch { return Math.ceil(text.length / 80) * 14; }
+  }
+
   const events = (db.schedule || [])
     .filter(s => s.date === dateStr)
     .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
@@ -1600,9 +1624,11 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     const allContacts = event.nearby_contacts || [];
     const shown = allContacts.slice(0, 8);
     if (shown.length) {
+      doc.x = PDF_LEFT + 12;
       doc.font(boldFont).fontSize(9).fillColor(C.green).text('CONTACTS TO MEET', { width: PDF_WIDTH - 24 });
       doc.moveDown(0.15);
       shown.forEach(nc => {
+        if (doc.y > doc.page.height - 60) doc.addPage();
         const c = contactsById.get(nc.id);
         const manualBrief = nc.event_brief && nc.event_brief.trim();
         const fallbackBrief = c?.manual_brief || c?.remarks || c?.ai_reason || '';
@@ -1612,68 +1638,83 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
         const metByText = nc.tier === 'T1' ? '' : ` · Met by: ${metByForTier(nc.tier)}`;
         const metaStr = `  ${nc.tier} · ${nc.role || ''}${metByText}${nc.phone ? ' · ' + nc.phone : ''}`;
 
-        doc.font(boldFont).fontSize(9.5).fillColor(C.ink)
-          .text(`${nc.name}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
-        doc.font(bodyFont).fontSize(8.5).fillColor(C.slate)
-          .text(metaStr.trim(), PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+        doc.x = PDF_LEFT + 12;
+        doc.font(boldFont).fontSize(9.5).fillColor(C.ink);
+        safeText(nc.name, { width: PDF_WIDTH - 24 });
+        doc.x = PDF_LEFT + 12;
+        doc.font(bodyFont).fontSize(8.5).fillColor(C.slate);
+        safeText(metaStr.trim(), { width: PDF_WIDTH - 24 });
         if (briefText) {
-          doc.font(bodyFont).fontSize(8.5).fillColor(isAuto ? '#9ca3af' : C.ink)
-            .text(`${isAuto ? '(auto-draft) ' : ''}${briefText}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+          doc.x = PDF_LEFT + 12;
+          doc.font(bodyFont).fontSize(8.5).fillColor(isAuto ? '#9ca3af' : C.ink);
+          safeText(`${isAuto ? '(auto-draft) ' : ''}${briefText}`, { width: PDF_WIDTH - 24 });
         }
         if (nc.open_grievance) {
-          doc.font(boldFont).fontSize(8.5).fillColor(C.grievance)
-            .text(`Open issue: ${nc.open_grievance}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+          doc.x = PDF_LEFT + 12;
+          doc.font(boldFont).fontSize(8.5).fillColor(C.grievance);
+          safeText(`Open issue: ${nc.open_grievance}`, { width: PDF_WIDTH - 24 });
         }
         doc.moveDown(0.35);
       });
       if (allContacts.length > shown.length) {
+        doc.x = PDF_LEFT + 12;
         doc.font(bodyFont).fontSize(9).fillColor('#9ca3af')
-          .text(`+ ${allContacts.length - shown.length} more priority contacts in the app.`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+          .text(`+ ${allContacts.length - shown.length} more priority contacts in the app.`, { width: PDF_WIDTH - 24 });
       }
       doc.moveDown(0.3);
     }
 
     if (event.speech_points && event.speech_points.trim()) {
+      if (doc.y > doc.page.height - 80) doc.addPage();
       doc.x = PDF_LEFT + 12;
-      doc.font(boldFont).fontSize(9).fillColor(C.green).text('SPEECH POINTS', PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
-      doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(event.speech_points, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+      doc.font(boldFont).fontSize(9).fillColor(C.green);
+      safeText('SPEECH POINTS', { width: PDF_WIDTH - 24 });
+      doc.font(bodyFont).fontSize(9).fillColor(C.ink);
+      const spW = PDF_WIDTH - 24;
+      const paras = event.speech_points.split(/\n/);
+      paras.forEach(para => {
+        if (!para.trim()) { doc.moveDown(0.3); return; }
+        const pH = safeHeight(para, { width: spW });
+        if (doc.y + pH > doc.page.height - 40) doc.addPage();
+        doc.x = PDF_LEFT + 12;
+        safeText(para, { width: spW });
+      });
       doc.moveDown(0.3);
     }
 
     const selected = event.creative_touches?.selected || [];
     const custom = event.creative_touches?.custom || [];
     if (selected.length || custom.length) {
+      if (doc.y > doc.page.height - 80) doc.addPage();
       const suggestionLabels = buildCreativeSuggestions(event.event_type, allContacts)
         .filter(s => selected.includes(s.id)).map(s => s.label);
       doc.x = PDF_LEFT + 12;
-      doc.font(boldFont).fontSize(9).fillColor(C.green).text('CREATIVE TOUCHES', PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+      doc.font(boldFont).fontSize(9).fillColor(C.green);
+      safeText('CREATIVE TOUCHES', { width: PDF_WIDTH - 24 });
       [...suggestionLabels, ...custom].forEach(label => {
-        doc.font(bodyFont).fontSize(9).fillColor(C.ink).text(`• ${label}`, PDF_LEFT + 12, doc.y, { width: PDF_WIDTH - 24 });
+        if (doc.y > doc.page.height - 40) doc.addPage();
+        doc.x = PDF_LEFT + 12;
+        doc.font(bodyFont).fontSize(9).fillColor(C.ink);
+        safeText(`• ${label}`, { width: PDF_WIDTH - 24 });
       });
       doc.moveDown(0.3);
     }
 
-    // Draw event border — if content stayed on one page, draw a single rect.
-    // If it spanned pages, draw a top-open/bottom-open pair so borders don't cross pages.
+    // Draw event border — single-page gets a rounded rect, cross-page gets a bottom line only.
+    // NEVER use doc.save()/doc.restore() — it resets fill colors and blanks subsequent content.
     const boxEndPage = doc.bufferedPageRange().count + doc._pageBufferStart;
     const boxBottom = doc.y + 6;
 
+    doc.lineWidth(1).strokeColor(C.amberBorder);
     if (boxEndPage === boxStartPage) {
-      doc.roundedRect(PDF_LEFT, boxTop, PDF_WIDTH, boxBottom - boxTop, 4).lineWidth(1).strokeColor(C.amberBorder).stroke();
+      doc.roundedRect(PDF_LEFT, boxTop, PDF_WIDTH, boxBottom - boxTop, 4).stroke();
     } else {
-      // Content crossed a page — draw a left/right/top border on the start page (open bottom),
-      // and skip the border entirely to avoid broken rendering. A thin top line on the current
-      // page signals continuation.
-      doc.save();
-      doc.lineWidth(1).strokeColor(C.amberBorder);
-      doc.moveTo(PDF_LEFT, boxBottom).lineTo(PDF_LEFT, boxBottom - Math.min(boxBottom - 40, boxBottom)).stroke();
-      doc.moveTo(PDF_LEFT + PDF_WIDTH, boxBottom).lineTo(PDF_LEFT + PDF_WIDTH, boxBottom - Math.min(boxBottom - 40, boxBottom)).stroke();
       doc.moveTo(PDF_LEFT, boxBottom).lineTo(PDF_LEFT + PDF_WIDTH, boxBottom).stroke();
-      doc.restore();
     }
 
     doc.x = PDF_LEFT;
     doc.y = boxBottom + 14;
+    doc.fillColor(C.ink).strokeColor(C.ink);
   });
 
   // News — shared across the whole day. PA-picked items win; fall back to the top auto-scraped
@@ -1705,17 +1746,20 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     const newsLabel = newsIsAuto
       ? (fieldNewsForPdf.length ? ' (field reports + auto-scraped)' : ' (auto-scraped — not reviewed)')
       : '';
-    doc.font(boldFont).fontSize(12).fillColor(C.green).text(`News for this brief${newsLabel}`, PDF_LEFT);
+    doc.x = PDF_LEFT;
+    doc.font(boldFont).fontSize(12).fillColor(C.green).text(`News for this brief${newsLabel}`, { width: PDF_WIDTH });
     doc.moveDown(0.2);
     newsToShow.forEach((n, i) => {
+      if (doc.y > doc.page.height - 40) doc.addPage();
       const title = n.title || n.headline || 'News item';
       const sourceStr = n.source ? ` (${n.source})` : '';
-      doc.font(bodyFont).fontSize(9).fillColor(C.ink)
-        .text(`${i + 1}. ${title}${sourceStr}`, PDF_LEFT, doc.y, {
-          width: PDF_WIDTH,
-          link: n.link || undefined,
-          underline: !!n.link,
-        });
+      doc.x = PDF_LEFT;
+      doc.font(bodyFont).fontSize(9).fillColor(C.ink);
+      safeText(`${i + 1}. ${title}${sourceStr}`, {
+        width: PDF_WIDTH,
+        link: n.link || undefined,
+        underline: !!n.link,
+      });
       doc.moveDown(0.15);
     });
   }
