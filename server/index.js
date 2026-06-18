@@ -17,7 +17,10 @@ const ROOT = path.join(__dirname, '..');
 // ── Railway persistent volume awareness ────────────────────────────────────
 // On Railway: mount a volume at /data, set RAILWAY_VOLUME_MOUNT_PATH=/data
 // Locally: just uses ./data/
-const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(ROOT, 'data');
+const RAILWAY_VOLUME = '/data';
+const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  || (fs.existsSync(RAILWAY_VOLUME) ? RAILWAY_VOLUME : null)
+  || path.join(ROOT, 'data');
 const DB_PATH = path.join(VOLUME, 'db.json');
 const WA_AUTH_PATH = path.join(VOLUME, 'wa_auth');
 const BASE_URL = process.env.BASE_URL ||
@@ -778,7 +781,11 @@ app.get('/api/daily-prep', async (req, res) => {
 
   const todayIST = getISTDateStr();
   const fieldNews = (db.news || [])
-    .filter(n => n.submitted_at && new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === todayIST)
+    .filter(n => {
+      if (!n.submitted_at) return false;
+      const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      return nDate === dateStr || nDate === todayIST;
+    })
     .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true }));
 
   const combinedNewsSelected = [];
@@ -876,8 +883,13 @@ app.get('/api/schedule/:id/prep', async (req, res) => {
   } catch { /* news is best-effort here */ }
 
   const todayIST = getISTDateStr();
+  const evDate = event.date || todayIST;
   const fieldNews = (db.news || [])
-    .filter(n => n.submitted_at && new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === todayIST)
+    .filter(n => {
+      if (!n.submitted_at) return false;
+      const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      return nDate === evDate || nDate === todayIST;
+    })
     .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true }));
 
   res.json({
@@ -1676,9 +1688,12 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
       pickedNews.push(n);
     }
   }));
-  const todayISTForPdf = getISTDateStr();
   const fieldNewsForPdf = (db.news || [])
-    .filter(n => n.submitted_at && new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === todayISTForPdf)
+    .filter(n => {
+      if (!n.submitted_at) return false;
+      const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      return nDate === dateStr || nDate === getISTDateStr();
+    })
     .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report' }));
 
   const newsIsAuto = pickedNews.length === 0;
@@ -1728,7 +1743,16 @@ app.get('/api/brief-pdf', async (req, res) => {
 });
 
 // Health check for Railway
-app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+app.get('/health', (req, res) => {
+  const dbExists = fs.existsSync(DB_PATH);
+  const dbSize = dbExists ? (fs.statSync(DB_PATH).size / 1024).toFixed(0) + ' KB' : 'MISSING';
+  res.json({
+    status: 'ok', uptime: process.uptime(),
+    volume: VOLUME, db_path: DB_PATH, db_size: dbSize,
+    env_volume: process.env.RAILWAY_VOLUME_MOUNT_PATH || 'not set',
+    volume_exists: fs.existsSync(RAILWAY_VOLUME),
+  });
+});
 
 // Serve frontend
 app.get('*', (req, res) => {
