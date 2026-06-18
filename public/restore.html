@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Restore Data · Saathi</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;padding:32px;max-width:700px;margin:0 auto}
+h1{font-size:20px;margin-bottom:16px}
+.log{background:#1a1208;color:#a3e635;padding:16px;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.8;min-height:200px;white-space:pre-wrap;margin:16px 0}
+button{padding:12px 24px;background:#b45309;color:#fff;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer}
+button:hover{background:#92400e}
+button:disabled{background:#9ca3af;cursor:not-allowed}
+.warn{color:#b45309;font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>Restore June 18 Brief Data</h1>
+<p>This will add back the 2 events and 11 news items from the June 18 PDF brief.</p>
+<p class="warn">Only run this once — running again will create duplicates.</p>
+<br>
+<button id="btn" onclick="runRestore()">Restore Data Now</button>
+<div class="log" id="log">Ready. Click the button to start restore.\n</div>
+
+<script>
+const log = document.getElementById('log');
+const btn = document.getElementById('btn');
+
+function addLog(msg) {
+  log.textContent += msg + '\n';
+  log.scrollTop = log.scrollHeight;
+}
+
+async function post(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return r.json();
+}
+
+async function runRestore() {
+  btn.disabled = true;
+  log.textContent = '';
+  addLog('Starting restore...\n');
+
+  try {
+    addLog('=== Adding Event 1: Auto nagar inauguration ===');
+    const e1 = await post('/api/schedule', {
+      date: '2026-06-18', event_name: 'Auto nagar inauguration',
+      event_type: 'Inauguration', mandal: 'Chilakaluripet',
+      village: 'Near pothavaram village', description: ''
+    });
+    addLog('  Event ID: ' + (e1.event_id || '?') + ' | Contacts: ' + (e1.nearby_count || 0));
+
+    addLog('\n=== Adding Event 2: Kutami rally ===');
+    const e2 = await post('/api/schedule', {
+      date: '2026-06-18', event_name: 'Kutami rally',
+      event_type: 'Other', mandal: 'Vinukonda',
+      village: 'Vinukonda town', description: 'Rally'
+    });
+    addLog('  Event ID: ' + (e2.event_id || '?') + ' | Contacts: ' + (e2.nearby_count || 0));
+
+    addLog('\n=== Adding News Items ===');
+
+    const newsItems = [
+      { headline: 'వేగంగా సర్ – 2 కోట్ల మంది డీటీటీ పొందారు', source: 'Paper: Eenadu (ఈనాడు) | Edition: District | Date: గురువారం, జూన్ 18, 2026' },
+      { headline: 'బీడు భూముల్లో పచ్చని విప్లవం (Green Revolution on Barren Lands)', source: 'Paper: Eenadu (ఈనాడు) | Edition: District | Date: గురువారం, జూన్ 18, 2026' },
+      { headline: 'వరకపూడిశెలకు తొలగిన అడంకులు (Obstacles Cleared for Development Project)', source: 'Paper: Eenadu (ఈనాడు) | Edition: District | Date: గురువారం, జూన్ 18, 2026' },
+      { headline: 'విద్యార్థులు పాఠశాలలకు వెళ్తున్నారా? (Are Students Actually Attending School?)', source: 'Field correspondent' },
+      { headline: "Absurd step: Kerjriwal slams Modi government's temporary ban on Telegram", source: 'Field correspondent' },
+      { headline: 'Is Congress preparing for a Punjab shake-up? 66 leaders summoned to Delhi', source: 'Field correspondent' },
+      { headline: "How a Mohenjo-daro figurine became a 'dancer' — and associated with vulgarity", source: 'Field correspondent' },
+      { headline: "White Paper addresses adverse impact of 'revenue collapse' on people of Tamil Nadu", source: 'Field correspondent' },
+      { headline: 'After China says no, exporters urge Andhra Pradesh to curb high-risk pesticides in chilli', source: 'Field correspondent' },
+      { headline: 'Shiv Sena (UBT) Split Buzz', source: 'TOI' },
+      { headline: 'G7 Summit Day 2 highlights: India always on side of peace, places humanity over everything else, says Modi', source: 'Hindu' },
+    ];
+
+    for (let i = 0; i < newsItems.length; i++) {
+      const n = newsItems[i];
+      await post('/api/news', n);
+      addLog('  ' + (i + 1) + '. ' + n.headline.slice(0, 70) + (n.headline.length > 70 ? '...' : ''));
+    }
+
+    addLog('\n=== DONE ===');
+    addLog('Added 2 events and 11 news items for June 18, 2026.');
+    addLog('Go to /pa_schedule.html to see the events.');
+  } catch (err) {
+    addLog('\nERROR: ' + err.message);
+  }
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>
