@@ -118,6 +118,26 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 
 .footer{text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;line-height:1.8}
 
+/* ── Manage tab ── */
+.news-card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.news-card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.news-card-headline{font-weight:600;font-size:14px;flex:1;line-height:1.4}
+.news-card-meta{font-size:12px;color:#6b7280;margin-bottom:8px}
+.news-card-link{font-size:12px;color:#3b82f6;word-break:break-all}
+.news-card-link.empty{color:#dc2626;font-style:italic}
+.news-card-actions{display:flex;gap:6px;margin-top:10px}
+.btn-sm{padding:6px 12px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:4px}
+.btn-sm [data-lucide]{width:12px;height:12px}
+.btn-edit{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
+.btn-edit:hover{background:#fef3c7}
+.btn-del{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.btn-del:hover{background:#fee2e2}
+.btn-save{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+.btn-save:hover{background:#dcfce7}
+.edit-row{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+.edit-row input{padding:8px 10px;border:1px solid #d4d4d4;border-radius:5px;font-size:13px;font-family:inherit}
+.edit-row input:focus{border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)}
+
 @keyframes spin{to{transform:rotate(360deg)}}
 .spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
 </style>
@@ -133,6 +153,9 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
     </button>
     <button class="tab-btn" id="tab-brief" onclick="switchTab('brief')">
       <i data-lucide="newspaper"></i> Upload News Brief PDF
+    </button>
+    <button class="tab-btn" id="tab-manage" onclick="switchTab('manage')">
+      <i data-lucide="list"></i> Manage News
     </button>
   </div>
 
@@ -243,6 +266,20 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
       <h3>News brief imported</h3>
       <p id="brief-success-msg"></p>
       <button onclick="resetBriefForm()">Upload another</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       TAB 3 — Manage existing news items
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-manage">
+    <div class="header">
+      <h1>Manage News Items</h1>
+      <p>Edit headlines, add links, or delete submitted news.</p>
+    </div>
+    <div id="manage-list"></div>
+    <div id="manage-empty" class="card" style="display:none;text-align:center;color:#6b7280;padding:32px">
+      No news items found.
     </div>
   </div>
 
@@ -443,6 +480,93 @@ function setBriefStatus(msg, type) {
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// ── TAB 3: Manage News ────────────────────────────────────────────────────
+let allNews = [];
+
+async function loadManageNews() {
+  try {
+    const r = await fetch('/api/news');
+    const data = await r.json();
+    allNews = data.news || [];
+    renderManageList();
+  } catch(e) {
+    document.getElementById('manage-list').innerHTML = `<p style="color:#dc2626">Failed to load: ${e.message}</p>`;
+  }
+}
+
+function renderManageList() {
+  const el = document.getElementById('manage-list');
+  const empty = document.getElementById('manage-empty');
+  if (!allNews.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  el.innerHTML = allNews.map(n => {
+    const date = n.submitted_at ? new Date(n.submitted_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const hasLink = n.link && n.link.trim();
+    return `
+    <div class="news-card" id="nc-${n.id}">
+      <div class="news-card-header">
+        <div class="news-card-headline">${esc(n.headline)}</div>
+      </div>
+      <div class="news-card-meta">${esc(n.source || '')} · ${date}</div>
+      <div class="news-card-link ${hasLink ? '' : 'empty'}">
+        ${hasLink ? `<a href="${esc(n.link)}" target="_blank" rel="noopener">${esc(n.link)}</a>` : 'No link attached'}
+      </div>
+      <div class="news-card-actions">
+        <button class="btn-sm btn-edit" onclick="startEdit('${n.id}')"><i data-lucide="pencil"></i> Edit</button>
+        <button class="btn-sm btn-del" onclick="deleteNews('${n.id}')"><i data-lucide="trash-2"></i> Delete</button>
+      </div>
+      <div class="edit-row" id="edit-${n.id}" style="display:none">
+        <input id="eh-${n.id}" value="${esc(n.headline)}" placeholder="Headline">
+        <input id="el-${n.id}" value="${esc(n.link || '')}" placeholder="Link (https://...)">
+        <input id="es-${n.id}" value="${esc(n.source || '')}" placeholder="Source">
+        <div style="display:flex;gap:6px">
+          <button class="btn-sm btn-save" onclick="saveEdit('${n.id}')"><i data-lucide="check"></i> Save</button>
+          <button class="btn-sm btn-edit" onclick="cancelEdit('${n.id}')">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  lucide.createIcons();
+}
+
+function startEdit(id) {
+  document.getElementById('edit-' + id).style.display = 'grid';
+}
+
+function cancelEdit(id) {
+  document.getElementById('edit-' + id).style.display = 'none';
+}
+
+async function saveEdit(id) {
+  const headline = document.getElementById('eh-' + id).value.trim();
+  const link = document.getElementById('el-' + id).value.trim();
+  const source = document.getElementById('es-' + id).value.trim();
+  if (!headline) { alert('Headline is required'); return; }
+  try {
+    const r = await fetch('/api/news/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ headline, link, source })
+    });
+    if (!r.ok) { const d = await r.json(); alert(d.error || 'Failed'); return; }
+    await loadManageNews();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function deleteNews(id) {
+  if (!confirm('Delete this news item?')) return;
+  try {
+    await fetch('/api/news/' + id, { method: 'DELETE' });
+    await loadManageNews();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+const origSwitchTab = switchTab;
+switchTab = function(tab) {
+  origSwitchTab(tab);
+  if (tab === 'manage') loadManageNews();
+};
 </script>
 </body>
 </html>

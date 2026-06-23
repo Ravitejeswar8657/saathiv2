@@ -115,7 +115,9 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
           <option>Rompicherla</option><option>Savalyapuram</option><option>Vinukonda</option><option>Dachepalle</option>
           <option>Durgi</option><option>Gurazala</option><option>Karempudi</option><option>Machavaram</option>
           <option>Macherla</option><option>Piduguralla</option><option>Rentachintala</option><option>Veldurthi</option>
+          <option value="__other__">Others</option>
         </select>
+        <input id="sch-mandal-custom" type="text" placeholder="Enter mandal name" style="display:none;margin-top:6px">
       </div>
     </div>
     <div class="form-row">
@@ -155,6 +157,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (pdfDateInput && !pdfDateInput.value) {
     pdfDateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   }
+  document.getElementById('sch-mandal').addEventListener('change', function() {
+    document.getElementById('sch-mandal-custom').style.display = this.value === '__other__' ? 'block' : 'none';
+  });
 });
 
 function downloadBriefPdf() {
@@ -249,7 +254,8 @@ async function loadSchedule() {
 async function submitSchedule() {
   const name = document.getElementById('sch-name').value;
   const date = document.getElementById('sch-date').value;
-  const mandal = document.getElementById('sch-mandal').value;
+  const mandalSel = document.getElementById('sch-mandal').value;
+  const mandal = mandalSel === '__other__' ? document.getElementById('sch-mandal-custom').value.trim() : mandalSel;
   if (!name || !date || !mandal) { alert('Fill required fields.'); return; }
 
   const btn = document.querySelector('.submit-btn');

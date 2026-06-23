@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node server/index.js",
     "build": "node scripts/setup_db.js",
-    "setup-db": "node scripts/setup_db.js"
+    "setup-db": "node scripts/setup_db.js",
+    "postinstall": "node scripts/patch-fontkit.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
