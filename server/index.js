@@ -584,18 +584,27 @@ app.post('/api/schedule', (req, res) => {
   if (!mandal || !event_name || !date)
     return res.status(400).json({ error: 'event_name, date and mandal required' });
   const db = readDB();
-  // Exact mandal match only — fuzzy was causing Nuzendla to pull Nadendla contacts.
-  // Village is an optional secondary filter: include contacts from the same village
-  // even if they somehow have a different mandal in the data.
-  const seen = new Map();
-  db.contacts.forEach(c => {
-    const mandalMatch = c.mandal?.toLowerCase() === mandal.toLowerCase();
-    const villageMatch = village && c.village?.toLowerCase() === village.toLowerCase();
-    if (mandalMatch || villageMatch) seen.set(c.id, c);
-  });
-  const nearby = [...seen.values()]
-    .sort((a, b) => b.pps_score - a.pps_score)
-    .slice(0, 20);
+  const byPPS = (a, b) => b.pps_score - a.pps_score;
+  const mandalKey = mandal.toLowerCase();
+  const villageKey = village?.toLowerCase();
+  // When a village is selected, village contacts come first so different
+  // villages within the same mandal produce meaningfully different lists.
+  let nearby;
+  if (villageKey) {
+    const villageContacts = db.contacts
+      .filter(c => c.village?.toLowerCase() === villageKey)
+      .sort(byPPS);
+    const villageIds = new Set(villageContacts.map(c => c.id));
+    const mandalRest = db.contacts
+      .filter(c => c.mandal?.toLowerCase() === mandalKey && !villageIds.has(c.id))
+      .sort(byPPS);
+    nearby = [...villageContacts, ...mandalRest].slice(0, 20);
+  } else {
+    nearby = db.contacts
+      .filter(c => c.mandal?.toLowerCase() === mandalKey)
+      .sort(byPPS)
+      .slice(0, 20);
+  }
 
   const event = {
     id: `SCH${Date.now()}`,
