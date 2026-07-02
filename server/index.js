@@ -549,7 +549,16 @@ app.get('/api/filter-options', (req, res) => {
   Object.keys(mandalsByConstituency).forEach(k => {
     mandalsByConstituency[k] = [...mandalsByConstituency[k]].sort();
   });
-  res.json({ mandals, constituencies, parties, roles, mandalsByConstituency });
+  const villagesByMandal = {};
+  contacts.forEach(c => {
+    if (!c.mandal || !c.village) return;
+    if (!villagesByMandal[c.mandal]) villagesByMandal[c.mandal] = new Set();
+    villagesByMandal[c.mandal].add(c.village);
+  });
+  Object.keys(villagesByMandal).forEach(k => {
+    villagesByMandal[k] = [...villagesByMandal[k]].sort();
+  });
+  res.json({ mandals, constituencies, parties, roles, mandalsByConstituency, villagesByMandal });
 });
 
 app.get('/api/contact/:id', (req, res) => {
@@ -575,14 +584,15 @@ app.post('/api/schedule', (req, res) => {
   if (!mandal || !event_name || !date)
     return res.status(400).json({ error: 'event_name, date and mandal required' });
   const db = readDB();
-  const fuse = new Fuse(db.contacts, { keys: ['mandal', 'village'], threshold: 0.4 });
-  const fuzzy = fuse.search(mandal).map(r => r.item);
-  const exact = db.contacts.filter(c =>
-    c.mandal.toLowerCase().includes(mandal.toLowerCase()) ||
-    (village && c.village.toLowerCase().includes(village.toLowerCase()))
-  );
+  // Exact mandal match only — fuzzy was causing Nuzendla to pull Nadendla contacts.
+  // Village is an optional secondary filter: include contacts from the same village
+  // even if they somehow have a different mandal in the data.
   const seen = new Map();
-  [...fuzzy, ...exact].forEach(c => seen.set(c.id, c));
+  db.contacts.forEach(c => {
+    const mandalMatch = c.mandal?.toLowerCase() === mandal.toLowerCase();
+    const villageMatch = village && c.village?.toLowerCase() === village.toLowerCase();
+    if (mandalMatch || villageMatch) seen.set(c.id, c);
+  });
   const nearby = [...seen.values()]
     .sort((a, b) => b.pps_score - a.pps_score)
     .slice(0, 20);

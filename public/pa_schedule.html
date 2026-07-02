@@ -106,22 +106,20 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
         <input type="hidden" id="sch-time" value=""/>
       </div>
       <div class="form-group"><label>Mandal *</label>
-        <select id="sch-mandal">
+        <select id="sch-mandal" onchange="onMandalChange()">
           <option value="">Select Mandal</option>
-          <option>Amaravathi</option><option>Atchampet</option><option>Bellamkonda</option><option>Krosuru</option>
-          <option>Muppalla</option><option>Nekarikallu</option><option>Pedakurapadu</option><option>Rajupalem</option>
-          <option>Sattenapalli</option><option>Bollapalle</option><option>Chilakaluripet</option><option>Edlapadu</option>
-          <option>Ipuru</option><option>Nadendla</option><option>Narasaraopet</option><option>Nuzendla</option>
-          <option>Rompicherla</option><option>Savalyapuram</option><option>Vinukonda</option><option>Dachepalle</option>
-          <option>Durgi</option><option>Gurazala</option><option>Karempudi</option><option>Machavaram</option>
-          <option>Macherla</option><option>Piduguralla</option><option>Rentachintala</option><option>Veldurthi</option>
-          <option value="__other__">Others</option>
         </select>
         <input id="sch-mandal-custom" type="text" placeholder="Enter mandal name" style="display:none;margin-top:6px">
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Address / village</label><input id="sch-village" placeholder="e.g. Sattenapalli Town"></div>
+      <div class="form-group">
+        <label>Village</label>
+        <select id="sch-village" disabled>
+          <option value="">Select Mandal first</option>
+        </select>
+        <input id="sch-village-custom" type="text" placeholder="Enter village name" style="display:none;margin-top:6px">
+      </div>
       <div class="form-group"><label>Event type</label>
         <select id="sch-event-type">
           <option value="">Select type</option>
@@ -151,15 +149,62 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
+let villagesByMandal = {};
+
+document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
   const pdfDateInput = document.getElementById('pdf-date');
   if (pdfDateInput && !pdfDateInput.value) {
     pdfDateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   }
-  document.getElementById('sch-mandal').addEventListener('change', function() {
-    document.getElementById('sch-mandal-custom').style.display = this.value === '__other__' ? 'block' : 'none';
-  });
+  await loadFilterOptions();
+});
+
+async function loadFilterOptions() {
+  try {
+    const r = await fetch('/api/filter-options');
+    const data = await r.json();
+    villagesByMandal = data.villagesByMandal || {};
+    const mandalSel = document.getElementById('sch-mandal');
+    (data.mandals || []).forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      mandalSel.appendChild(opt);
+    });
+    mandalSel.appendChild(new Option('Others', '__other__'));
+  } catch(e) {
+    console.error('Failed to load filter options', e);
+  }
+}
+
+function onMandalChange() {
+  const mandalVal = document.getElementById('sch-mandal').value;
+  const customMandal = document.getElementById('sch-mandal-custom');
+  customMandal.style.display = mandalVal === '__other__' ? 'block' : 'none';
+
+  const villageSel = document.getElementById('sch-village');
+  const customVillage = document.getElementById('sch-village-custom');
+  villageSel.innerHTML = '';
+  customVillage.style.display = 'none';
+
+  if (!mandalVal || mandalVal === '__other__') {
+    villageSel.appendChild(new Option(mandalVal === '__other__' ? 'Select village (optional)' : 'Select Mandal first', ''));
+    villageSel.disabled = mandalVal !== '__other__';
+    if (mandalVal === '__other__') villageSel.appendChild(new Option('Others', '__other__'));
+    return;
+  }
+  const villages = villagesByMandal[mandalVal] || [];
+  villageSel.appendChild(new Option('Select village (optional)', ''));
+  villages.forEach(v => villageSel.appendChild(new Option(v, v)));
+  villageSel.appendChild(new Option('Others', '__other__'));
+  villageSel.disabled = false;
+}
+
+document.addEventListener('change', e => {
+  if (e.target.id === 'sch-village') {
+    document.getElementById('sch-village-custom').style.display =
+      e.target.value === '__other__' ? 'block' : 'none';
+  }
 });
 
 function downloadBriefPdf() {
@@ -256,6 +301,8 @@ async function submitSchedule() {
   const date = document.getElementById('sch-date').value;
   const mandalSel = document.getElementById('sch-mandal').value;
   const mandal = mandalSel === '__other__' ? document.getElementById('sch-mandal-custom').value.trim() : mandalSel;
+  const villageSel = document.getElementById('sch-village').value;
+  const village = villageSel === '__other__' ? document.getElementById('sch-village-custom').value.trim() : villageSel;
   if (!name || !date || !mandal) { alert('Fill required fields.'); return; }
 
   const btn = document.querySelector('.submit-btn');
@@ -268,7 +315,7 @@ async function submitSchedule() {
       body: JSON.stringify({
         event_name: name, date, mandal,
         time: document.getElementById('sch-time').value,
-        village: document.getElementById('sch-village').value,
+        village,
         description: document.getElementById('sch-desc').value,
         event_type: document.getElementById('sch-event-type').value
       })
