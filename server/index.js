@@ -1512,6 +1512,38 @@ function parseNewsBriefText(rawText) {
   return { briefDate, items };
 }
 
+// Fallback for simpler PDFs that are just a flat "title / link" list — no serial numbers,
+// no Topic/Summary columns, no National/International sections. Each item is either a single
+// line "<headline> <url>" or a headline line immediately followed by a URL-only line.
+function parseGenericTitleLinkList(rawText) {
+  const rawLines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  const URL_RE = /(https?:\/\/\S+)/;
+  const HEADER_RE = /^(title|headline|topic)\s+(link|url)$/i;
+
+  const items = [];
+  let pendingHeadline = '';
+
+  for (const line of rawLines) {
+    if (HEADER_RE.test(line)) continue;
+
+    const match = line.match(URL_RE);
+    if (!match) {
+      pendingHeadline = line;
+      continue;
+    }
+
+    const link = match[1].trim();
+    const before = line.slice(0, match.index).trim();
+    const headline = (before || pendingHeadline).replace(/[-–:\s]+$/, '').trim();
+    pendingHeadline = '';
+    if (!headline) continue;
+
+    items.push({ serialNum: items.length + 1, headline, body: '', link, category: '' });
+  }
+
+  return { briefDate: '', items };
+}
+
 app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'PDF file required' });
   if (!req.file.originalname.toLowerCase().endsWith('.pdf'))
@@ -1520,7 +1552,13 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
   try {
     const pdfParse = require('pdf-parse/lib/pdf-parse.js');
     const parsed = await pdfParse(req.file.buffer);
-    const { briefDate, items } = parseNewsBriefText(parsed.text);
+    let { briefDate, items } = parseNewsBriefText(parsed.text);
+
+    if (!items.length) {
+      const generic = parseGenericTitleLinkList(parsed.text);
+      items = generic.items;
+      if (!briefDate) briefDate = generic.briefDate;
+    }
 
     if (!items.length)
       return res.status(422).json({ error: 'No news items found. Make sure this is a News Brief PDF.' });
@@ -1531,16 +1569,20 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
     // Commit to DB
     const db = readDB();
     const ts = Date.now();
-    const saved = items.map((item, idx) => ({
-      id: `NEWS${ts}_${idx}`,
-      headline: item.headline,
-      body: item.body,
-      source: `Brief · ${item.category} · ${item.briefDate || briefDate}`,
-      mandal: item.category,   // 'National' or 'International'
-      priority: 'high',
-      link: item.link || '',
-      submitted_at: new Date().toISOString(),
-    }));
+    const saved = items.map((item, idx) => {
+      const dateLabel = item.briefDate || briefDate;
+      const sourceParts = ['Brief', item.category, dateLabel].filter(Boolean);
+      return {
+        id: `NEWS${ts}_${idx}`,
+        headline: item.headline,
+        body: item.body,
+        source: sourceParts.join(' · '),
+        mandal: item.category,   // 'National' or 'International' when known
+        priority: 'high',
+        link: item.link || '',
+        submitted_at: new Date().toISOString(),
+      };
+    });
 
     db.news = [...saved, ...(db.news || [])].slice(0, 100);
     writeDB(db);
