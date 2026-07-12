@@ -8,6 +8,7 @@ import { fileURLToPath, URL as NodeURL } from 'url';
 import { createRequire } from 'module';
 import Fuse from 'fuse.js';
 import PDFDocument from 'pdfkit';
+import XLSX from 'xlsx';
 
 const require = createRequire(import.meta.url);
 
@@ -1589,6 +1590,62 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
     res.json({ ok: true, count: saved.length, briefDate });
   } catch (e) {
     res.status(500).json({ error: 'PDF parse failed: ' + e.message });
+  }
+});
+
+function parseNewsExcel(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const items = [];
+  for (const sheetName of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+    for (const row of rows) {
+      const byKey = {};
+      for (const key of Object.keys(row)) byKey[key.trim().toLowerCase()] = row[key];
+      const headline = String(byKey['title'] || '').trim();
+      if (!headline) continue;
+      items.push({
+        headline,
+        link: String(byKey['link'] || '').trim(),
+        source: String(byKey['websource'] || '').trim(),
+      });
+    }
+  }
+  return items;
+}
+
+app.post('/api/upload-news-excel', upload.single('excel'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Excel file required' });
+  const name = req.file.originalname.toLowerCase();
+  if (!name.endsWith('.xlsx') && !name.endsWith('.xls'))
+    return res.status(400).json({ error: 'Only .xlsx or .xls files are accepted' });
+
+  try {
+    const items = parseNewsExcel(req.file.buffer);
+    if (!items.length)
+      return res.status(422).json({ error: 'No news items found. Make sure the sheet has title/link/websource columns.' });
+
+    if (req.query.preview === '1')
+      return res.json({ ok: true, items, count: items.length });
+
+    // Commit to DB
+    const db = readDB();
+    const ts = Date.now();
+    const saved = items.map((item, idx) => ({
+      id: `NEWS${ts}_${idx}`,
+      headline: item.headline,
+      body: '',
+      source: item.source || 'Excel import',
+      mandal: 'General',
+      priority: 'medium',
+      link: item.link || '',
+      submitted_at: new Date().toISOString(),
+    }));
+
+    db.news = [...saved, ...(db.news || [])].slice(0, 100);
+    writeDB(db);
+    res.json({ ok: true, count: saved.length });
+  } catch (e) {
+    res.status(500).json({ error: 'Excel parse failed: ' + e.message });
   }
 });
 
