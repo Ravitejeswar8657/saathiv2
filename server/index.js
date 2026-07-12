@@ -515,7 +515,7 @@ app.patch('/api/metadata', (req, res) => {
 app.get('/api/contacts', (req, res) => {
   const db = readDB();
   let contacts = db.contacts;
-  const { q, tier, party, mandal, constituency, role } = req.query;
+  const { q, tier, party, mandal, constituency, village, role } = req.query;
   if (q) {
     const fuse = new Fuse(contacts, {
       keys: ['name', 'village', 'mandal', 'constituency', 'role', 'caste', 'open_grievance'],
@@ -529,6 +529,8 @@ app.get('/api/contacts', (req, res) => {
     c.mandal.toLowerCase().includes(mandal.toLowerCase()));
   if (constituency) contacts = contacts.filter(c =>
     c.constituency.toLowerCase().includes(constituency.toLowerCase()));
+  if (village) contacts = contacts.filter(c =>
+    c.village.toLowerCase().includes(village.toLowerCase()));
   if (role) contacts = contacts.filter(c => c.role === role);
   const limit = Math.min(parseInt(req.query.limit) || 200, 10000);
   res.json({ contacts: contacts.slice(0, limit), total: contacts.length });
@@ -1318,18 +1320,20 @@ app.get('/api/broadcast-lists', (req, res) => {
 });
 
 app.post('/api/broadcast-lists', (req, res) => {
-  const { name, tier, mandal, party } = req.body;
+  const { name, tier, mandal, party, constituency, village } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   const db = readDB();
   let filtered = db.contacts;
   if (tier) filtered = filtered.filter(c => c.tier === tier);
   if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase().includes(mandal.toLowerCase()));
   if (party) filtered = filtered.filter(c => c.party === party);
+  if (constituency) filtered = filtered.filter(c => c.constituency.toLowerCase().includes(constituency.toLowerCase()));
+  if (village) filtered = filtered.filter(c => c.village.toLowerCase().includes(village.toLowerCase()));
   const phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
   const list = {
     id: `BL${Date.now()}`,
     name: name.trim(),
-    filters: { tier: tier || null, mandal: mandal || null, party: party || null },
+    filters: { tier: tier || null, mandal: mandal || null, party: party || null, constituency: constituency || null, village: village || null },
     phones,
     contact_count: phones.length,
     created_at: new Date().toISOString(),
@@ -1347,11 +1351,13 @@ app.put('/api/broadcast-lists/:id/refresh', (req, res) => {
   const idx = (db.broadcast_lists || []).findIndex(l => l.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'List not found' });
   const list = db.broadcast_lists[idx];
-  const { tier, mandal, party } = list.filters;
+  const { tier, mandal, party, constituency, village } = list.filters;
   let filtered = db.contacts;
   if (tier) filtered = filtered.filter(c => c.tier === tier);
   if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase().includes(mandal.toLowerCase()));
   if (party) filtered = filtered.filter(c => c.party === party);
+  if (constituency) filtered = filtered.filter(c => c.constituency.toLowerCase().includes(constituency.toLowerCase()));
+  if (village) filtered = filtered.filter(c => c.village.toLowerCase().includes(village.toLowerCase()));
   list.phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
   list.contact_count = list.phones.length;
   list.refreshed_at = new Date().toISOString();

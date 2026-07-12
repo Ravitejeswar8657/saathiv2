@@ -140,6 +140,24 @@ body::before {
   background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
 }
 .list-history { margin-top: 8px; font-size: 11px; color: var(--muted); padding-top: 8px; border-top: 1px solid var(--border); }
+
+/* ── Contact preview ── */
+.contact-preview-panel {
+  margin: 4px 0 12px; border: 1px solid var(--border); border-radius: 6px;
+  max-height: 260px; overflow-y: auto;
+}
+.contact-preview-header {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  background: #fafaf9; position: sticky; top: 0;
+}
+.contact-preview-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 7px 12px; border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.contact-preview-row:last-child { border-bottom: none; }
+.contact-preview-name { font-weight: 600; flex-shrink: 0; }
+.contact-preview-meta { color: var(--muted); font-size: 11px; text-align: right; }
 .send-badge {
   display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
   font-weight: 600; padding: 2px 8px; border-radius: 100px;
@@ -256,7 +274,7 @@ body::before {
             <div class="form-row">
               <div class="form-group">
                 <label>Tier</label>
-                <select id="list-tier">
+                <select id="list-tier" onchange="previewContacts()">
                   <option value="">All Tiers</option>
                   <option value="T1">T1</option>
                   <option value="T2">T2</option>
@@ -265,7 +283,7 @@ body::before {
               </div>
               <div class="form-group">
                 <label>Party</label>
-                <select id="list-party">
+                <select id="list-party" onchange="previewContacts()">
                   <option value="">All Parties</option>
                   <option value="TDP">TDP</option>
                   <option value="Janasena">Janasena</option>
@@ -273,12 +291,35 @@ body::before {
                   <option value="Neutral">Neutral</option>
                 </select>
               </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Constituency</label>
+                <select id="list-constituency" onchange="onConstituencyChange()">
+                  <option value="">All Constituencies</option>
+                </select>
+              </div>
               <div class="form-group">
                 <label>Mandal</label>
-                <input id="list-mandal" type="text" placeholder="e.g. Sattenapalli" list="mandal-options">
-                <datalist id="mandal-options"></datalist>
+                <select id="list-mandal" onchange="onMandalChange()">
+                  <option value="">All Mandals</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Village</label>
+                <select id="list-village" onchange="previewContacts()">
+                  <option value="">All Villages</option>
+                </select>
               </div>
             </div>
+
+            <div class="form-group">
+              <button type="button" class="btn btn-ghost" id="preview-btn" onclick="previewContacts()" style="width:100%">
+                <i data-lucide="eye"></i> Preview Matching Contacts
+              </button>
+            </div>
+            <div id="contact-preview" style="display:none"></div>
+
             <button type="submit" class="btn btn-accent" style="width:100%;margin-top:4px">
               <i data-lucide="plus"></i> Create List
             </button>
@@ -414,15 +455,90 @@ async function checkWAStatus() {
   } catch {}
 }
 
-// ── Load mandal options ────────────────────────────────────────────────────
-async function loadMandals() {
+// ── Load filter options (constituency → mandal → village cascade) ──────────
+let filterOptions = { constituencies: [], mandals: [], mandalsByConstituency: {}, villagesByMandal: {} };
+
+async function loadFilterOptions() {
   try {
-    const r = await fetch('/api/contacts?q=&tier=');
-    const d = await r.json();
-    const mandals = [...new Set((d.contacts || []).map(c => c.mandal).filter(Boolean))].sort();
-    const dl = document.getElementById('mandal-options');
-    dl.innerHTML = mandals.map(m => `<option value="${m}">`).join('');
+    const r = await fetch('/api/filter-options');
+    filterOptions = await r.json();
+    const constSel = document.getElementById('list-constituency');
+    constSel.innerHTML = '<option value="">All Constituencies</option>' +
+      filterOptions.constituencies.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+    populateMandalOptions();
   } catch {}
+}
+
+function populateMandalOptions() {
+  const constituency = document.getElementById('list-constituency').value;
+  const mandals = constituency
+    ? (filterOptions.mandalsByConstituency[constituency] || [])
+    : filterOptions.mandals;
+  const sel = document.getElementById('list-mandal');
+  sel.innerHTML = '<option value="">All Mandals</option>' +
+    mandals.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
+}
+
+function populateVillageOptions() {
+  const mandal = document.getElementById('list-mandal').value;
+  const villages = mandal ? (filterOptions.villagesByMandal[mandal] || []) : [];
+  const sel = document.getElementById('list-village');
+  sel.innerHTML = '<option value="">All Villages</option>' +
+    villages.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+}
+
+function onConstituencyChange() {
+  populateMandalOptions();
+  populateVillageOptions();
+  previewContacts();
+}
+
+function onMandalChange() {
+  populateVillageOptions();
+  previewContacts();
+}
+
+// ── Preview matching contacts ───────────────────────────────────────────────
+async function previewContacts() {
+  const params = new URLSearchParams();
+  const tier = document.getElementById('list-tier').value;
+  const party = document.getElementById('list-party').value;
+  const constituency = document.getElementById('list-constituency').value;
+  const mandal = document.getElementById('list-mandal').value;
+  const village = document.getElementById('list-village').value;
+  if (tier) params.set('tier', tier);
+  if (party) params.set('party', party);
+  if (constituency) params.set('constituency', constituency);
+  if (mandal) params.set('mandal', mandal);
+  if (village) params.set('village', village);
+  params.set('limit', '500');
+
+  const panel = document.getElementById('contact-preview');
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="empty-state">Loading contacts...</div>';
+
+  try {
+    const r = await fetch(`/api/contacts?${params.toString()}`);
+    const d = await r.json();
+    const contacts = d.contacts || [];
+    if (!contacts.length) {
+      panel.innerHTML = '<div class="empty-state">No contacts match these filters.</div>';
+      return;
+    }
+    const shownNote = d.total > contacts.length ? ` (showing first ${contacts.length})` : '';
+    const rows = contacts.map(c => `
+      <div class="contact-preview-row">
+        <span class="contact-preview-name">${escHtml(c.name || 'Unnamed')}</span>
+        <span class="contact-preview-meta">${escHtml(c.phone || '—')} · ${escHtml(c.tier || '')} · ${escHtml(c.village || '')}, ${escHtml(c.mandal || '')}</span>
+      </div>`).join('');
+    panel.innerHTML = `
+      <div class="contact-preview-panel">
+        <div class="contact-preview-header">${d.total} contact${d.total !== 1 ? 's' : ''} match${shownNote}</div>
+        ${rows}
+      </div>`;
+  } catch (e) {
+    panel.innerHTML = '<div class="empty-state">Failed to load contacts.</div>';
+  }
 }
 
 // ── Load lists ─────────────────────────────────────────────────────────────
@@ -444,8 +560,10 @@ async function loadLists() {
       const chips = [
         filters.tier ? `Tier: ${filters.tier}` : null,
         filters.party ? `Party: ${filters.party}` : null,
+        filters.constituency ? `Constituency: ${filters.constituency}` : null,
         filters.mandal ? `Mandal: ${filters.mandal}` : null,
-        !filters.tier && !filters.party && !filters.mandal ? 'All contacts' : null,
+        filters.village ? `Village: ${filters.village}` : null,
+        !filters.tier && !filters.party && !filters.constituency && !filters.mandal && !filters.village ? 'All contacts' : null,
       ].filter(Boolean);
 
       const lastSent = list.last_sent_at
@@ -490,7 +608,7 @@ async function autoCreate(tier, mandal, party, name) {
   const r = await fetch('/api/broadcast-lists', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, tier, mandal, party }),
+    body: JSON.stringify({ name, tier, mandal, party, constituency: null, village: null }),
   });
   const d = await r.json();
   if (d.ok) {
@@ -507,20 +625,32 @@ async function createList(e) {
   const name = document.getElementById('list-name').value.trim();
   const tier = document.getElementById('list-tier').value;
   const party = document.getElementById('list-party').value;
-  const mandal = document.getElementById('list-mandal').value.trim();
+  const constituency = document.getElementById('list-constituency').value;
+  const mandal = document.getElementById('list-mandal').value;
+  const village = document.getElementById('list-village').value;
   if (!name) return;
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true;
   const r = await fetch('/api/broadcast-lists', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, tier: tier || undefined, party: party || undefined, mandal: mandal || undefined }),
+    body: JSON.stringify({
+      name,
+      tier: tier || undefined,
+      party: party || undefined,
+      constituency: constituency || undefined,
+      mandal: mandal || undefined,
+      village: village || undefined,
+    }),
   });
   const d = await r.json();
   btn.disabled = false;
   if (d.ok) {
     toast(`List created with ${d.list.contact_count} contacts`);
     e.target.reset();
+    populateMandalOptions();
+    populateVillageOptions();
+    document.getElementById('contact-preview').style.display = 'none';
     loadLists();
   } else {
     toast('Error: ' + (d.error || 'Unknown'));
@@ -679,7 +809,7 @@ function escHtml(str) {
 // ── Init ───────────────────────────────────────────────────────────────────
 lucide.createIcons();
 loadLists();
-loadMandals();
+loadFilterOptions();
 checkWAStatus();
 setInterval(checkWAStatus, 5000);
 </script>
