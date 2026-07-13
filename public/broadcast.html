@@ -390,6 +390,9 @@ body::before {
         <div id="wa-session-note" style="margin-top:10px;font-size:12px;color:var(--muted);display:none">
           Session saved to <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">data/wa_auth/</code> — persists across server restarts.
         </div>
+        <button class="btn btn-destructive" id="wa-logout-btn" onclick="waLogout()" style="width:100%;margin-top:10px;display:none">
+          <i data-lucide="log-out"></i> Log Out of WhatsApp
+        </button>
       </div>
 
       <!-- Compose & Send -->
@@ -477,23 +480,48 @@ async function checkWAStatus() {
     const info = document.getElementById('wa-status-info');
     const qrContainer = document.getElementById('wa-qr-container');
     const sessionNote = document.getElementById('wa-session-note');
+    const logoutBtn = document.getElementById('wa-logout-btn');
 
     if (data.connected) {
       info.innerHTML = '<span class="wa-status-badge wa-status-connected"><i data-lucide="check-circle"></i> Connected & session saved</span>';
       qrContainer.style.display = 'none';
       sessionNote.style.display = 'block';
+      logoutBtn.style.display = 'inline-flex';
     } else if (data.qr) {
       info.innerHTML = '<span class="wa-status-badge wa-status-pending"><i data-lucide="alert-circle"></i> Scan QR to connect</span>';
       qrContainer.style.display = 'block';
       sessionNote.style.display = 'none';
+      logoutBtn.style.display = 'none';
       QRCode.toCanvas(document.getElementById('wa-qr-canvas'), data.qr, { width: 200, margin: 2 }, () => {});
     } else {
       info.innerHTML = '<span class="wa-status-badge wa-status-loading"><i data-lucide="loader"></i> Initializing...</span>';
       qrContainer.style.display = 'none';
       sessionNote.style.display = 'none';
+      logoutBtn.style.display = 'none';
     }
     lucide.createIcons();
   } catch {}
+}
+
+async function waLogout() {
+  if (!confirm('Log out of WhatsApp? You will need to scan a new QR code to reconnect.')) return;
+  const btn = document.getElementById('wa-logout-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader"></i> Logging out...';
+  lucide.createIcons();
+  try {
+    const r = await fetch('/api/wa-logout', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) toast('Error: ' + (d.error || 'Failed to log out'));
+    else toast('Logged out — a new QR code will appear shortly.');
+  } catch (e) {
+    toast('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="log-out"></i> Log Out of WhatsApp';
+    lucide.createIcons();
+    checkWAStatus();
+  }
 }
 
 // ── Load filter options (constituency → mandal → village cascade) ──────────

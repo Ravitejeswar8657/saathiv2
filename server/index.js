@@ -1161,6 +1161,16 @@ app.get('/api/wa-status', async (req, res) => {
   }
 });
 
+app.post('/api/wa-logout', async (req, res) => {
+  try {
+    const wa = await import('./whatsapp.js');
+    await wa.logout();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // ── Google News RSS ────────────────────────────────────────────────────────
 app.get('/api/live-news', async (req, res) => {
   try {

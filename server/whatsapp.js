@@ -96,6 +96,7 @@ async function init() {
           fs.rmSync(AUTH_PATH, { recursive: true, force: true });
           fs.mkdirSync(AUTH_PATH, { recursive: true });
           initPromise = null;
+          setTimeout(init, 1000);
         }
       }
     });
@@ -141,6 +142,17 @@ export async function getGroups() {
   return Object.values(groups)
     .map(g => ({ id: g.id, subject: g.subject, size: g.size }))
     .sort((a, b) => a.subject.localeCompare(b.subject));
+}
+
+export async function logout() {
+  if (!sock || !isConnected) {
+    throw new Error('WhatsApp is not connected.');
+  }
+  // Unlinks the device from the account and closes the socket with a 'loggedOut'
+  // reason — the connection.update handler above wipes wa_auth/ and restarts init()
+  // to show a fresh QR.
+  await sock.logout();
+  return true;
 }
 
 export const getStatus = () => ({ connected: isConnected, hasQR: !!qrData });
