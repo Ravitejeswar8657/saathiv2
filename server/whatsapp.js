@@ -112,7 +112,7 @@ async function init() {
   return initPromise;
 }
 
-export async function sendMessage(text, phone) {
+export async function sendMessage(content, phone) {
   await init();
   if (!isConnected) {
     throw new Error(
@@ -121,7 +121,8 @@ export async function sendMessage(text, phone) {
         : 'WhatsApp not connected yet. Start the server and scan the QR code.'
     );
   }
-  await sock.sendMessage(`${phone}@s.whatsapp.net`, { text });
+  const payload = typeof content === 'string' ? { text: content } : content;
+  await sock.sendMessage(`${phone}@s.whatsapp.net`, payload);
   return true;
 }
 

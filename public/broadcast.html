@@ -150,14 +150,22 @@ body::before {
   font-size: 11px; font-weight: 600; color: var(--muted);
   padding: 8px 12px; border-bottom: 1px solid var(--border);
   background: #fafaf9; position: sticky; top: 0;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
 }
+.preview-select-controls { display: flex; align-items: center; gap: 8px; font-weight: 400; flex-shrink: 0; }
+.preview-select-controls a { color: var(--teal); text-decoration: none; cursor: pointer; }
+.preview-select-controls a:hover { text-decoration: underline; }
 .contact-preview-row {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
   padding: 7px 12px; border-bottom: 1px solid var(--border); font-size: 12px;
 }
 .contact-preview-row:last-child { border-bottom: none; }
-.contact-preview-name { font-weight: 600; flex-shrink: 0; }
-.contact-preview-meta { color: var(--muted); font-size: 11px; text-align: right; }
+.contact-preview-select {
+  display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer;
+}
+.contact-preview-select input[type="checkbox"] { flex-shrink: 0; }
+.contact-preview-name { font-weight: 600; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-preview-meta { color: var(--muted); font-size: 11px; text-align: right; flex-shrink: 0; }
 .send-badge {
   display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
   font-weight: 600; padding: 2px 8px; border-radius: 100px;
@@ -374,6 +382,11 @@ body::before {
             <textarea id="msg-text" rows="6" placeholder="Type your WhatsApp message here..." oninput="updateCharCount()"></textarea>
             <div class="char-counter" id="char-counter">0 characters</div>
           </div>
+          <div class="form-group">
+            <label>Attachment (optional)</label>
+            <input type="file" id="msg-attachment" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="onAttachmentChange()">
+            <div id="attachment-info" style="font-size:11px;color:var(--muted);margin-top:4px;display:none"></div>
+          </div>
           <div class="form-group" style="margin-bottom:8px">
             <label>Delay between sends (ms)</label>
             <input id="delay-ms" type="number" value="2500" min="1000" max="10000" step="500">
@@ -499,7 +512,12 @@ function onMandalChange() {
 }
 
 // ── Preview matching contacts ───────────────────────────────────────────────
+// Unchecking a contact excludes it (by id) from the list created next — anything
+// beyond the preview's limit stays included since it was never shown to exclude.
+let previewExcludedIds = new Set();
+
 async function previewContacts() {
+  previewExcludedIds = new Set();
   const params = new URLSearchParams();
   const tier = document.getElementById('list-tier').value;
   const party = document.getElementById('list-party').value;
@@ -527,18 +545,58 @@ async function previewContacts() {
     }
     const shownNote = d.total > contacts.length ? ` (showing first ${contacts.length})` : '';
     const rows = contacts.map(c => `
-      <div class="contact-preview-row">
-        <span class="contact-preview-name">${escHtml(c.name || 'Unnamed')}</span>
+      <div class="contact-preview-row" data-id="${escHtml(c.id)}">
+        <label class="contact-preview-select">
+          <input type="checkbox" class="preview-checkbox" checked>
+          <span class="contact-preview-name">${escHtml(c.name || 'Unnamed')}</span>
+        </label>
         <span class="contact-preview-meta">${escHtml(c.phone || '—')} · ${escHtml(c.tier || '')} · ${escHtml(c.village || '')}, ${escHtml(c.mandal || '')}</span>
       </div>`).join('');
     panel.innerHTML = `
       <div class="contact-preview-panel">
-        <div class="contact-preview-header">${d.total} contact${d.total !== 1 ? 's' : ''} match${shownNote}</div>
+        <div class="contact-preview-header">
+          <span>${d.total} contact${d.total !== 1 ? 's' : ''} match${shownNote}</span>
+          <span class="preview-select-controls">
+            <span id="preview-select-count"></span>
+            <a href="#" id="preview-select-toggle" onclick="toggleAllPreview(event)">Deselect all</a>
+          </span>
+        </div>
         ${rows}
       </div>`;
+    panel.querySelectorAll('.preview-checkbox').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const id = e.target.closest('.contact-preview-row').dataset.id;
+        if (e.target.checked) previewExcludedIds.delete(id);
+        else previewExcludedIds.add(id);
+        updatePreviewSelectCount();
+      });
+    });
+    updatePreviewSelectCount();
   } catch (e) {
     panel.innerHTML = '<div class="empty-state">Failed to load contacts.</div>';
   }
+}
+
+function toggleAllPreview(e) {
+  e.preventDefault();
+  const checkboxes = document.querySelectorAll('.preview-checkbox');
+  const allChecked = [...checkboxes].every(cb => cb.checked);
+  checkboxes.forEach(cb => {
+    cb.checked = !allChecked;
+    const id = cb.closest('.contact-preview-row').dataset.id;
+    if (cb.checked) previewExcludedIds.delete(id);
+    else previewExcludedIds.add(id);
+  });
+  updatePreviewSelectCount();
+}
+
+function updatePreviewSelectCount() {
+  const total = document.querySelectorAll('.preview-checkbox').length;
+  const selected = total - previewExcludedIds.size;
+  const countEl = document.getElementById('preview-select-count');
+  if (countEl) countEl.textContent = `${selected} of ${total} selected`;
+  const toggle = document.getElementById('preview-select-toggle');
+  if (toggle) toggle.textContent = previewExcludedIds.size === 0 ? 'Deselect all' : 'Select all';
 }
 
 // ── Load lists ─────────────────────────────────────────────────────────────
@@ -564,6 +622,7 @@ async function loadLists() {
         filters.mandal ? `Mandal: ${filters.mandal}` : null,
         filters.village ? `Village: ${filters.village}` : null,
         !filters.tier && !filters.party && !filters.constituency && !filters.mandal && !filters.village ? 'All contacts' : null,
+        (list.excluded_ids && list.excluded_ids.length) ? `${list.excluded_ids.length} excluded` : null,
       ].filter(Boolean);
 
       const lastSent = list.last_sent_at
@@ -641,6 +700,7 @@ async function createList(e) {
       constituency: constituency || undefined,
       mandal: mandal || undefined,
       village: village || undefined,
+      excluded_contact_ids: [...previewExcludedIds],
     }),
   });
   const d = await r.json();
@@ -650,6 +710,7 @@ async function createList(e) {
     e.target.reset();
     populateMandalOptions();
     populateVillageOptions();
+    previewExcludedIds = new Set();
     document.getElementById('contact-preview').style.display = 'none';
     loadLists();
   } else {
@@ -698,6 +759,7 @@ function openCompose(id, name, count) {
     <div class="list-name">${escHtml(name)}</div>
     <div style="font-size:12px;color:var(--teal);margin-top:2px">${count} contacts will receive this message individually</div>
   `;
+  clearAttachment();
   lucide.createIcons();
   document.getElementById('msg-text').focus();
   document.getElementById('compose-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -710,6 +772,7 @@ function clearCompose() {
   document.querySelectorAll('.list-card').forEach(c => c.classList.remove('selected'));
   document.getElementById('compose-placeholder').style.display = 'block';
   document.getElementById('compose-area').style.display = 'none';
+  clearAttachment();
 }
 
 function updateCharCount() {
@@ -717,11 +780,32 @@ function updateCharCount() {
   document.getElementById('char-counter').textContent = `${len} character${len !== 1 ? 's' : ''}`;
 }
 
+// ── Attachment ───────────────────────────────────────────────────────────
+function onAttachmentChange() {
+  const file = document.getElementById('msg-attachment').files[0];
+  const info = document.getElementById('attachment-info');
+  if (file) {
+    const sizeKb = Math.round(file.size / 1024);
+    info.style.display = 'block';
+    info.innerHTML = `${escHtml(file.name)} (${sizeKb} KB) · <a href="#" onclick="clearAttachment(event)">Remove</a>`;
+  } else {
+    info.style.display = 'none';
+    info.innerHTML = '';
+  }
+}
+
+function clearAttachment(e) {
+  if (e) e.preventDefault();
+  document.getElementById('msg-attachment').value = '';
+  onAttachmentChange();
+}
+
 // ── Send ───────────────────────────────────────────────────────────────────
 async function startSend() {
   if (!selectedListId) return;
   const message = document.getElementById('msg-text').value.trim();
-  if (!message) { toast('Please write a message first'); return; }
+  const file = document.getElementById('msg-attachment').files[0];
+  if (!message && !file) { toast('Please write a message or attach a file'); return; }
   const delay_ms = parseInt(document.getElementById('delay-ms').value) || 2500;
 
   document.getElementById('send-btn').disabled = true;
@@ -730,10 +814,13 @@ async function startSend() {
   lucide.createIcons();
 
   try {
+    const formData = new FormData();
+    formData.append('message', message);
+    formData.append('delay_ms', delay_ms);
+    if (file) formData.append('attachment', file);
     const r = await fetch(`/api/broadcast-lists/${selectedListId}/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, delay_ms }),
+      body: formData,
     });
     const d = await r.json();
     if (!d.ok) { toast('Error: ' + (d.error || 'Failed to start')); resetSendBtn(); return; }

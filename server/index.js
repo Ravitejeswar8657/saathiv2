@@ -526,11 +526,11 @@ app.get('/api/contacts', (req, res) => {
   if (tier) contacts = contacts.filter(c => c.tier === tier);
   if (party) contacts = contacts.filter(c => c.party === party);
   if (mandal) contacts = contacts.filter(c =>
-    c.mandal.toLowerCase().includes(mandal.toLowerCase()));
+    c.mandal.toLowerCase() === mandal.toLowerCase());
   if (constituency) contacts = contacts.filter(c =>
-    c.constituency.toLowerCase().includes(constituency.toLowerCase()));
+    c.constituency.toLowerCase() === constituency.toLowerCase());
   if (village) contacts = contacts.filter(c =>
-    c.village.toLowerCase().includes(village.toLowerCase()));
+    c.village.toLowerCase() === village.toLowerCase());
   if (role) contacts = contacts.filter(c => c.role === role);
   const limit = Math.min(parseInt(req.query.limit) || 200, 10000);
   res.json({ contacts: contacts.slice(0, limit), total: contacts.length });
@@ -1320,20 +1320,26 @@ app.get('/api/broadcast-lists', (req, res) => {
 });
 
 app.post('/api/broadcast-lists', (req, res) => {
-  const { name, tier, mandal, party, constituency, village } = req.body;
+  const { name, tier, mandal, party, constituency, village, excluded_contact_ids } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   const db = readDB();
   let filtered = db.contacts;
   if (tier) filtered = filtered.filter(c => c.tier === tier);
-  if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase().includes(mandal.toLowerCase()));
+  if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase() === mandal.toLowerCase());
   if (party) filtered = filtered.filter(c => c.party === party);
-  if (constituency) filtered = filtered.filter(c => c.constituency.toLowerCase().includes(constituency.toLowerCase()));
-  if (village) filtered = filtered.filter(c => c.village.toLowerCase().includes(village.toLowerCase()));
+  if (constituency) filtered = filtered.filter(c => c.constituency.toLowerCase() === constituency.toLowerCase());
+  if (village) filtered = filtered.filter(c => c.village.toLowerCase() === village.toLowerCase());
+  const excludedIds = Array.isArray(excluded_contact_ids) ? excluded_contact_ids : [];
+  if (excludedIds.length) {
+    const excludedSet = new Set(excludedIds);
+    filtered = filtered.filter(c => !excludedSet.has(c.id));
+  }
   const phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
   const list = {
     id: `BL${Date.now()}`,
     name: name.trim(),
     filters: { tier: tier || null, mandal: mandal || null, party: party || null, constituency: constituency || null, village: village || null },
+    excluded_ids: excludedIds,
     phones,
     contact_count: phones.length,
     created_at: new Date().toISOString(),
@@ -1354,10 +1360,14 @@ app.put('/api/broadcast-lists/:id/refresh', (req, res) => {
   const { tier, mandal, party, constituency, village } = list.filters;
   let filtered = db.contacts;
   if (tier) filtered = filtered.filter(c => c.tier === tier);
-  if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase().includes(mandal.toLowerCase()));
+  if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase() === mandal.toLowerCase());
   if (party) filtered = filtered.filter(c => c.party === party);
-  if (constituency) filtered = filtered.filter(c => c.constituency.toLowerCase().includes(constituency.toLowerCase()));
-  if (village) filtered = filtered.filter(c => c.village.toLowerCase().includes(village.toLowerCase()));
+  if (constituency) filtered = filtered.filter(c => c.constituency.toLowerCase() === constituency.toLowerCase());
+  if (village) filtered = filtered.filter(c => c.village.toLowerCase() === village.toLowerCase());
+  if (list.excluded_ids && list.excluded_ids.length) {
+    const excludedSet = new Set(list.excluded_ids);
+    filtered = filtered.filter(c => !excludedSet.has(c.id));
+  }
   list.phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
   list.contact_count = list.phones.length;
   list.refreshed_at = new Date().toISOString();
@@ -1372,15 +1382,29 @@ app.delete('/api/broadcast-lists/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/broadcast-lists/:id/send', async (req, res) => {
+app.post('/api/broadcast-lists/:id/send', upload.single('attachment'), async (req, res) => {
   const { message, delay_ms } = req.body;
-  if (!message?.trim()) return res.status(400).json({ error: 'message required' });
+  const hasMessage = !!message?.trim();
+  if (!hasMessage && !req.file) return res.status(400).json({ error: 'message or attachment required' });
   const db = readDB();
   const list = (db.broadcast_lists || []).find(l => l.id === req.params.id);
   if (!list) return res.status(404).json({ error: 'List not found' });
   if (list.phones.length === 0) return res.status(400).json({ error: 'List has no phone numbers' });
   const delayMs = Math.max(parseInt(delay_ms) || 2500, 1000); // min 1s to avoid WA ban
   const jobId = `JOB${Date.now()}`;
+
+  let payload;
+  if (req.file) {
+    const { buffer, mimetype, originalname } = req.file;
+    const caption = hasMessage ? message.trim() : undefined;
+    if (mimetype.startsWith('image/')) payload = { image: buffer, mimetype, caption };
+    else if (mimetype.startsWith('video/')) payload = { video: buffer, mimetype, caption };
+    else if (mimetype.startsWith('audio/')) payload = { audio: buffer, mimetype };
+    else payload = { document: buffer, mimetype, fileName: originalname, caption };
+  } else {
+    payload = message.trim();
+  }
+
   broadcastJobs.set(jobId, {
     listId: list.id, listName: list.name,
     total: list.phones.length, done: 0, sent: 0, failed: 0,
@@ -1396,7 +1420,7 @@ app.post('/api/broadcast-lists/:id/send', async (req, res) => {
         if (job.status === 'cancelled') break;
         const normalized = normalizePhone(phone);
         try {
-          await wa.default(message.trim(), normalized);
+          await wa.default(payload, normalized);
           job.sent++;
         } catch {
           job.failed++;
@@ -1411,7 +1435,7 @@ app.post('/api/broadcast-lists/:id/send', async (req, res) => {
       if (li) {
         li.last_sent_at = job.finishedAt;
         li.send_history = [
-          { sent_at: job.finishedAt, sent: job.sent, failed: job.failed, total: job.total, message: message.trim().slice(0, 120) },
+          { sent_at: job.finishedAt, sent: job.sent, failed: job.failed, total: job.total, message: (hasMessage ? message.trim() : '(attachment)').slice(0, 120) },
           ...(li.send_history || []),
         ].slice(0, 10);
         writeDB(db2);
