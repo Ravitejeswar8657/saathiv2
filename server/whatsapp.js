@@ -112,7 +112,7 @@ async function init() {
   return initPromise;
 }
 
-export async function sendMessage(content, phone) {
+export async function sendMessage(content, target) {
   await init();
   if (!isConnected) {
     throw new Error(
@@ -121,9 +121,26 @@ export async function sendMessage(content, phone) {
         : 'WhatsApp not connected yet. Start the server and scan the QR code.'
     );
   }
+  // A group JID already contains '@' (e.g. '1234-5678@g.us'); a plain phone number doesn't.
+  const jid = target.includes('@') ? target : `${target}@s.whatsapp.net`;
   const payload = typeof content === 'string' ? { text: content } : content;
-  await sock.sendMessage(`${phone}@s.whatsapp.net`, payload);
+  await sock.sendMessage(jid, payload);
   return true;
+}
+
+export async function getGroups() {
+  await init();
+  if (!isConnected) {
+    throw new Error(
+      qrData
+        ? 'Scan the QR code shown in the server terminal to activate WhatsApp sending.'
+        : 'WhatsApp not connected yet. Start the server and scan the QR code.'
+    );
+  }
+  const groups = await sock.groupFetchAllParticipating();
+  return Object.values(groups)
+    .map(g => ({ id: g.id, subject: g.subject, size: g.size }))
+    .sort((a, b) => a.subject.localeCompare(b.subject));
 }
 
 export const getStatus = () => ({ connected: isConnected, hasQR: !!qrData });

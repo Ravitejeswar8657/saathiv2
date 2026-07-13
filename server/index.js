@@ -1319,8 +1319,18 @@ app.get('/api/broadcast-lists', (req, res) => {
   res.json({ lists: db.broadcast_lists || [] });
 });
 
-app.post('/api/broadcast-lists', (req, res) => {
-  const { name, tier, mandal, party, constituency, village, excluded_contact_ids } = req.body;
+app.get('/api/wa-groups', async (req, res) => {
+  try {
+    const wa = await import('./whatsapp.js');
+    const groups = await wa.getGroups();
+    res.json({ groups });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/broadcast-lists', async (req, res) => {
+  const { name, tier, mandal, party, constituency, village, excluded_contact_ids, group_ids } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   const db = readDB();
   let filtered = db.contacts;
@@ -1335,6 +1345,20 @@ app.post('/api/broadcast-lists', (req, res) => {
     filtered = filtered.filter(c => !excludedSet.has(c.id));
   }
   const phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
+
+  const groupIds = Array.isArray(group_ids) ? group_ids : [];
+  let groups = [];
+  if (groupIds.length) {
+    try {
+      const wa = await import('./whatsapp.js');
+      const allGroups = await wa.getGroups();
+      const idSet = new Set(groupIds);
+      groups = allGroups.filter(g => idSet.has(g.id)).map(g => ({ id: g.id, subject: g.subject, size: g.size }));
+    } catch (e) {
+      return res.status(400).json({ error: `Could not load selected groups: ${e.message}` });
+    }
+  }
+
   const list = {
     id: `BL${Date.now()}`,
     name: name.trim(),
@@ -1342,6 +1366,7 @@ app.post('/api/broadcast-lists', (req, res) => {
     excluded_ids: excludedIds,
     phones,
     contact_count: phones.length,
+    groups,
     created_at: new Date().toISOString(),
     last_sent_at: null,
     send_history: [],
@@ -1408,7 +1433,8 @@ app.post('/api/broadcast-lists/:id/send', upload.single('attachment'), async (re
   const db = readDB();
   const list = (db.broadcast_lists || []).find(l => l.id === req.params.id);
   if (!list) return res.status(404).json({ error: 'List not found' });
-  if (list.phones.length === 0) return res.status(400).json({ error: 'List has no phone numbers' });
+  const targets = [...list.phones.map(normalizePhone), ...(list.groups || []).map(g => g.id)];
+  if (targets.length === 0) return res.status(400).json({ error: 'List has no phone numbers or groups' });
   const delayMs = Math.max(parseInt(delay_ms) || 2500, 1000); // min 1s to avoid WA ban
   const jobId = `JOB${Date.now()}`;
 
@@ -1426,22 +1452,21 @@ app.post('/api/broadcast-lists/:id/send', upload.single('attachment'), async (re
 
   broadcastJobs.set(jobId, {
     listId: list.id, listName: list.name,
-    total: list.phones.length, done: 0, sent: 0, failed: 0,
+    total: targets.length, done: 0, sent: 0, failed: 0,
     status: 'running', startedAt: new Date().toISOString(), finishedAt: null,
     resting: false, restUntil: null, consecutiveFailures: 0,
   });
-  res.json({ ok: true, job_id: jobId, total: list.phones.length });
+  res.json({ ok: true, job_id: jobId, total: targets.length });
 
   (async () => {
     const job = broadcastJobs.get(jobId);
     try {
       const wa = await import('./whatsapp.js');
-      for (const phone of list.phones) {
+      for (const target of targets) {
         if (job.status === 'cancelled') break;
-        const normalized = normalizePhone(phone);
         let sendError = null;
         try {
-          await wa.default(payload, normalized);
+          await wa.default(payload, target);
           job.sent++;
           job.consecutiveFailures = 0;
         } catch (e) {

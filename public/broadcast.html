@@ -166,6 +166,19 @@ body::before {
 .contact-preview-select input[type="checkbox"] { flex-shrink: 0; }
 .contact-preview-name { font-weight: 600; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-preview-meta { color: var(--muted); font-size: 11px; text-align: right; flex-shrink: 0; }
+
+/* ── WhatsApp groups picker ── */
+.wa-groups-panel {
+  margin: 4px 0 0; border: 1px solid var(--border); border-radius: 6px;
+  max-height: 220px; overflow-y: auto;
+}
+.wa-group-row {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  border-bottom: 1px solid var(--border); font-size: 12px; cursor: pointer;
+}
+.wa-group-row:last-child { border-bottom: none; }
+.wa-group-subject { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wa-group-size { color: var(--muted); font-size: 11px; flex-shrink: 0; }
 .send-badge {
   display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
   font-weight: 600; padding: 2px 8px; border-radius: 100px;
@@ -245,7 +258,7 @@ body::before {
   <a href="/" class="back-link"><i data-lucide="arrow-left"></i> Back to Portal</a>
   <div class="header">
     <h1 class="page-title">WhatsApp Broadcast Lists</h1>
-    <p class="page-sub">Send messages to groups of contacts. Each person receives it individually — no group chat visible.</p>
+    <p class="page-sub">Send messages to lists of contacts (each person receives it individually — no group chat visible) and, optionally, into your existing WhatsApp Groups.</p>
   </div>
 
   <div class="grid">
@@ -331,6 +344,14 @@ body::before {
               </button>
             </div>
             <div id="contact-preview" style="display:none"></div>
+
+            <div class="form-group">
+              <label>WhatsApp Groups (optional)</label>
+              <button type="button" class="btn btn-ghost" id="load-groups-btn" onclick="loadWaGroups()" style="width:100%">
+                <i data-lucide="users"></i> Load My WhatsApp Groups
+              </button>
+              <div id="wa-groups-panel" style="display:none"></div>
+            </div>
 
             <button type="submit" class="btn btn-accent" style="width:100%;margin-top:4px">
               <i data-lucide="plus"></i> Create List
@@ -436,6 +457,8 @@ let selectedListId = null;
 let activeJobId = null;
 let pollTimer = null;
 const LARGE_LIST_WARN_THRESHOLD = 300;
+let waGroupsCache = [];
+let selectedGroupIds = new Set();
 
 // ── Toast ─────────────────────────────────────────────────────────────────
 function toast(msg, duration = 2500) {
@@ -604,6 +627,46 @@ function updatePreviewSelectCount() {
   if (toggle) toggle.textContent = previewExcludedIds.size === 0 ? 'Deselect all' : 'Select all';
 }
 
+// ── WhatsApp groups picker ──────────────────────────────────────────────────
+async function loadWaGroups() {
+  const btn = document.getElementById('load-groups-btn');
+  const panel = document.getElementById('wa-groups-panel');
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader"></i> Loading groups...';
+  lucide.createIcons();
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="empty-state">Fetching your WhatsApp groups...</div>';
+  try {
+    const r = await fetch('/api/wa-groups');
+    const d = await r.json();
+    if (!r.ok) { panel.innerHTML = `<div class="empty-state">${escHtml(d.error || 'Failed to load groups.')}</div>`; return; }
+    waGroupsCache = d.groups || [];
+    if (!waGroupsCache.length) {
+      panel.innerHTML = '<div class="empty-state">No WhatsApp groups found for this linked account.</div>';
+      return;
+    }
+    panel.innerHTML = `<div class="wa-groups-panel">${waGroupsCache.map(g => `
+      <label class="wa-group-row" data-id="${escHtml(g.id)}">
+        <input type="checkbox" class="wa-group-checkbox" ${selectedGroupIds.has(g.id) ? 'checked' : ''}>
+        <span class="wa-group-subject">${escHtml(g.subject || 'Unnamed group')}</span>
+        <span class="wa-group-size">${g.size || 0} members</span>
+      </label>`).join('')}</div>`;
+    panel.querySelectorAll('.wa-group-checkbox').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const id = e.target.closest('.wa-group-row').dataset.id;
+        if (e.target.checked) selectedGroupIds.add(id);
+        else selectedGroupIds.delete(id);
+      });
+    });
+  } catch (e) {
+    panel.innerHTML = '<div class="empty-state">Failed to load groups.</div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="users"></i> Reload My WhatsApp Groups';
+    lucide.createIcons();
+  }
+}
+
 // ── Load lists ─────────────────────────────────────────────────────────────
 async function loadLists() {
   try {
@@ -628,6 +691,7 @@ async function loadLists() {
         filters.village ? `Village: ${filters.village}` : null,
         !filters.tier && !filters.party && !filters.constituency && !filters.mandal && !filters.village ? 'All contacts' : null,
         (list.excluded_ids && list.excluded_ids.length) ? `${list.excluded_ids.length} excluded` : null,
+        (list.groups && list.groups.length) ? `${list.groups.length} group${list.groups.length !== 1 ? 's' : ''}` : null,
       ].filter(Boolean);
 
       const lastSent = list.last_sent_at
@@ -638,15 +702,20 @@ async function loadLists() {
         `<span class="send-badge send-badge-ok">✓ ${h.sent} sent</span>${h.failed ? ` <span class="send-badge send-badge-fail">✗ ${h.failed} failed</span>` : ''} on ${new Date(h.sent_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })}`
       ).join('');
 
+      const groupCount = (list.groups || []).length;
+      const metaText = groupCount
+        ? `${list.contact_count} contacts + ${groupCount} group${groupCount !== 1 ? 's' : ''} · ${lastSent}`
+        : `${list.contact_count} contacts · ${lastSent}`;
+
       return `
       <div class="list-card${selectedListId === list.id ? ' selected' : ''}" id="card-${list.id}">
         <div class="list-card-header">
           <div>
             <div class="list-name">${escHtml(list.name)}</div>
-            <div class="list-meta">${list.contact_count} contacts · ${lastSent}</div>
+            <div class="list-meta">${metaText}</div>
           </div>
           <div class="list-actions">
-            <button class="btn btn-primary" onclick="openCompose('${list.id}', '${escHtml(list.name)}', ${list.contact_count})">
+            <button class="btn btn-primary" onclick="openCompose('${list.id}', '${escHtml(list.name)}', ${list.contact_count}, ${groupCount})">
               <i data-lucide="send"></i> Send
             </button>
             <button class="btn btn-ghost" title="Refresh contacts from filters" onclick="refreshList('${list.id}', this)">
@@ -706,17 +775,22 @@ async function createList(e) {
       mandal: mandal || undefined,
       village: village || undefined,
       excluded_contact_ids: [...previewExcludedIds],
+      group_ids: [...selectedGroupIds],
     }),
   });
   const d = await r.json();
   btn.disabled = false;
   if (d.ok) {
-    toast(`List created with ${d.list.contact_count} contacts`);
+    const groupNote = d.list.groups?.length ? ` and ${d.list.groups.length} group${d.list.groups.length !== 1 ? 's' : ''}` : '';
+    toast(`List created with ${d.list.contact_count} contacts${groupNote}`);
     e.target.reset();
     populateMandalOptions();
     populateVillageOptions();
     previewExcludedIds = new Set();
+    selectedGroupIds = new Set();
     document.getElementById('contact-preview').style.display = 'none';
+    document.getElementById('wa-groups-panel').style.display = 'none';
+    document.getElementById('wa-groups-panel').innerHTML = '';
     loadLists();
   } else {
     toast('Error: ' + (d.error || 'Unknown'));
@@ -747,7 +821,7 @@ async function deleteList(id, name) {
 }
 
 // ── Compose ────────────────────────────────────────────────────────────────
-function openCompose(id, name, count) {
+function openCompose(id, name, count, groupCount = 0) {
   selectedListId = id;
   document.querySelectorAll('.list-card').forEach(c => c.classList.remove('selected'));
   const card = document.getElementById(`card-${id}`);
@@ -763,9 +837,12 @@ function openCompose(id, name, count) {
   const sizeWarning = count > LARGE_LIST_WARN_THRESHOLD
     ? `<div class="list-size-warning">⚠ This list has ${count} contacts. Sending to very large lists in one session raises the risk of WhatsApp flagging or restricting this number — consider splitting into smaller batches across different days.</div>`
     : '';
+  const recipientText = groupCount
+    ? `${count} contacts (individually) + ${groupCount} group${groupCount !== 1 ? 's' : ''} will receive this message`
+    : `${count} contacts will receive this message individually`;
   document.getElementById('compose-banner').innerHTML = `
     <div class="list-name">${escHtml(name)}</div>
-    <div style="font-size:12px;color:var(--teal);margin-top:2px">${count} contacts will receive this message individually</div>
+    <div style="font-size:12px;color:var(--teal);margin-top:2px">${recipientText}</div>
     ${sizeWarning}
   `;
   clearAttachment();
