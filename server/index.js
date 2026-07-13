@@ -1382,6 +1382,25 @@ app.delete('/api/broadcast-lists/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Broadcast pacing/safety knobs — reduces risk of WA flagging the linked session
+const BROADCAST_JITTER_MIN = 0.7;              // jitter floor, ×base delay
+const BROADCAST_JITTER_MAX = 1.5;              // jitter ceiling, ×base delay
+const BROADCAST_REST_EVERY = 50;               // messages between rest breaks
+const BROADCAST_REST_MIN_MS = 30 * 1000;       // 30s
+const BROADCAST_REST_MAX_MS = 60 * 1000;       // 60s
+const BROADCAST_MAX_CONSECUTIVE_FAILURES = 5;  // abort threshold
+const BROADCAST_SLEEP_STEP_MS = 500;           // interruptible-sleep polling granularity
+
+async function interruptibleSleep(totalMs, job) {
+  let elapsed = 0;
+  while (elapsed < totalMs) {
+    if (job.status === 'cancelled') return;
+    const step = Math.min(BROADCAST_SLEEP_STEP_MS, totalMs - elapsed);
+    await new Promise(r => setTimeout(r, step));
+    elapsed += step;
+  }
+}
+
 app.post('/api/broadcast-lists/:id/send', upload.single('attachment'), async (req, res) => {
   const { message, delay_ms } = req.body;
   const hasMessage = !!message?.trim();
@@ -1409,6 +1428,7 @@ app.post('/api/broadcast-lists/:id/send', upload.single('attachment'), async (re
     listId: list.id, listName: list.name,
     total: list.phones.length, done: 0, sent: 0, failed: 0,
     status: 'running', startedAt: new Date().toISOString(), finishedAt: null,
+    resting: false, restUntil: null, consecutiveFailures: 0,
   });
   res.json({ ok: true, job_id: jobId, total: list.phones.length });
 
@@ -1419,23 +1439,60 @@ app.post('/api/broadcast-lists/:id/send', upload.single('attachment'), async (re
       for (const phone of list.phones) {
         if (job.status === 'cancelled') break;
         const normalized = normalizePhone(phone);
+        let sendError = null;
         try {
           await wa.default(payload, normalized);
           job.sent++;
-        } catch {
+          job.consecutiveFailures = 0;
+        } catch (e) {
+          sendError = e;
           job.failed++;
+          job.consecutiveFailures++;
         }
         job.done++;
-        await new Promise(r => setTimeout(r, delayMs));
+
+        // A "not connected"/"scan the QR code" error means every remaining send will fail
+        // identically — abort immediately instead of waiting for the failure count to climb.
+        const isConnectionDown = sendError && /not connected|scan the qr code/i.test(sendError.message || '');
+        if (isConnectionDown) job.consecutiveFailures = BROADCAST_MAX_CONSECUTIVE_FAILURES;
+
+        if (job.consecutiveFailures >= BROADCAST_MAX_CONSECUTIVE_FAILURES) {
+          job.status = 'error';
+          job.error = isConnectionDown
+            ? 'WhatsApp disconnected mid-send — aborted.'
+            : `Aborted after ${BROADCAST_MAX_CONSECUTIVE_FAILURES} consecutive failures — WhatsApp may be throttling this session.`;
+          break;
+        }
+
+        if (job.status === 'cancelled') break;
+
+        if (job.done < job.total) {
+          if (job.done % BROADCAST_REST_EVERY === 0) {
+            job.resting = true;
+            const restMs = BROADCAST_REST_MIN_MS + Math.round(Math.random() * (BROADCAST_REST_MAX_MS - BROADCAST_REST_MIN_MS));
+            job.restUntil = new Date(Date.now() + restMs).toISOString();
+            await interruptibleSleep(restMs, job);
+            job.resting = false;
+            job.restUntil = null;
+          } else {
+            const jitterMs = Math.round(delayMs * (BROADCAST_JITTER_MIN + Math.random() * (BROADCAST_JITTER_MAX - BROADCAST_JITTER_MIN)));
+            await interruptibleSleep(jitterMs, job);
+          }
+        }
       }
-      job.status = job.status === 'cancelled' ? 'cancelled' : 'done';
+      if (job.status !== 'cancelled' && job.status !== 'error') job.status = 'done';
       job.finishedAt = new Date().toISOString();
       const db2 = readDB();
       const li = (db2.broadcast_lists || []).find(l => l.id === list.id);
       if (li) {
         li.last_sent_at = job.finishedAt;
         li.send_history = [
-          { sent_at: job.finishedAt, sent: job.sent, failed: job.failed, total: job.total, message: (hasMessage ? message.trim() : '(attachment)').slice(0, 120) },
+          {
+            sent_at: job.finishedAt, sent: job.sent, failed: job.failed, total: job.total,
+            message: (hasMessage ? message.trim() : '(attachment)').slice(0, 120),
+            status: job.status,
+            ...(job.status === 'error' && job.error ? { error: job.error } : {}),
+          },
           ...(li.send_history || []),
         ].slice(0, 10);
         writeDB(db2);
