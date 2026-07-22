@@ -5,6 +5,7 @@
     { href: '/admin.html',       label: 'Admin',          icon: 'layout-dashboard' },
     { href: '/broadcast.html',   label: 'Broadcast',      icon: 'radio' },
     { href: '/news.html',        label: 'News Submission',icon: 'file-text' },
+    { href: '/ttd_letters.html', label: 'TTD Letters',    icon: 'landmark' },
   ];
 
   function isDashboard() {

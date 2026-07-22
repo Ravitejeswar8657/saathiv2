@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TTD Reference Letters · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest" defer></script>
+<script src="/sidebar.js" defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
+body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999}
+.container{width:100%;padding:24px 32px;margin-top:3px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:22px;font-weight:700;color:#1a1208}
+.btn{padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-size:13px;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#1a1208;color:#fff}
+.btn-primary:hover{background:#374151}
+.btn-secondary{background:#fff;border:1px solid #e5e5e5;color:#1a1208}
+.btn-secondary:hover{background:#f9fafb}
+.btn-accent{background:#b45309;color:#fff}
+.btn-accent:hover{background:#92400e}
+.card{background:#fff;border:1px solid #e5e5e5;border-top:3px solid #b45309;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px;padding-left:12px;border-left:3px solid #d97706}
+.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:#fff;border-radius:8px;width:100%;max-width:480px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,0.15);max-height:90vh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:700;color:#1a1208;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
+.form-group input,.form-group textarea,.form-group select{
+  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
+  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
+}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{
+  border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
+}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+.modal-actions .btn{flex:1;justify-content:center}
+
+/* Calendar (matches index.html / pa_schedule.html) */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.cal-nav-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit}
+.cal-nav-btn:hover{background:#f9fafb}
+.cal-month-label{font-weight:700;font-size:15px}
+.cal-today-btn{background:#1a1208;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px}
+.cal-today-btn:hover{opacity:.9}
+.cal-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:13px;color:#374151}
+.cal-clear-btn{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;padding:0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-weekday{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}
+.cal-day{position:relative;min-height:36px;border:1px solid #e5e5e5;border-radius:6px;padding:4px 6px;font-size:12px;cursor:pointer;background:#fff}
+.cal-day:hover{border-color:#d4d4d4;background:#fafaf9}
+.cal-day.other-month{color:#d1d5db;background:#fafaf9;cursor:default}
+.cal-day.other-month:hover{background:#fafaf9}
+.cal-day.today{border-color:#b45309;font-weight:700}
+.cal-day.selected{background:#fff7ed;border-color:#b45309}
+.cal-day .cal-dot{position:absolute;bottom:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:#b45309;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+/* Filter + export row */
+.filter-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.filter-row .form-group{margin-bottom:0;min-width:150px}
+
+/* Table */
+.table-wrap{overflow-x:auto}
+.ttd-table{width:100%;border-collapse:collapse;font-size:13px}
+.ttd-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;padding:8px 10px;border-bottom:2px solid #e5e5e5;white-space:nowrap}
+.ttd-table td{padding:10px;border-bottom:1px solid #f3f4f6;vertical-align:top}
+.status-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.status-given{background:#f3f4f6;color:#374151}
+.status-upcoming{background:#fff7ed;color:#b45309}
+.actions-cell{display:flex;gap:6px;white-space:nowrap}
+.btn-sm{padding:5px 8px;border-radius:5px;border:1px solid #e5e5e5;background:#fff;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:4px;font-family:inherit}
+.btn-sm i{width:13px;height:13px}
+.btn-edit{color:#374151}
+.btn-edit:hover{background:#f9fafb}
+.btn-del{color:#dc2626;border-color:#fecaca}
+.btn-del:hover{background:#fef2f2}
+.btn-save{background:#15803d;color:#fff;border-color:#15803d}
+.btn-save:hover{opacity:.9}
+.edit-row td{background:#fafaf9}
+.edit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:center}
+.edit-grid input{padding:8px 10px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit}
+.edit-actions{display:flex;gap:8px}
+.warning-banner{background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:8px 12px;border-radius:6px;font-size:12px;margin:8px 0}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>TTD Reference Letters</h1>
+    <button class="btn btn-primary" onclick="openAddModal()">
+      <i data-lucide="plus" style="width:15px;height:15px"></i> Add Letter
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Calendar</div>
+    <div class="cal-header">
+      <button class="cal-nav-btn" onclick="changeMonth(-1)">&lsaquo;</button>
+      <div>
+        <span id="cal-month-label" class="cal-month-label"></span>
+        <button class="cal-today-btn" onclick="jumpToday()">Today</button>
+      </div>
+      <button class="cal-nav-btn" onclick="changeMonth(1)">&rsaquo;</button>
+    </div>
+    <div class="cal-grid" id="cal-weekdays"></div>
+    <div class="cal-grid" id="cal-grid" style="margin-top:4px"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Filter &amp; export</div>
+    <div class="filter-row">
+      <div class="form-group">
+        <label>From</label>
+        <input type="date" id="range-from" onchange="onRangeChange()">
+      </div>
+      <div class="form-group">
+        <label>To</label>
+        <input type="date" id="range-to" onchange="onRangeChange()">
+      </div>
+      <button class="btn btn-secondary" onclick="clearRange()">Clear range</button>
+      <button class="btn btn-accent" onclick="downloadExcel()"><i data-lucide="file-spreadsheet" style="width:15px;height:15px"></i> Excel</button>
+      <button class="btn btn-accent" onclick="downloadRegisterPdf()"><i data-lucide="file-text" style="width:15px;height:15px"></i> PDF list</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title" id="list-title">All letters</div>
+    <div class="cal-filter-bar" id="cal-filter-bar" style="display:none">
+      <span id="cal-filter-label"></span>
+      <button class="cal-clear-btn" onclick="clearDateFilter()">Show all</button>
+    </div>
+    <div class="table-wrap">
+      <table class="ttd-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Name</th><th>Phone</th><th>Aadhar</th><th>Reference</th>
+            <th>Referred By</th><th>Remarks</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="letters-tbody"></tbody>
+      </table>
+    </div>
+    <div id="empty-state" class="empty-state" style="display:none">No letters found.</div>
+  </div>
+</div>
+
+<!-- ADD LETTER MODAL -->
+<div id="add-modal" class="modal-overlay" onclick="closeModals()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>Add TTD Reference Letter</h3>
+    <div id="add-dup-warning" class="warning-banner" style="display:none"></div>
+    <div class="form-group">
+      <label>Date *</label>
+      <input type="date" id="add-date">
+    </div>
+    <div class="form-group">
+      <label>Name *</label>
+      <input id="add-name" placeholder="Full name">
+    </div>
+    <div class="form-group">
+      <label>Phone number</label>
+      <input id="add-phone" placeholder="10-digit mobile">
+    </div>
+    <div class="form-group">
+      <label>Aadhar number</label>
+      <input id="add-aadhar" placeholder="12-digit Aadhar" onblur="checkAadharDuplicate('add')">
+    </div>
+    <div class="form-group">
+      <label>Referred by</label>
+      <input id="add-referred-by" placeholder="Who referred this person">
+    </div>
+    <div class="form-group">
+      <label>Remarks</label>
+      <textarea id="add-remarks" placeholder="Any additional notes..." rows="3"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="submitAdd()">Save Letter</button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
+
+let allLetters = [];
+let selectedDateFilter = null;
+let rangeFrom = '';
+let rangeTo = '';
+
+function getTodayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+const [__ty, __tm] = getTodayIST().split('-').map(Number);
+let calViewYear = __ty;
+let calViewMonth = __tm - 1;
+
+const CAL_WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadLetters() {
+  const params = new URLSearchParams();
+  if (rangeFrom) params.set('from', rangeFrom);
+  if (rangeTo) params.set('to', rangeTo);
+  const r = await fetch('/api/ttd-letters' + (params.toString() ? '?' + params.toString() : ''));
+  const data = await r.json();
+  allLetters = data.letters || [];
+  renderCalendar();
+  renderTable();
+}
+
+function renderCalendar() {
+  const todayIST = getTodayIST();
+  const countByDate = {};
+  allLetters.forEach(l => { countByDate[l.date] = (countByDate[l.date] || 0) + 1; });
+
+  document.getElementById('cal-month-label').textContent = `${CAL_MONTHS[calViewMonth]} ${calViewYear}`;
+  document.getElementById('cal-weekdays').innerHTML = CAL_WEEKDAYS.map(d => `<div class="cal-weekday">${d}</div>`).join('');
+
+  const firstDayOffset = new Date(calViewYear, calViewMonth, 1).getDay();
+  const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+  const pad = n => String(n).padStart(2, '0');
+
+  let cellsHtml = '';
+  for (let i = 0; i < firstDayOffset; i++) cellsHtml += '<div class="cal-day other-month"></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calViewYear}-${pad(calViewMonth + 1)}-${pad(day)}`;
+    const count = countByDate[dateStr] || 0;
+    const classes = ['cal-day'];
+    if (dateStr === todayIST) classes.push('today');
+    if (dateStr === selectedDateFilter) classes.push('selected');
+    cellsHtml += `<div class="${classes.join(' ')}" onclick="onCalDayClick('${dateStr}', ${count > 0})">
+      ${day}
+      ${count > 0 ? `<span class="cal-dot">${count}</span>` : ''}
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = cellsHtml;
+}
+
+function changeMonth(delta) {
+  calViewMonth += delta;
+  if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+  if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+  renderCalendar();
+}
+function jumpToday() {
+  const [ty, tm] = getTodayIST().split('-').map(Number);
+  calViewYear = ty; calViewMonth = tm - 1;
+  renderCalendar();
+}
+function onCalDayClick(dateStr, hasLetters) {
+  if (!hasLetters) return;
+  selectedDateFilter = selectedDateFilter === dateStr ? null : dateStr;
+  renderCalendar();
+  renderTable();
+}
+function clearDateFilter() {
+  selectedDateFilter = null;
+  renderCalendar();
+  renderTable();
+}
+
+function onRangeChange() {
+  rangeFrom = document.getElementById('range-from').value;
+  rangeTo = document.getElementById('range-to').value;
+  loadLetters();
+}
+function clearRange() {
+  document.getElementById('range-from').value = '';
+  document.getElementById('range-to').value = '';
+  rangeFrom = ''; rangeTo = '';
+  loadLetters();
+}
+
+function statusOf(dateStr) {
+  return dateStr < getTodayIST() ? 'Given' : 'Upcoming';
+}
+function maskAadhar(a) {
+  if (!a) return '';
+  const s = String(a);
+  return s.length > 4 ? '••••••••' + s.slice(-4) : s;
+}
+
+function renderTable() {
+  const filterBar = document.getElementById('cal-filter-bar');
+  const filterLabel = document.getElementById('cal-filter-label');
+  const titleEl = document.getElementById('list-title');
+
+  let list = allLetters;
+  if (selectedDateFilter) {
+    list = list.filter(l => l.date === selectedDateFilter);
+    const label = selectedDateFilter === getTodayIST() ? 'Today' : new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+    filterLabel.textContent = `Showing letters on ${label}`;
+    filterBar.style.display = 'flex';
+    titleEl.textContent = `Letters on ${label}`;
+  } else {
+    filterBar.style.display = 'none';
+    titleEl.textContent = 'All letters';
+  }
+
+  const tbody = document.getElementById('letters-tbody');
+  const emptyState = document.getElementById('empty-state');
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+  emptyState.style.display = 'none';
+
+  tbody.innerHTML = list.map(l => `
+    <tr id="row-${l.id}">
+      <td>${esc(l.date)}</td>
+      <td>${esc(l.name)}</td>
+      <td>${esc(l.phone)}</td>
+      <td>${esc(maskAadhar(l.aadhar))}</td>
+      <td>${esc(l.reference)}</td>
+      <td>${esc(l.referred_by)}</td>
+      <td>${esc(l.remarks)}</td>
+      <td><span class="status-badge status-${statusOf(l.date) === 'Given' ? 'given' : 'upcoming'}">${statusOf(l.date)}</span></td>
+      <td class="actions-cell">
+        <button class="btn-sm btn-edit" onclick="startEdit('${l.id}')" title="Edit"><i data-lucide="pencil"></i></button>
+        <button class="btn-sm btn-del" onclick="deleteLetter('${l.id}')" title="Delete"><i data-lucide="trash-2"></i></button>
+        <button class="btn-sm btn-edit" onclick="window.open('/api/ttd-letters/${l.id}/letter-pdf','_blank')" title="Download letter"><i data-lucide="file-down"></i></button>
+      </td>
+    </tr>
+    <tr id="edit-${l.id}" class="edit-row" style="display:none">
+      <td colspan="9">
+        <div class="edit-grid">
+          <input type="date" id="e-date-${l.id}" value="${esc(l.date)}">
+          <input id="e-name-${l.id}" value="${esc(l.name)}" placeholder="Name">
+          <input id="e-phone-${l.id}" value="${esc(l.phone)}" placeholder="Phone">
+          <input id="e-aadhar-${l.id}" value="${esc(l.aadhar)}" placeholder="Aadhar" onblur="checkAadharDuplicate('edit', '${l.id}')">
+          <input id="e-referred-${l.id}" value="${esc(l.referred_by)}" placeholder="Referred by">
+          <input id="e-remarks-${l.id}" value="${esc(l.remarks)}" placeholder="Remarks">
+          <div class="edit-actions">
+            <button class="btn-sm btn-save" onclick="saveEdit('${l.id}')"><i data-lucide="check"></i> Save</button>
+            <button class="btn-sm btn-edit" onclick="cancelEdit('${l.id}')">Cancel</button>
+          </div>
+        </div>
+        <div id="e-dup-${l.id}" class="warning-banner" style="display:none"></div>
+      </td>
+    </tr>
+  `).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function startEdit(id) {
+  document.getElementById('row-' + id).style.display = 'none';
+  document.getElementById('edit-' + id).style.display = 'table-row';
+}
+function cancelEdit(id) {
+  document.getElementById('row-' + id).style.display = '';
+  document.getElementById('edit-' + id).style.display = 'none';
+}
+
+async function saveEdit(id) {
+  const date = document.getElementById(`e-date-${id}`).value;
+  const name = document.getElementById(`e-name-${id}`).value.trim();
+  const phone = document.getElementById(`e-phone-${id}`).value.trim();
+  const aadhar = document.getElementById(`e-aadhar-${id}`).value.trim();
+  const referred_by = document.getElementById(`e-referred-${id}`).value.trim();
+  const remarks = document.getElementById(`e-remarks-${id}`).value.trim();
+  if (!date || !name) { alert('Date and name are required.'); return; }
+
+  const r = await fetch('/api/ttd-letters/' + id, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks }),
+  });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+  await loadLetters();
+}
+
+async function deleteLetter(id) {
+  if (!confirm('Delete this TTD letter record?')) return;
+  await fetch('/api/ttd-letters/' + id, { method: 'DELETE' });
+  await loadLetters();
+}
+
+async function checkAadharDuplicate(mode, id) {
+  const aadharEl = mode === 'add' ? document.getElementById('add-aadhar') : document.getElementById(`e-aadhar-${id}`);
+  const bannerEl = mode === 'add' ? document.getElementById('add-dup-warning') : document.getElementById(`e-dup-${id}`);
+  const aadhar = aadharEl.value.trim();
+  if (!aadhar) { bannerEl.style.display = 'none'; return; }
+  const r = await fetch('/api/ttd-letters/check-duplicate?aadhar=' + encodeURIComponent(aadhar));
+  const data = await r.json();
+  const matches = (data.matches || []).filter(m => m.id !== id);
+  if (matches.length) {
+    bannerEl.innerHTML = `⚠ This Aadhar already has ${matches.length} letter(s) on file — most recent: ${esc(matches[0].date)} (Ref ${esc(matches[0].reference)}). You can still save.`;
+    bannerEl.style.display = 'block';
+  } else {
+    bannerEl.style.display = 'none';
+  }
+}
+
+function openAddModal() {
+  document.getElementById('add-date').value = selectedDateFilter || getTodayIST();
+  document.getElementById('add-name').value = '';
+  document.getElementById('add-phone').value = '';
+  document.getElementById('add-aadhar').value = '';
+  document.getElementById('add-referred-by').value = '';
+  document.getElementById('add-remarks').value = '';
+  document.getElementById('add-dup-warning').style.display = 'none';
+  document.getElementById('add-modal').style.display = 'flex';
+}
+function closeModals() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+}
+
+async function submitAdd() {
+  const date = document.getElementById('add-date').value;
+  const name = document.getElementById('add-name').value.trim();
+  const phone = document.getElementById('add-phone').value.trim();
+  const aadhar = document.getElementById('add-aadhar').value.trim();
+  const referred_by = document.getElementById('add-referred-by').value.trim();
+  const remarks = document.getElementById('add-remarks').value.trim();
+  if (!date || !name) { alert('Date and name are required.'); return; }
+
+  const r = await fetch('/api/ttd-letters', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks }),
+  });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+  closeModals();
+  await loadLetters();
+}
+
+function downloadExcel() {
+  const params = new URLSearchParams();
+  if (rangeFrom) params.set('from', rangeFrom);
+  if (rangeTo) params.set('to', rangeTo);
+  window.open('/api/ttd-letters/export.xlsx' + (params.toString() ? '?' + params.toString() : ''), '_blank');
+}
+function downloadRegisterPdf() {
+  const params = new URLSearchParams();
+  if (rangeFrom) params.set('from', rangeFrom);
+  if (rangeTo) params.set('to', rangeTo);
+  window.open('/api/ttd-letters/export-pdf' + (params.toString() ? '?' + params.toString() : ''), '_blank');
+}
+
+loadLetters();
+</script>
+</body>
+</html>

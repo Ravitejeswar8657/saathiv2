@@ -1124,6 +1124,85 @@ app.delete('/api/news/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── TTD Reference Letters ───────────────────────────────────────────────────
+function computeTtdReference(db, dateStr) {
+  const year = (dateStr || getISTDateStr()).slice(0, 4);
+  const count = (db.ttd_letters || []).filter(l => (l.reference || '').includes(`/${year}/`)).length;
+  return `TTD/${year}/${String(count + 1).padStart(3, '0')}`;
+}
+function normalizeAadhar(a) {
+  return String(a || '').replace(/[\s-]/g, '');
+}
+function findTtdDuplicates(db, aadhar, excludeId) {
+  const norm = normalizeAadhar(aadhar);
+  if (!norm) return [];
+  return (db.ttd_letters || [])
+    .filter(l => l.id !== excludeId && normalizeAadhar(l.aadhar) === norm)
+    .map(l => ({ id: l.id, date: l.date, reference: l.reference, name: l.name }));
+}
+function ttdStatus(dateStr) {
+  return (dateStr || '') < getISTDateStr() ? 'Given' : 'Upcoming';
+}
+
+app.get('/api/ttd-letters', (req, res) => {
+  const db = readDB();
+  let items = db.ttd_letters || [];
+  const { from, to } = req.query;
+  if (from) items = items.filter(l => l.date >= from);
+  if (to) items = items.filter(l => l.date <= to);
+  items = [...items].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  res.json({ letters: items });
+});
+
+app.get('/api/ttd-letters/check-duplicate', (req, res) => {
+  const db = readDB();
+  res.json({ matches: findTtdDuplicates(db, req.query.aadhar) });
+});
+
+app.post('/api/ttd-letters', (req, res) => {
+  const { date, name, phone, aadhar, referred_by, remarks } = req.body;
+  if (!date || !name) return res.status(400).json({ error: 'date and name required' });
+
+  const db = readDB();
+  const duplicate_warning = findTtdDuplicates(db, aadhar);
+  const item = {
+    id: `TTD${Date.now()}`,
+    reference: computeTtdReference(db, date),
+    date, name,
+    phone: phone || '',
+    aadhar: aadhar || '',
+    referred_by: referred_by || '',
+    remarks: remarks || '',
+    created_at: new Date().toISOString(),
+  };
+  db.ttd_letters = [item, ...(db.ttd_letters || [])];
+  writeDB(db);
+  res.json({ ok: true, item, duplicate_warning });
+});
+
+app.patch('/api/ttd-letters/:id', (req, res) => {
+  const db = readDB();
+  const item = (db.ttd_letters || []).find(l => l.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Letter not found' });
+  const { date, name, phone, aadhar, referred_by, remarks } = req.body;
+  if (date !== undefined) item.date = date;
+  if (name !== undefined) item.name = name;
+  if (phone !== undefined) item.phone = phone;
+  if (aadhar !== undefined) item.aadhar = aadhar;
+  if (referred_by !== undefined) item.referred_by = referred_by;
+  if (remarks !== undefined) item.remarks = remarks;
+  writeDB(db);
+  const duplicate_warning = aadhar !== undefined ? findTtdDuplicates(db, aadhar, item.id) : [];
+  res.json({ ok: true, item, duplicate_warning });
+});
+
+app.delete('/api/ttd-letters/:id', (req, res) => {
+  const db = readDB();
+  db.ttd_letters = (db.ttd_letters || []).filter(l => l.id !== req.params.id);
+  writeDB(db);
+  res.json({ ok: true });
+});
+
 app.post('/api/send-brief', async (req, res) => {
   const db = recomputeBrief(readDB());
   const liveNews = await fetchGoogleNews(db).catch(() => []);
@@ -2068,6 +2147,188 @@ app.get('/api/brief-pdf', async (req, res) => {
     buildBriefPDF(doc, db, dateStr, liveNews);
   } catch (e) {
     console.error('PDF generation error:', e);
+  }
+  doc.end();
+});
+
+function buildTtdRegisterPDF(doc, letters, from, to) {
+  let teluguFontOk = false;
+  try {
+    doc.registerFont('Body', TELUGU_FONT_PATH);
+    doc.registerFont('Body-Bold', TELUGU_FONT_PATH);
+    teluguFontOk = true;
+  } catch { /* falls back to Helvetica */ }
+  const bodyFont = teluguFontOk ? 'Body' : 'Helvetica';
+  const boldFont = teluguFontOk ? 'Body-Bold' : 'Helvetica-Bold';
+  const C = PDF_COLORS;
+
+  const cols = [
+    { label: 'Date', width: 62 },
+    { label: 'Name', width: 105 },
+    { label: 'Phone', width: 72 },
+    { label: 'Aadhar', width: 90 },
+    { label: 'Reference', width: 90 },
+    { label: 'Status', width: 60 },
+  ];
+
+  function drawRow(values, font, size, color) {
+    doc.font(font).fontSize(size).fillColor(color);
+    const y = doc.y;
+    let x = PDF_LEFT;
+    cols.forEach((c, i) => {
+      doc.text(String(values[i] ?? ''), x, y, { width: c.width - 6, lineBreak: false, ellipsis: true });
+      x += c.width;
+    });
+    doc.y = y + size + 8;
+  }
+
+  doc.rect(0, 0, doc.page.width, 70).fill(C.slate);
+  doc.fillColor(C.white).font(boldFont).fontSize(17).text('TTD Reference Letters — Register', PDF_LEFT, 22);
+  doc.font(bodyFont).fontSize(10).fillColor('#FFF7ED').text(
+    (from || to) ? `${from || 'start'} to ${to || 'today'}` : 'All records', PDF_LEFT, 46
+  );
+  doc.y = 92;
+  doc.x = PDF_LEFT;
+
+  drawRow(cols.map(c => c.label), boldFont, 9, C.green);
+
+  doc.font(bodyFont).fontSize(8.5).fillColor(C.ink);
+  letters.forEach(l => {
+    if (doc.y > doc.page.height - 40) {
+      doc.addPage();
+      doc.y = 40;
+      drawRow(cols.map(c => c.label), boldFont, 9, C.green);
+    }
+    const maskedAadhar = l.aadhar ? `••••${String(l.aadhar).slice(-4)}` : '';
+    drawRow([l.date, l.name, l.phone, maskedAadhar, l.reference, ttdStatus(l.date)], bodyFont, 8.5, C.ink);
+  });
+
+  if (!letters.length) {
+    doc.font(bodyFont).fontSize(10).fillColor(C.ink).text('No letters in this range.', PDF_LEFT, doc.y + 6);
+  }
+}
+
+function buildTtdLetterPDF(doc, letter, mpName) {
+  let teluguFontOk = false;
+  try {
+    doc.registerFont('Body', TELUGU_FONT_PATH);
+    doc.registerFont('Body-Bold', TELUGU_FONT_PATH);
+    teluguFontOk = true;
+  } catch { /* falls back to Helvetica */ }
+  const bodyFont = teluguFontOk ? 'Body' : 'Helvetica';
+  const boldFont = teluguFontOk ? 'Body-Bold' : 'Helvetica-Bold';
+  const C = PDF_COLORS;
+
+  doc.font(boldFont).fontSize(14).fillColor(C.ink)
+    .text(mpName || 'Member of Parliament, Palanadu', PDF_LEFT, 40, { width: PDF_WIDTH, align: 'center' });
+  doc.font(bodyFont).fontSize(10).fillColor(C.slate)
+    .text('Narasaraopet Constituency · Palanadu District', PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'center' });
+  doc.moveDown(2);
+  doc.x = PDF_LEFT;
+
+  doc.font(bodyFont).fontSize(10).fillColor(C.ink);
+  doc.text(`Reference No: ${letter.reference}`, PDF_LEFT);
+  doc.text(`Date: ${formatDateLong(letter.date)}`, PDF_LEFT);
+  doc.moveDown(1.5);
+
+  doc.text('To,', PDF_LEFT);
+  doc.text('The Executive Officer,', PDF_LEFT);
+  doc.text('Tirumala Tirupati Devasthanams (TTD),', PDF_LEFT);
+  doc.text('Tirumala.', PDF_LEFT);
+  doc.moveDown(1.5);
+
+  doc.font(boldFont).text('Sub: Recommendation for Special Darshan', PDF_LEFT, doc.y, { underline: true });
+  doc.moveDown(1);
+
+  doc.font(bodyFont).text('Respected Sir/Madam,', PDF_LEFT);
+  doc.moveDown(0.5);
+  doc.text(
+    `This is to recommend ${letter.name}` +
+    `${letter.aadhar ? ` (Aadhar No. ${letter.aadhar})` : ''}` +
+    `${letter.phone ? `, contact number ${letter.phone},` : ''} for special darshan / accommodation ` +
+    `facilities at Tirumala on ${formatDateLong(letter.date)}. Kind cooperation in this regard is requested.`,
+    PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'justify' }
+  );
+
+  if (letter.remarks) {
+    doc.moveDown(0.8);
+    doc.text(`Remarks: ${letter.remarks}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
+  }
+  if (letter.referred_by) {
+    doc.moveDown(0.5);
+    doc.text(`Referred by: ${letter.referred_by}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
+  }
+
+  doc.moveDown(3);
+  doc.font(bodyFont).text('Thanking you,', PDF_LEFT);
+  doc.moveDown(2);
+  doc.font(boldFont).text(mpName || 'Member of Parliament', PDF_LEFT);
+  doc.font(bodyFont).fontSize(9).fillColor(C.slate).text('Palanadu Parliamentary Constituency', PDF_LEFT);
+
+  doc.fontSize(8).fillColor('#9ca3af').text(
+    '(Draft v1 letter format — wording to be finalized.)',
+    PDF_LEFT, doc.page.height - 60, { width: PDF_WIDTH, align: 'center' }
+  );
+}
+
+app.get('/api/ttd-letters/export.xlsx', (req, res) => {
+  const db = readDB();
+  let items = db.ttd_letters || [];
+  const { from, to } = req.query;
+  if (from) items = items.filter(l => l.date >= from);
+  if (to) items = items.filter(l => l.date <= to);
+  items = [...items].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  const rows = items.map(l => ({
+    Date: l.date, Name: l.name, Phone: l.phone, Aadhar: l.aadhar,
+    Reference: l.reference, 'Referred By': l.referred_by, Remarks: l.remarks,
+    Status: ttdStatus(l.date),
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'TTD Letters');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="ttd-letters-${from || 'all'}-to-${to || 'now'}.xlsx"`);
+  res.send(buf);
+});
+
+app.get('/api/ttd-letters/export-pdf', (req, res) => {
+  const db = readDB();
+  let items = db.ttd_letters || [];
+  const { from, to } = req.query;
+  if (from) items = items.filter(l => l.date >= from);
+  if (to) items = items.filter(l => l.date <= to);
+  items = [...items].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="ttd-letters-${from || 'all'}-to-${to || 'now'}.pdf"`);
+
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  doc.pipe(res);
+  try {
+    buildTtdRegisterPDF(doc, items, from, to);
+  } catch (e) {
+    console.error('TTD register PDF generation error:', e);
+  }
+  doc.end();
+});
+
+app.get('/api/ttd-letters/:id/letter-pdf', (req, res) => {
+  const db = readDB();
+  const letter = (db.ttd_letters || []).find(l => l.id === req.params.id);
+  if (!letter) return res.status(404).json({ error: 'Letter not found' });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="ttd-letter-${letter.reference.replace(/\//g, '-')}.pdf"`);
+
+  const doc = new PDFDocument({ margin: 50, size: 'A4' });
+  doc.pipe(res);
+  try {
+    buildTtdLetterPDF(doc, letter, db.metadata?.mp_name);
+  } catch (e) {
+    console.error('TTD letter PDF generation error:', e);
   }
   doc.end();
 });
