@@ -110,6 +110,9 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 }
 .cat-national{background:#ccfbf1;color:#0f766e}
 .cat-international{background:#eff6ff;color:#1d4ed8}
+.cat-state{background:#fef3c7;color:#92400e}
+.cat-district{background:#f3f4f6;color:#374151}
+.preview-source{font-size:11px;color:#9ca3af;margin-top:3px;font-style:italic}
 .preview-body{font-size:12px;color:#6b7280;margin-top:4px;line-height:1.5}
 .preview-link{font-size:11px;color:#3b82f6;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
@@ -684,8 +687,10 @@ function renderExcelPreview(data) {
     <div class="preview-item">
       <div class="preview-item-top">
         <div class="preview-headline">${esc(item.headline)}</div>
+        <span class="cat-badge cat-${item.category.toLowerCase()}">${esc(item.category)}</span>
       </div>
-      ${item.source ? `<div class="preview-body">${esc(item.source)}</div>` : ''}
+      ${item.source ? `<div class="preview-source">${esc(item.source)}</div>` : ''}
+      ${item.body ? `<div class="preview-body">${esc(item.body.slice(0, 140))}${item.body.length > 140 ? '…' : ''}</div>` : ''}
       ${item.link ? `<div class="preview-link">${esc(item.link)}</div>` : ''}
     </div>`).join('');
 

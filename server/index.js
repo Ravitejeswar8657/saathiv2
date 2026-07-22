@@ -808,7 +808,7 @@ app.get('/api/daily-prep', async (req, res) => {
       const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       return nDate === dateStr || nDate === todayIST;
     })
-    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true }));
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true, category: n.category || 'District', body: n.body || '' }));
 
   const combinedNewsSelected = [];
   const seenLinks = new Set();
@@ -912,7 +912,7 @@ app.get('/api/schedule/:id/prep', async (req, res) => {
       const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       return nDate === evDate || nDate === todayIST;
     })
-    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true }));
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true, category: n.category || 'District', body: n.body || '' }));
 
   res.json({
     event: { ...event, speech_applicable: isSpeechApplicable(event.event_type) },
@@ -1701,6 +1701,7 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
         body: item.body,
         source: sourceParts.join(' · '),
         mandal: item.category,   // 'National' or 'International' when known
+        category: item.category || 'National',
         priority: 'high',
         link: item.link || '',
         submitted_at: new Date().toISOString(),
@@ -1715,23 +1716,37 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
   }
 });
 
+const CATEGORY_ORDER = ['National', 'International', 'State', 'District'];
+function normalizeCategory(raw) {
+  const v = String(raw || '').trim().toLowerCase();
+  if (v.includes('inter')) return 'International';
+  if (v.includes('nat')) return 'National';
+  if (v.includes('stat')) return 'State';
+  return 'District';
+}
+
 function parseNewsExcel(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   const items = [];
-  for (const sheetName of wb.SheetNames) {
+  wb.SheetNames.forEach((sheetName, sheetIdx) => {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
     for (const row of rows) {
       const byKey = {};
       for (const key of Object.keys(row)) byKey[key.trim().toLowerCase()] = row[key];
       const headline = String(byKey['title'] || '').trim();
       if (!headline) continue;
+      const category = sheetIdx === 0
+        ? 'District'
+        : normalizeCategory(byKey['category'] || byKey['type']);
       items.push({
         headline,
         link: String(byKey['link'] || '').trim(),
         source: String(byKey['websource'] || '').trim(),
+        body: String(byKey['description'] || byKey['desc'] || byKey['summary'] || '').trim(),
+        category,
       });
     }
-  }
+  });
   return items;
 }
 
@@ -1755,9 +1770,10 @@ app.post('/api/upload-news-excel', upload.single('excel'), (req, res) => {
     const saved = items.map((item, idx) => ({
       id: `NEWS${ts}_${idx}`,
       headline: item.headline,
-      body: '',
+      body: item.body || '',
       source: item.source || 'Excel import',
       mandal: 'General',
+      category: item.category,
       priority: 'medium',
       link: item.link || '',
       submitted_at: new Date().toISOString(),
@@ -1975,7 +1991,7 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
       const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       return nDate === dateStr || nDate === getISTDateStr();
     })
-    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report' }));
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', category: n.category || 'District', body: n.body || '' }));
 
   const newsIsAuto = pickedNews.length === 0;
   const newsToShow = newsIsAuto ? [...fieldNewsForPdf, ...(liveNews || [])].slice(0, 8) : pickedNews;
@@ -1989,18 +2005,48 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
     doc.x = PDF_LEFT;
     doc.font(boldFont).fontSize(12).fillColor(C.green).text(`News for this brief${newsLabel}`, { width: PDF_WIDTH });
     doc.moveDown(0.2);
-    newsToShow.forEach((n, i) => {
-      if (doc.y > doc.page.height - 40) doc.addPage();
-      const title = n.title || n.headline || 'News item';
-      const sourceStr = n.source ? ` (${n.source})` : '';
+
+    const grouped = {};
+    newsToShow.forEach(n => {
+      const cat = CATEGORY_ORDER.includes(n.category) ? n.category : 'District';
+      (grouped[cat] = grouped[cat] || []).push(n);
+    });
+
+    CATEGORY_ORDER.forEach(cat => {
+      const list = grouped[cat] || [];
+      if (!list.length) return;
+
+      if (doc.y > doc.page.height - 60) doc.addPage();
       doc.x = PDF_LEFT;
-      doc.font(bodyFont).fontSize(9).fillColor(C.ink);
-      safeText(`${i + 1}. ${title}${sourceStr}`, {
-        width: PDF_WIDTH,
-        link: n.link || undefined,
-        underline: !!n.link,
+      doc.font(boldFont).fontSize(9.5).fillColor(C.green).text(cat.toUpperCase(), { width: PDF_WIDTH });
+      doc.moveDown(0.1);
+
+      list.forEach((n, i) => {
+        if (doc.y > doc.page.height - 40) doc.addPage();
+        const title = n.title || n.headline || 'News item';
+        const sourceStr = n.source ? ` (${n.source})` : '';
+        doc.x = PDF_LEFT;
+        doc.font(bodyFont).fontSize(9).fillColor(C.ink);
+        safeText(`${i + 1}. ${title}${sourceStr}`, { width: PDF_WIDTH });
+
+        if (n.link) {
+          if (doc.y > doc.page.height - 40) doc.addPage();
+          doc.x = PDF_LEFT + 10;
+          doc.font(bodyFont).fontSize(8).fillColor(C.linkBlue);
+          safeText(n.link, { width: PDF_WIDTH - 10, link: n.link, underline: true });
+        }
+
+        if (n.body) {
+          if (doc.y > doc.page.height - 40) doc.addPage();
+          doc.x = PDF_LEFT + 10;
+          doc.font(bodyFont).fontSize(8.5).fillColor('#9ca3af');
+          const snippet = n.body.length > 200 ? n.body.slice(0, 200) + '…' : n.body;
+          safeText(snippet, { width: PDF_WIDTH - 10 });
+        }
+
+        doc.fillColor(C.ink);
+        doc.moveDown(0.2);
       });
-      doc.moveDown(0.15);
     });
   }
 }
