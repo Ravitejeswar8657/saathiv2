@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PA Schedule · Saathi Palanadu</title>
+<title>Schedule · Saathi Palanadu</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="/sidebar.js" defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
@@ -69,11 +70,28 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 .prep-link-btn:hover{background:#fff7ed}
 .mini-btn{background:#1a1208;color:#fff;border:none;border-radius:5px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer}
 .mini-btn:hover{opacity:.9}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.cal-nav-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit}
+.cal-nav-btn:hover{background:#f9fafb}
+.cal-month-label{font-weight:700;font-size:15px}
+.cal-today-btn{background:#1a1208;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px}
+.cal-today-btn:hover{opacity:.9}
+.cal-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:13px;color:#374151}
+.cal-clear-btn{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;padding:0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-weekday{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}
+.cal-day{position:relative;min-height:44px;border:1px solid #e5e5e5;border-radius:6px;padding:4px 6px;font-size:12px;cursor:pointer;background:#fff}
+.cal-day:hover{border-color:#d4d4d4;background:#fafaf9}
+.cal-day.other-month{color:#d1d5db;background:#fafaf9;cursor:default}
+.cal-day.other-month:hover{background:#fafaf9}
+.cal-day.today{border-color:#b45309;font-weight:700}
+.cal-day.selected{background:#fff7ed;border-color:#b45309}
+.cal-day .cal-dot{position:absolute;bottom:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:#b45309;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+@media(max-width:480px){.cal-day{min-height:36px;font-size:11px}}
 </style>
 </head>
 <body>
 <div class="container">
-  <a href="/" class="back-link">&larr; Back to Portal</a>
   <div class="header">
     <h1>MP Schedule & Events</h1>
     <p>Schedule events and find nearby priority contacts.</p>
@@ -145,17 +163,44 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
     <button class="mini-btn" style="padding:10px 16px;font-size:14px" onclick="downloadBriefPdf()">Download Final Brief PDF</button>
   </div>
 
+  <div class="card" id="calendar-card">
+    <div class="cal-header">
+      <button class="cal-nav-btn" onclick="changeMonth(-1)">&lsaquo;</button>
+      <div>
+        <span id="cal-month-label" class="cal-month-label"></span>
+        <button class="cal-today-btn" onclick="jumpToday()">Today</button>
+      </div>
+      <button class="cal-nav-btn" onclick="changeMonth(1)">&rsaquo;</button>
+    </div>
+    <div class="cal-grid" id="cal-weekdays"></div>
+    <div class="cal-grid" id="cal-grid" style="margin-top:4px"></div>
+    <div class="cal-filter-bar" id="cal-filter-bar" style="display:none">
+      <span id="cal-filter-label"></span>
+      <button class="cal-clear-btn" onclick="clearDateFilter()">Show all</button>
+    </div>
+  </div>
+
   <div id="upcoming-list"></div>
 </div>
 
 <script>
 let villagesByMandal = {};
+let allSchedule = [];
+let selectedDateFilter = null;
+
+function getTodayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+const [__ty, __tm] = getTodayIST().split('-').map(Number);
+let calViewYear = __ty;
+let calViewMonth = __tm - 1;
 
 document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
   const pdfDateInput = document.getElementById('pdf-date');
   if (pdfDateInput && !pdfDateInput.value) {
-    pdfDateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    pdfDateInput.value = getTodayIST();
   }
   await loadFilterOptions();
 });
@@ -239,21 +284,40 @@ function fmt12h(t) {
 async function loadSchedule() {
   const r = await fetch('/api/schedule');
   const data = await r.json();
-  const schedule = data.schedule || [];
+  allSchedule = data.schedule || [];
+  renderCalendar();
+  renderList();
+}
+
+function renderList() {
+  const todayIST = getTodayIST();
 
   // Group events by date
   const byDate = {};
-  schedule.forEach(ev => {
+  allSchedule.forEach(ev => {
     if (!byDate[ev.date]) byDate[ev.date] = [];
     byDate[ev.date].push(ev);
   });
-  const dates = Object.keys(byDate).sort();
-  const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+  const filterBar = document.getElementById('cal-filter-bar');
+  const filterLabel = document.getElementById('cal-filter-label');
+  let dates;
+  if (selectedDateFilter) {
+    dates = byDate[selectedDateFilter] ? [selectedDateFilter] : [];
+    const label = selectedDateFilter === todayIST ? 'Today' : new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+    filterLabel.textContent = `Showing events on ${label} (${selectedDateFilter})`;
+    filterBar.style.display = 'flex';
+  } else {
+    dates = Object.keys(byDate).sort();
+    filterBar.style.display = 'none';
+  }
 
   let html = '';
-  if (schedule.length === 0) {
+  if (allSchedule.length === 0) {
     html += '<div class="section-title" style="margin-top:24px;margin-bottom:12px">Upcoming events</div>';
     html += '<p class="empty-state">No events scheduled yet.</p>';
+  } else if (selectedDateFilter && dates.length === 0) {
+    html += '<p class="empty-state" style="margin-top:16px">No events on this date.</p>';
   }
 
   dates.forEach(date => {
@@ -294,6 +358,79 @@ async function loadSchedule() {
 
   document.getElementById('upcoming-list').innerHTML = html;
   lucide.createIcons();
+}
+
+const CAL_WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function renderCalendar() {
+  const todayIST = getTodayIST();
+
+  const countByDate = {};
+  allSchedule.forEach(ev => {
+    countByDate[ev.date] = (countByDate[ev.date] || 0) + 1;
+  });
+
+  document.getElementById('cal-month-label').textContent = `${CAL_MONTHS[calViewMonth]} ${calViewYear}`;
+
+  const weekdaysEl = document.getElementById('cal-weekdays');
+  weekdaysEl.innerHTML = CAL_WEEKDAYS.map(d => `<div class="cal-weekday">${d}</div>`).join('');
+
+  const firstDayOffset = new Date(calViewYear, calViewMonth, 1).getDay();
+  const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+
+  const pad = n => String(n).padStart(2, '0');
+
+  let cellsHtml = '';
+  for (let i = 0; i < firstDayOffset; i++) {
+    cellsHtml += '<div class="cal-day other-month"></div>';
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calViewYear}-${pad(calViewMonth + 1)}-${pad(day)}`;
+    const count = countByDate[dateStr] || 0;
+    const classes = ['cal-day'];
+    if (dateStr === todayIST) classes.push('today');
+    if (dateStr === selectedDateFilter) classes.push('selected');
+    cellsHtml += `<div class="${classes.join(' ')}" onclick="onCalDayClick('${dateStr}', ${count > 0})">
+      ${day}
+      ${count > 0 ? `<span class="cal-dot">${count}</span>` : ''}
+    </div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = cellsHtml;
+}
+
+function changeMonth(delta) {
+  calViewMonth += delta;
+  if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+  if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+  renderCalendar();
+}
+
+function jumpToday() {
+  const [ty, tm] = getTodayIST().split('-').map(Number);
+  calViewYear = ty;
+  calViewMonth = tm - 1;
+  renderCalendar();
+}
+
+function onCalDayClick(dateStr, hasEvents) {
+  if (hasEvents) {
+    selectedDateFilter = selectedDateFilter === dateStr ? null : dateStr;
+    renderCalendar();
+    renderList();
+    document.getElementById('upcoming-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    document.getElementById('sch-date').value = dateStr;
+    document.getElementById('sch-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('sch-name').focus();
+  }
+}
+
+function clearDateFilter() {
+  selectedDateFilter = null;
+  renderCalendar();
+  renderList();
 }
 
 async function submitSchedule() {

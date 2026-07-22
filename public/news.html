@@ -6,6 +6,7 @@
 <title>News Desk · Saathi Palanadu</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="/sidebar.js" defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
@@ -144,7 +145,6 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 </head>
 <body>
 <div class="container">
-  <a href="/" class="back-link"><i data-lucide="arrow-left"></i> Back to Portal</a>
 
   <!-- ── Tab strip ── -->
   <div class="tab-strip">
@@ -153,6 +153,9 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
     </button>
     <button class="tab-btn" id="tab-brief" onclick="switchTab('brief')">
       <i data-lucide="newspaper"></i> Upload News Brief PDF
+    </button>
+    <button class="tab-btn" id="tab-excel" onclick="switchTab('excel')">
+      <i data-lucide="file-spreadsheet"></i> Upload Excel
     </button>
     <button class="tab-btn" id="tab-manage" onclick="switchTab('manage')">
       <i data-lucide="list"></i> Manage News
@@ -270,7 +273,59 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
   </div>
 
   <!-- ══════════════════════════════════════════════════
-       TAB 3 — Manage existing news items
+       TAB 3 — Upload Excel Media Tracker
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-excel">
+    <div class="header">
+      <h1>Upload Excel Media Tracker</h1>
+      <p>Upload a media tracker / sentiment analysis <strong>.xlsx</strong> file. Rows are read from every sheet — <code>title</code> becomes the headline, <code>link</code> becomes the news link, and <code>websource</code> becomes the name/publication.</p>
+    </div>
+
+    <div class="card" id="excel-card">
+      <!-- Drop / click zone -->
+      <div class="upload-zone" id="excel-upload-zone"
+           onclick="document.getElementById('excel-input').click()"
+           ondragover="onExcelDragOver(event)" ondragleave="onExcelDragLeave(event)" ondrop="onExcelDrop(event)">
+        <i data-lucide="upload-cloud"></i>
+        <div class="uz-title">Click to choose Excel file or drag &amp; drop here</div>
+        <div class="uz-hint">e.g. "media tracker sentiment analysis.xlsx"</div>
+        <input type="file" id="excel-input" accept=".xlsx,.xls" style="display:none" onchange="onExcelSelected(this)">
+      </div>
+
+      <!-- Selected file row -->
+      <div class="selected-file" id="excel-selected-file">
+        <i data-lucide="file-spreadsheet"></i>
+        <span class="sf-name" id="excel-sf-name"></span>
+        <button class="sf-clear" onclick="clearExcel()"><i data-lucide="x"></i></button>
+      </div>
+
+      <!-- Preview button -->
+      <button class="preview-btn" id="preview-excel-btn" onclick="previewExcel()" style="display:none" disabled>
+        <i data-lucide="eye" style="width:15px;height:15px"></i> Preview Extracted News
+      </button>
+
+      <!-- Preview list -->
+      <div class="preview-section" id="excel-preview-section">
+        <div class="preview-header" id="excel-preview-header"></div>
+        <div id="excel-preview-list"></div>
+        <button class="import-btn" id="import-excel-btn" onclick="importExcel()">
+          <i data-lucide="download" style="width:15px;height:15px"></i>
+          <span id="import-excel-label">Import to News Feed</span>
+        </button>
+      </div>
+
+      <div class="status-msg" id="excel-status"></div>
+    </div>
+
+    <div class="success-card" id="excel-success">
+      <h3>Excel imported</h3>
+      <p id="excel-success-msg"></p>
+      <button onclick="resetExcelForm()">Upload another</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       TAB 4 — Manage existing news items
   ═══════════════════════════════════════════════════ -->
   <div class="tab-panel" id="panel-manage">
     <div class="header">
@@ -560,6 +615,125 @@ async function deleteNews(id) {
     await fetch('/api/news/' + id, { method: 'DELETE' });
     await loadManageNews();
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ── TAB 3: Excel upload ────────────────────────────────────────────────────
+let selectedExcelFile = null;
+
+function onExcelDragOver(e) { e.preventDefault(); document.getElementById('excel-upload-zone').classList.add('dragover'); }
+function onExcelDragLeave()  { document.getElementById('excel-upload-zone').classList.remove('dragover'); }
+function onExcelDrop(e) {
+  e.preventDefault();
+  document.getElementById('excel-upload-zone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) setExcelFile(file);
+}
+function onExcelSelected(input) { if (input.files[0]) setExcelFile(input.files[0]); }
+
+function setExcelFile(file) {
+  const lower = file.name.toLowerCase();
+  if (!lower.endsWith('.xlsx') && !lower.endsWith('.xls')) { setExcelStatus('Only .xlsx or .xls files are accepted.', 'err'); return; }
+  selectedExcelFile = file;
+  document.getElementById('excel-sf-name').textContent = file.name;
+  document.getElementById('excel-selected-file').style.display = 'flex';
+  document.getElementById('preview-excel-btn').style.display = 'flex';
+  document.getElementById('preview-excel-btn').disabled = false;
+  document.getElementById('excel-preview-section').style.display = 'none';
+  setExcelStatus('');
+  lucide.createIcons();
+}
+
+function clearExcel() {
+  selectedExcelFile = null;
+  document.getElementById('excel-input').value = '';
+  document.getElementById('excel-selected-file').style.display = 'none';
+  document.getElementById('preview-excel-btn').style.display = 'none';
+  document.getElementById('excel-preview-section').style.display = 'none';
+  setExcelStatus('');
+}
+
+async function previewExcel() {
+  if (!selectedExcelFile) return;
+  const btn = document.getElementById('preview-excel-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Parsing Excel...';
+  setExcelStatus('');
+
+  const fd = new FormData();
+  fd.append('excel', selectedExcelFile);
+
+  try {
+    const r = await fetch('/api/upload-news-excel?preview=1', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok || data.error) { setExcelStatus(data.error || 'Failed to parse Excel file.', 'err'); return; }
+    renderExcelPreview(data);
+    setExcelStatus(`Found ${data.count} news items`, 'ok');
+  } catch(e) {
+    setExcelStatus('Network error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="eye" style="width:15px;height:15px"></i> Preview Extracted News';
+    lucide.createIcons();
+  }
+}
+
+function renderExcelPreview(data) {
+  document.getElementById('excel-preview-header').textContent = `${data.count} items`;
+
+  document.getElementById('excel-preview-list').innerHTML = data.items.map(item => `
+    <div class="preview-item">
+      <div class="preview-item-top">
+        <div class="preview-headline">${esc(item.headline)}</div>
+      </div>
+      ${item.source ? `<div class="preview-body">${esc(item.source)}</div>` : ''}
+      ${item.link ? `<div class="preview-link">${esc(item.link)}</div>` : ''}
+    </div>`).join('');
+
+  document.getElementById('import-excel-label').textContent = `Import ${data.count} items to News Feed`;
+  document.getElementById('excel-preview-section').style.display = 'block';
+}
+
+async function importExcel() {
+  if (!selectedExcelFile) return;
+  const btn = document.getElementById('import-excel-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Importing...';
+  setExcelStatus('');
+
+  const fd = new FormData();
+  fd.append('excel', selectedExcelFile);
+
+  try {
+    const r = await fetch('/api/upload-news-excel', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok || data.error) {
+      setExcelStatus(data.error || 'Import failed.', 'err');
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="download" style="width:15px;height:15px"></i> Import to News Feed';
+      lucide.createIcons();
+      return;
+    }
+    document.getElementById('excel-success-msg').textContent = `${data.count} items are now in the daily brief.`;
+    document.getElementById('excel-card').style.display = 'none';
+    document.getElementById('excel-success').style.display = 'block';
+  } catch(e) {
+    setExcelStatus('Network error: ' + e.message, 'err');
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="download" style="width:15px;height:15px"></i> Import to News Feed';
+    lucide.createIcons();
+  }
+}
+
+function resetExcelForm() {
+  clearExcel();
+  document.getElementById('excel-card').style.display = 'block';
+  document.getElementById('excel-success').style.display = 'none';
+}
+
+function setExcelStatus(msg, type) {
+  const el = document.getElementById('excel-status');
+  el.textContent = msg;
+  el.className = 'status-msg' + (type === 'ok' ? ' status-ok' : type === 'err' ? ' status-err' : '');
 }
 
 const origSwitchTab = switchTab;
