@@ -63,7 +63,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `pa_schedule.html` | PA schedule upload |
 | `pa_issues.html` | Issue/grievance logging |
 | `admin.html` | Pending approval confirmations |
-| `heatmap.html` | Geographic coverage heatmap |
+| `heatmap.html` | Mandal-level coverage heatmap (Leaflet + OpenStreetMap, no API key) — contact density and average priority score per mandal, joined against `public/assets/mandal_coords.json` (generated once via `scripts/geocode_mandals.js`) |
 | `journalist.html` | Alternate journalist form |
 
 ### Key API endpoints

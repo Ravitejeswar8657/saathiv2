@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Coverage Heatmap · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="/sidebar.js" defer></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #1a1208;
+  --bg: #fafaf9;
+  --card-bg: #fff;
+  --border: #e5e5e5;
+  --muted: #6b7280;
+  --accent: #b45309;
+  --teal: #0f766e;
+  --teal-light: #ccfbf1;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --shadow: 0 1px 2px rgba(0,0,0,0.05);
+  --radius: 8px;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content:'';display:block;height:3px;
+  background:linear-gradient(90deg,#b45309,#d97706,#b45309);
+  position:fixed;top:0;left:0;right:0;z-index:999;
+}
+
+.container { width: 100%; padding: 28px 32px; margin-top: 3px; }
+
+.page-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
+}
+.page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.results-info { font-size: 13px; color: var(--muted); }
+.results-info b { color: var(--ink); }
+
+/* ── Toggle bar ── */
+.toggle-bar {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 14px 16px; margin-bottom: 18px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between;
+}
+.mode-toggle { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip {
+  padding: 7px 14px; border-radius: 100px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--border); background: #fff; color: var(--muted);
+  cursor: pointer; transition: all 0.12s; white-space: nowrap; font-family: inherit;
+}
+.chip:hover { border-color: #c4b5a0; color: var(--ink); }
+.chip.active { background: #fff7ed; color: var(--accent); border-color: #fdba74; }
+
+.gap-note {
+  font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px;
+}
+.gap-note [data-lucide] { width: 13px; height: 13px; color: #94a3b8; }
+
+/* ── Map ── */
+.map-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  overflow: hidden; position: relative;
+}
+#map { width: 100%; height: 620px; background: #eef2f1; }
+
+.state-msg {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; color: var(--muted); font-size: 14px;
+  background: rgba(250,250,249,0.9); z-index: 500;
+}
+.state-msg [data-lucide] { width: 36px; height: 36px; margin-bottom: 12px; opacity: 0.3; }
+.state-msg.hidden { display: none; }
+
+/* ── Legend ── */
+.legend-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  padding: 10px 12px; font-size: 12px; color: var(--ink);
+  line-height: 1.4;
+}
+.legend-title { font-weight: 700; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.legend-gradient {
+  width: 140px; height: 10px; border-radius: 4px; margin-bottom: 4px;
+  background: linear-gradient(90deg, #3b82f6, #22d3ee, #a3e635, #facc15, #ef4444);
+}
+.legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 8px; }
+.legend-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.15); }
+
+/* ── Leaflet popup content ── */
+.mandal-popup { font-family: 'Inter', system-ui, sans-serif; min-width: 180px; }
+.mandal-popup h3 { font-size: 14px; margin-bottom: 6px; }
+.mandal-popup .pop-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--muted); }
+.mandal-popup .pop-row b { color: var(--ink); }
+.mandal-popup .pop-empty { font-size: 12px; color: var(--muted); font-style: italic; }
+
+@media (max-width: 600px) {
+  .container { padding: 16px; }
+  #map { height: 460px; }
+  .page-header { flex-direction: column; gap: 4px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="page-header">
+    <h1 class="page-title">Coverage Heatmap</h1>
+    <div class="results-info" id="results-info">Loading…</div>
+  </div>
+
+  <div class="toggle-bar">
+    <div class="mode-toggle">
+      <button class="chip active" data-mode="count" id="mode-count">Contact Density</button>
+      <button class="chip" data-mode="pps" id="mode-pps">Priority Score</button>
+    </div>
+    <div class="gap-note"><i data-lucide="info"></i> Gray markers = mandal with no recorded contacts</div>
+  </div>
+
+  <div class="map-card">
+    <div id="map"></div>
+    <div class="state-msg" id="state-msg">
+      <i data-lucide="loader-circle"></i>
+      Loading map data…
+    </div>
+  </div>
+</div>
+
+<script>
+const MANDAL_ALIAS = {
+  'Chilakaluripeta': 'Chilakaluripet',
+  'Dachepalli': 'Dachepalle',
+  'Gurajala': 'Gurazala',
+  'Sattenapalli': 'Sattenapalle',
+};
+const EXCLUDED_MANDALS = new Set(['Thummalacheruvu', 'Veerapuram']);
+
+let map, heatLayer, markersLayer;
+let mandalStats = {}; // canonical name -> { lat, lng, count, avgPps, grievanceCount, tiers }
+let mode = 'count';
+
+function normalizeMandalName(name) {
+  return MANDAL_ALIAS[name] || name;
+}
+
+async function loadData() {
+  const [coordsRes, contactsRes] = await Promise.all([
+    fetch('/assets/mandal_coords.json'),
+    fetch('/api/contacts?limit=5000'),
+  ]);
+  const coords = await coordsRes.json();
+  const { contacts } = await contactsRes.json();
+
+  // seed every official mandal, even ones with zero contacts
+  for (const [name, ll] of Object.entries(coords)) {
+    mandalStats[name] = { lat: ll.lat, lng: ll.lng, count: 0, ppsSum: 0, grievanceCount: 0, tiers: { T1: 0, T2: 0, T3: 0 } };
+  }
+
+  for (const c of contacts) {
+    if (!c.mandal) continue;
+    if (EXCLUDED_MANDALS.has(c.mandal)) continue;
+    const key = normalizeMandalName(c.mandal);
+    const stat = mandalStats[key];
+    if (!stat) continue; // mandal not in our geocoded set
+    stat.count++;
+    stat.ppsSum += (c.pps_score || 0);
+    if (c.open_grievance) stat.grievanceCount++;
+    if (c.tier && stat.tiers[c.tier] !== undefined) stat.tiers[c.tier]++;
+  }
+
+  for (const stat of Object.values(mandalStats)) {
+    stat.avgPps = stat.count ? stat.ppsSum / stat.count : 0;
+  }
+
+  document.getElementById('results-info').innerHTML =
+    `<b>${Object.keys(mandalStats).length}</b> mandals · <b>${contacts.length}</b> contacts`;
+}
+
+function tierColor(stat) {
+  if (stat.count === 0) return '#9ca3af';
+  if (stat.tiers.T1 >= stat.tiers.T2 && stat.tiers.T1 >= stat.tiers.T3) return '#b45309';
+  if (stat.tiers.T2 >= stat.tiers.T3) return '#0369a1';
+  return '#475569';
+}
+
+function buildMarkersAndHeat() {
+  const entries = Object.entries(mandalStats);
+  const maxCount = Math.max(1, ...entries.map(([, s]) => s.count));
+  const maxPps = Math.max(1, ...entries.map(([, s]) => s.avgPps));
+
+  const heatPoints = [];
+  const markers = [];
+
+  for (const [name, stat] of entries) {
+    const intensity = mode === 'pps'
+      ? (stat.count ? stat.avgPps / maxPps : 0)
+      : stat.count / maxCount;
+
+    if (stat.count > 0) {
+      heatPoints.push([stat.lat, stat.lng, Math.max(intensity, 0.08)]);
+    }
+
+    const radius = stat.count === 0 ? 6 : 8 + Math.round(intensity * 14);
+    const marker = L.circleMarker([stat.lat, stat.lng], {
+      radius,
+      color: '#fff',
+      weight: 1.5,
+      fillColor: tierColor(stat),
+      fillOpacity: stat.count === 0 ? 0.5 : 0.85,
+    });
+
+    const popupHtml = stat.count === 0
+      ? `<div class="mandal-popup"><h3>${name}</h3><div class="pop-empty">No contacts recorded</div></div>`
+      : `<div class="mandal-popup">
+          <h3>${name}</h3>
+          <div class="pop-row"><span>Contacts</span><b>${stat.count}</b></div>
+          <div class="pop-row"><span>Avg. priority score</span><b>${stat.avgPps.toFixed(1)}</b></div>
+          <div class="pop-row"><span>Open grievances</span><b>${stat.grievanceCount}</b></div>
+          <div class="pop-row"><span>T1 / T2 / T3</span><b>${stat.tiers.T1} / ${stat.tiers.T2} / ${stat.tiers.T3}</b></div>
+        </div>`;
+    marker.bindPopup(popupHtml);
+    markers.push(marker);
+  }
+
+  return { heatPoints, markers };
+}
+
+function render() {
+  if (heatLayer) map.removeLayer(heatLayer);
+  if (markersLayer) map.removeLayer(markersLayer);
+
+  const { heatPoints, markers } = buildMarkersAndHeat();
+
+  heatLayer = L.heatLayer(heatPoints, { radius: 45, blur: 35, maxZoom: 12 }).addTo(map);
+  markersLayer = L.layerGroup(markers).addTo(map);
+}
+
+function initMap() {
+  const points = Object.values(mandalStats).map(s => [s.lat, s.lng]);
+  const bounds = L.latLngBounds(points);
+
+  map = L.map('map', { scrollWheelZoom: true }).fitBounds(bounds, { padding: [30, 30] });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 18,
+  }).addTo(map);
+
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'legend-card');
+    div.innerHTML = `
+      <div class="legend-title">Heat intensity</div>
+      <div class="legend-gradient"></div>
+      <div class="legend-labels"><span>Low</span><span>High</span></div>
+      <div class="legend-row"><span class="legend-dot" style="background:#b45309"></span> T1-heavy mandal</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#0369a1"></span> T2-heavy mandal</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#475569"></span> T3-heavy mandal</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#9ca3af"></span> No contacts</div>
+    `;
+    return div;
+  };
+  legend.addTo(map);
+
+  render();
+}
+
+document.querySelectorAll('.mode-toggle .chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    mode = btn.dataset.mode;
+    document.querySelectorAll('.mode-toggle .chip').forEach(b => b.classList.toggle('active', b === btn));
+    render();
+  });
+});
+
+(async function main() {
+  try {
+    await loadData();
+    initMap();
+    document.getElementById('state-msg').classList.add('hidden');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('state-msg').innerHTML =
+      '<i data-lucide="alert-triangle"></i> Failed to load heatmap data.';
+    if (window.lucide) lucide.createIcons();
+  }
+  if (window.lucide) lucide.createIcons();
+})();
+</script>
+</body>
+</html>

@@ -2,6 +2,7 @@
   const LINKS = [
     { href: '/pa_schedule.html', label: 'Schedule',       icon: 'calendar' },
     { href: '/contacts.html',    label: 'Contacts',       icon: 'book-user' },
+    { href: '/heatmap.html',     label: 'Heatmap',        icon: 'flame' },
     { href: '/admin.html',       label: 'Admin',          icon: 'layout-dashboard' },
     { href: '/broadcast.html',   label: 'Broadcast',      icon: 'radio' },
     { href: '/news.html',        label: 'News Submission',icon: 'file-text' },
