@@ -7,6 +7,7 @@
     { href: '/broadcast.html',   label: 'Broadcast',      icon: 'radio' },
     { href: '/news.html',        label: 'News Submission',icon: 'file-text' },
     { href: '/ttd_letters.html', label: 'TTD Letters',    icon: 'landmark' },
+    { href: '/visitor_forms.html', label: 'Visitor Forms', icon: 'clipboard-list' },
   ];
 
   function isDashboard() {

@@ -65,6 +65,8 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `admin.html` | Pending approval confirmations |
 | `heatmap.html` | Mandal-level coverage heatmap (Leaflet + OpenStreetMap, no API key) — contact density and average priority score per mandal, joined against `public/assets/mandal_coords.json` (generated once via `scripts/geocode_mandals.js`) |
 | `journalist.html` | Alternate journalist form |
+| `ttd_letters.html` | TTD reference letter register — calendar view, Aadhar duplicate check, Excel/PDF exports, per-letter PDF |
+| `visitor_forms.html` | Visitor form register — office staff upload photographed paper visitor forms; Gemini AI OCR-extracts fields and assigns a category/urgency, staff review/correct in an editable preview before saving; category pills, calendar, status tracking, Excel/PDF exports |
 
 ### Key API endpoints
 
@@ -89,6 +91,23 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | GET | `/api/wa-status` | WhatsApp connection state + QR data |
 | GET | `/api/live-news` | Cached Google News RSS (Palanadu keywords) |
 | GET | `/api/stats` | Aggregate counts |
+| GET | `/api/ttd-letters` | List TTD reference letters (filterable by `from`/`to`) |
+| GET | `/api/ttd-letters/check-duplicate` | Check for existing letters by Aadhar |
+| POST | `/api/ttd-letters` | Create TTD reference letter |
+| PATCH | `/api/ttd-letters/:id` | Edit TTD reference letter |
+| DELETE | `/api/ttd-letters/:id` | Remove TTD reference letter |
+| GET | `/api/ttd-letters/export.xlsx` | Export TTD letters as Excel |
+| GET | `/api/ttd-letters/export-pdf` | Export TTD letters register as PDF |
+| GET | `/api/ttd-letters/:id/letter-pdf` | Generate a single formal TTD letter PDF |
+| GET | `/api/visitor-forms/categories` | List the visitor-form issue category taxonomy |
+| POST | `/api/visitor-forms/upload` | Upload photographed form images (multipart, field `images`, up to 20); Gemini OCR-extracts + categorizes each, returns results for review — does not write to DB |
+| POST | `/api/visitor-forms` | Commit the (staff-reviewed/edited) extracted items to the register |
+| GET | `/api/visitor-forms` | List visitor forms (filterable by `from`/`to`/`category`/`status`) |
+| PATCH | `/api/visitor-forms/:id` | Edit a visitor form record (partial update) |
+| DELETE | `/api/visitor-forms/:id` | Remove a visitor form record (and its stored photo) |
+| GET | `/api/visitor-forms/:id/image` | Retrieve the original uploaded photo for a record |
+| GET | `/api/visitor-forms/export.xlsx` | Export visitor forms as Excel |
+| GET | `/api/visitor-forms/export-pdf` | Export visitor forms register as PDF |
 | GET | `/health` | Railway health check |
 
 ## Environment variables
@@ -98,6 +117,11 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `PORT` | `3000` | Server listen port |
 | `RAILWAY_VOLUME_MOUNT_PATH` | `./data` | Path for `db.json` and `wa_auth/` |
 | `EXCEL_PATH` | `./combined_clean.xlsx` | Input file for `setup_db.js` |
+| `GEMINI_API_KEY` | (none) | Google Gemini API key for OCR + categorization of uploaded visitor form photos (`server/gemini.js`). If unset, the visitor-forms upload endpoint fails fast with a clear error rather than crashing — staff can still use the register manually. |
+
+### Visitor Forms (`server/gemini.js`)
+
+Lazy-imported on first use (same pattern as `whatsapp.js`) so a missing `GEMINI_API_KEY` doesn't crash the server. `extractVisitorForm(buffer, mimeType, categories)` sends a photographed form image to Gemini (`gemini-2.5-flash`) with a JSON `responseSchema` constrained to the visitor-form fields plus a `category` enum (from `ISSUE_CATEGORIES` in `server/index.js`) and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Original photos are persisted to `VOLUME/visitor_form_images/` for later manual re-verification of low-confidence OCR reads.
 
 ## WhatsApp reset
 

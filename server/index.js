@@ -24,6 +24,7 @@ const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH
   || path.join(ROOT, 'data');
 const DB_PATH = path.join(VOLUME, 'db.json');
 const WA_AUTH_PATH = path.join(VOLUME, 'wa_auth');
+const VISITOR_IMAGES_PATH = path.join(VOLUME, 'visitor_form_images');
 const BASE_URL = process.env.BASE_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
 const TELUGU_FONT_PATH = path.join(ROOT, 'public', 'fonts', 'NotoSansTelugu.ttf');
@@ -31,6 +32,7 @@ const TELUGU_FONT_PATH = path.join(ROOT, 'public', 'fonts', 'NotoSansTelugu.ttf'
 // Ensure dirs exist
 fs.mkdirSync(VOLUME, { recursive: true });
 fs.mkdirSync(WA_AUTH_PATH, { recursive: true });
+fs.mkdirSync(VISITOR_IMAGES_PATH, { recursive: true });
 
 // Seed db.json from bundled snapshot if volume is empty
 const SEED_PATH = path.join(ROOT, 'data', 'db.json');
@@ -45,6 +47,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(ROOT, 'public')));
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+// Separate instance for visitor-form photo batches — phone camera photos run larger than
+// the 10MB cap above, and a day's forms are uploaded together (up to 20 files at once).
+const uploadVisitorForms = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 20 } });
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
 function readDB() {
@@ -1203,6 +1208,193 @@ app.delete('/api/ttd-letters/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Visitor Forms (AI OCR + categorization) ────────────────────────────────
+const ISSUE_CATEGORIES = [
+  { key: 'cmrf_medical',          label: 'CMRF/Medical Assistance',        weight: 90 },
+  { key: 'police_law_order',      label: 'Police/Law & Order',             weight: 85 },
+  { key: 'public_grievance',      label: 'Public Grievance',               weight: 75 },
+  { key: 'irrigation_water',      label: 'Irrigation & Water Resources',   weight: 75 },
+  { key: 'pension_welfare',       label: 'Pension & Social Welfare',       weight: 70 },
+  { key: 'housing',               label: 'Housing',                        weight: 70 },
+  { key: 'electricity',           label: 'Electricity',                    weight: 65 },
+  { key: 'revenue_land',          label: 'Revenue & Land Issues',          weight: 65 },
+  { key: 'roads_infrastructure',  label: 'Roads & Infrastructure',         weight: 60 },
+  { key: 'education_fee',         label: 'Education/Fee Concession',       weight: 60 },
+  { key: 'agriculture',           label: 'Agriculture',                    weight: 60 },
+  { key: 'banking_financial',     label: 'Banking & Financial Issues',     weight: 55 },
+  { key: 'employee_transfer',     label: 'Employee Transfer',              weight: 50 },
+  { key: 'mplads',                label: 'MPLADS',                         weight: 50 },
+  { key: 'recommendation_letter', label: 'Recommendation/Request Letter',  weight: 45 },
+  { key: 'ttd_letter',            label: 'TTD Recommendation Letter',      weight: 40 },
+  { key: 'nominated_posts',       label: 'Nominated Posts',                weight: 40 },
+  { key: 'party_organizational',  label: 'Party/Organizational Matter',    weight: 35 },
+  { key: 'others',                label: 'Others',                        weight: 30 },
+];
+const ISSUE_CATEGORY_KEYS = new Set(ISSUE_CATEGORIES.map(c => c.key));
+const RESOLUTION_STATUSES = new Set(['Pending', 'In Progress', 'Resolved']);
+const URGENCY_WEIGHTS = { High: 100, Medium: 60, Low: 30 };
+
+function categoryWeight(key) {
+  return ISSUE_CATEGORIES.find(c => c.key === key)?.weight ?? ISSUE_CATEGORIES.find(c => c.key === 'others').weight;
+}
+function computePriorityScore(category, urgency) {
+  const cw = categoryWeight(category);
+  const uw = URGENCY_WEIGHTS[urgency] ?? URGENCY_WEIGHTS.Medium;
+  return Math.round(cw * 0.4 + uw * 0.6);
+}
+
+app.get('/api/visitor-forms/categories', (req, res) => {
+  res.json({ categories: ISSUE_CATEGORIES });
+});
+
+app.post('/api/visitor-forms/upload', uploadVisitorForms.array('images', 20), async (req, res) => {
+  if (!req.files || !req.files.length) return res.status(400).json({ error: 'At least one form image required' });
+  if (!process.env.GEMINI_API_KEY)
+    return res.status(500).json({ error: 'AI extraction is not configured (GEMINI_API_KEY missing) — contact admin, or enter forms manually.' });
+
+  const allowedMimes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+  const gemini = await import('./gemini.js');
+
+  const results = await Promise.all(req.files.map(async (file, idx) => {
+    const tmp_id = `tmp${Date.now()}_${idx}`;
+    if (!allowedMimes.has(file.mimetype)) {
+      return { tmp_id, filename: file.originalname, error: `Unsupported file type: ${file.mimetype}` };
+    }
+    try {
+      const extracted = await gemini.extractVisitorForm(file.buffer, file.mimetype, ISSUE_CATEGORIES);
+      const category = ISSUE_CATEGORY_KEYS.has(extracted.category) ? extracted.category : 'others';
+      const urgency = URGENCY_WEIGHTS[extracted.urgency] !== undefined ? extracted.urgency : 'Medium';
+      return {
+        tmp_id,
+        filename: file.originalname,
+        extracted: { ...extracted, category, urgency },
+        priority_score: computePriorityScore(category, urgency),
+        image_base64: file.buffer.toString('base64'),
+        image_mime: file.mimetype,
+      };
+    } catch (e) {
+      return { tmp_id, filename: file.originalname, error: e.message };
+    }
+  }));
+
+  res.json({ ok: true, items: results, count: results.length });
+});
+
+app.post('/api/visitor-forms', (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
+
+  const db = readDB();
+  const ts = Date.now();
+  const saved = items.map((it, idx) => {
+    const category = ISSUE_CATEGORY_KEYS.has(it.category) ? it.category : 'others';
+    const resolution_status = RESOLUTION_STATUSES.has(it.resolution_status) ? it.resolution_status : 'Pending';
+    const urgency = URGENCY_WEIGHTS[it.urgency] !== undefined ? it.urgency : 'Medium';
+    const id = `VF${ts}_${idx}`;
+
+    let image_path = '';
+    if (it.image_base64) {
+      try {
+        const ext = (it.image_mime || '').includes('png') ? 'png' : (it.image_mime || '').includes('pdf') ? 'pdf' : 'jpg';
+        const filename = `${id}.${ext}`;
+        fs.writeFileSync(path.join(VISITOR_IMAGES_PATH, filename), Buffer.from(it.image_base64, 'base64'));
+        image_path = filename;
+      } catch (e) {
+        console.error('Failed to persist visitor form image:', e.message);
+      }
+    }
+
+    return {
+      id,
+      full_name: it.full_name || '',
+      address: it.address || '',
+      village: it.village || '',
+      mandal: it.mandal || '',
+      assembly_constituency: it.assembly_constituency || '',
+      reference_name: it.reference_name || '',
+      reference_number: it.reference_number || '',
+      contact_number: it.contact_number || '',
+      email: it.email || '',
+      date_of_visit: it.date_of_visit || getISTDateStr(),
+      issue_description: it.issue_description || '',
+      action_taken: it.action_taken || '',
+      action_to_be_taken: it.action_to_be_taken || '',
+      assigned_officer: it.assigned_officer || '',
+      resolution_status,
+      deadline: it.deadline || '',
+      category,
+      urgency,
+      urgency_reason: it.urgency_reason || '',
+      ocr_confidence: it.ocr_confidence || '',
+      priority_score: computePriorityScore(category, urgency),
+      image_path,
+      created_at: new Date().toISOString(),
+    };
+  });
+
+  db.visitor_forms = [...saved, ...(db.visitor_forms || [])];
+  writeDB(db);
+  res.json({ ok: true, count: saved.length, items: saved });
+});
+
+app.get('/api/visitor-forms', (req, res) => {
+  const db = readDB();
+  let items = db.visitor_forms || [];
+  const { from, to, category, status } = req.query;
+  if (from) items = items.filter(v => v.date_of_visit >= from);
+  if (to) items = items.filter(v => v.date_of_visit <= to);
+  if (category) items = items.filter(v => v.category === category);
+  if (status) items = items.filter(v => v.resolution_status === status);
+  items = [...items].sort((a, b) => (b.date_of_visit || '').localeCompare(a.date_of_visit || ''));
+  res.json({ items });
+});
+
+app.patch('/api/visitor-forms/:id', (req, res) => {
+  const db = readDB();
+  const item = (db.visitor_forms || []).find(v => v.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Visitor form not found' });
+
+  const fields = [
+    'full_name', 'address', 'village', 'mandal', 'assembly_constituency',
+    'reference_name', 'reference_number', 'contact_number', 'email',
+    'date_of_visit', 'issue_description', 'action_taken', 'action_to_be_taken',
+    'assigned_officer', 'deadline',
+  ];
+  for (const f of fields) if (req.body[f] !== undefined) item[f] = req.body[f];
+
+  if (req.body.category !== undefined)
+    item.category = ISSUE_CATEGORY_KEYS.has(req.body.category) ? req.body.category : item.category;
+  if (req.body.resolution_status !== undefined)
+    item.resolution_status = RESOLUTION_STATUSES.has(req.body.resolution_status) ? req.body.resolution_status : item.resolution_status;
+  if (req.body.urgency !== undefined && URGENCY_WEIGHTS[req.body.urgency] !== undefined)
+    item.urgency = req.body.urgency;
+
+  item.priority_score = computePriorityScore(item.category, item.urgency);
+  writeDB(db);
+  res.json({ ok: true, item });
+});
+
+app.delete('/api/visitor-forms/:id', (req, res) => {
+  const db = readDB();
+  const item = (db.visitor_forms || []).find(v => v.id === req.params.id);
+  if (item?.image_path) {
+    const p = path.join(VISITOR_IMAGES_PATH, item.image_path);
+    fs.existsSync(p) && fs.unlinkSync(p);
+  }
+  db.visitor_forms = (db.visitor_forms || []).filter(v => v.id !== req.params.id);
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.get('/api/visitor-forms/:id/image', (req, res) => {
+  const db = readDB();
+  const item = (db.visitor_forms || []).find(v => v.id === req.params.id);
+  if (!item || !item.image_path) return res.status(404).json({ error: 'No image on file' });
+  const p = path.join(VISITOR_IMAGES_PATH, item.image_path);
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'Image file missing' });
+  res.sendFile(p);
+});
+
 app.post('/api/send-brief', async (req, res) => {
   const db = recomputeBrief(readDB());
   const liveNews = await fetchGoogleNews(db).catch(() => []);
@@ -2329,6 +2521,122 @@ app.get('/api/ttd-letters/:id/letter-pdf', (req, res) => {
     buildTtdLetterPDF(doc, letter, db.metadata?.mp_name);
   } catch (e) {
     console.error('TTD letter PDF generation error:', e);
+  }
+  doc.end();
+});
+
+function categoryLabel(key) {
+  return ISSUE_CATEGORIES.find(c => c.key === key)?.label || key;
+}
+
+function buildVisitorFormsRegisterPDF(doc, items, from, to) {
+  let teluguFontOk = false;
+  try {
+    doc.registerFont('Body', TELUGU_FONT_PATH);
+    doc.registerFont('Body-Bold', TELUGU_FONT_PATH);
+    teluguFontOk = true;
+  } catch { /* falls back to Helvetica */ }
+  const bodyFont = teluguFontOk ? 'Body' : 'Helvetica';
+  const boldFont = teluguFontOk ? 'Body-Bold' : 'Helvetica-Bold';
+  const C = PDF_COLORS;
+
+  const cols = [
+    { label: 'Date', width: 60 },
+    { label: 'Name', width: 95 },
+    { label: 'Village/Mandal', width: 100 },
+    { label: 'Category', width: 110 },
+    { label: 'Urgency', width: 50 },
+    { label: 'Status', width: 100 },
+  ];
+
+  function drawRow(values, font, size, color) {
+    doc.font(font).fontSize(size).fillColor(color);
+    const y = doc.y;
+    let x = PDF_LEFT;
+    cols.forEach((c, i) => {
+      doc.text(String(values[i] ?? ''), x, y, { width: c.width - 6, lineBreak: false, ellipsis: true });
+      x += c.width;
+    });
+    doc.y = y + size + 8;
+  }
+
+  doc.rect(0, 0, doc.page.width, 70).fill(C.slate);
+  doc.fillColor(C.white).font(boldFont).fontSize(17).text('Visitor Forms — Register', PDF_LEFT, 22);
+  doc.font(bodyFont).fontSize(10).fillColor('#FFF7ED').text(
+    (from || to) ? `${from || 'start'} to ${to || 'today'}` : 'All records', PDF_LEFT, 46
+  );
+  doc.y = 92;
+  doc.x = PDF_LEFT;
+
+  drawRow(cols.map(c => c.label), boldFont, 9, C.green);
+
+  doc.font(bodyFont).fontSize(8.5).fillColor(C.ink);
+  items.forEach(v => {
+    if (doc.y > doc.page.height - 40) {
+      doc.addPage();
+      doc.y = 40;
+      drawRow(cols.map(c => c.label), boldFont, 9, C.green);
+    }
+    const villageMandal = [v.village, v.mandal].filter(Boolean).join(', ');
+    drawRow(
+      [v.date_of_visit, v.full_name, villageMandal, categoryLabel(v.category), v.urgency, v.resolution_status],
+      bodyFont, 8.5, C.ink
+    );
+  });
+
+  if (!items.length) {
+    doc.font(bodyFont).fontSize(10).fillColor(C.ink).text('No visitor forms in this range.', PDF_LEFT, doc.y + 6);
+  }
+}
+
+app.get('/api/visitor-forms/export.xlsx', (req, res) => {
+  const db = readDB();
+  let items = db.visitor_forms || [];
+  const { from, to, category, status } = req.query;
+  if (from) items = items.filter(v => v.date_of_visit >= from);
+  if (to) items = items.filter(v => v.date_of_visit <= to);
+  if (category) items = items.filter(v => v.category === category);
+  if (status) items = items.filter(v => v.resolution_status === status);
+  items = [...items].sort((a, b) => (a.date_of_visit || '').localeCompare(b.date_of_visit || ''));
+
+  const rows = items.map(v => ({
+    'Date of Visit': v.date_of_visit, Name: v.full_name, Village: v.village, Mandal: v.mandal,
+    'Assembly Constituency': v.assembly_constituency, Contact: v.contact_number, Email: v.email,
+    'Reference Name': v.reference_name, 'Reference Number': v.reference_number,
+    Category: categoryLabel(v.category), Urgency: v.urgency, 'Priority Score': v.priority_score,
+    'Issue Description': v.issue_description, 'Action Taken': v.action_taken,
+    'Action To Be Taken': v.action_to_be_taken, 'Assigned Officer': v.assigned_officer,
+    Status: v.resolution_status, Deadline: v.deadline,
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Visitor Forms');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="visitor-forms-${from || 'all'}-to-${to || 'now'}.xlsx"`);
+  res.send(buf);
+});
+
+app.get('/api/visitor-forms/export-pdf', (req, res) => {
+  const db = readDB();
+  let items = db.visitor_forms || [];
+  const { from, to, category, status } = req.query;
+  if (from) items = items.filter(v => v.date_of_visit >= from);
+  if (to) items = items.filter(v => v.date_of_visit <= to);
+  if (category) items = items.filter(v => v.category === category);
+  if (status) items = items.filter(v => v.resolution_status === status);
+  items = [...items].sort((a, b) => (a.date_of_visit || '').localeCompare(b.date_of_visit || ''));
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="visitor-forms-${from || 'all'}-to-${to || 'now'}.pdf"`);
+
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  doc.pipe(res);
+  try {
+    buildVisitorFormsRegisterPDF(doc, items, from, to);
+  } catch (e) {
+    console.error('Visitor forms register PDF generation error:', e);
   }
   doc.end();
 });

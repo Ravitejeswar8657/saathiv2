@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Visitor Forms · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest" defer></script>
+<script src="/sidebar.js" defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
+body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999}
+.container{width:100%;padding:24px 32px;margin-top:3px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:22px;font-weight:700;color:#1a1208}
+.btn{padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-size:13px;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#1a1208;color:#fff}
+.btn-primary:hover{background:#374151}
+.btn-secondary{background:#fff;border:1px solid #e5e5e5;color:#1a1208}
+.btn-secondary:hover{background:#f9fafb}
+.btn-accent{background:#b45309;color:#fff}
+.btn-accent:hover{background:#92400e}
+.btn:disabled{opacity:.5;cursor:default}
+.card{background:#fff;border:1px solid #e5e5e5;border-top:3px solid #b45309;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px;padding-left:12px;border-left:3px solid #d97706}
+.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:#fff;border-radius:8px;width:100%;max-width:480px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,0.15);max-height:90vh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:700;color:#1a1208;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
+.form-group input,.form-group textarea,.form-group select{
+  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
+  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
+}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{
+  border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
+}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+.modal-actions .btn{flex:1;justify-content:center}
+.file-drop{border:2px dashed #d4d4d4;border-radius:8px;padding:24px;text-align:center;color:#6b7280;font-size:13px;cursor:pointer}
+.file-drop:hover{border-color:#b45309;color:#b45309}
+.file-list{margin-top:10px;font-size:12px;color:#374151}
+.file-list div{padding:2px 0}
+
+/* Calendar */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.cal-nav-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit}
+.cal-nav-btn:hover{background:#f9fafb}
+.cal-month-label{font-weight:700;font-size:15px}
+.cal-today-btn{background:#1a1208;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px}
+.cal-today-btn:hover{opacity:.9}
+.cal-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:13px;color:#374151}
+.cal-clear-btn{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;padding:0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-weekday{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}
+.cal-day{position:relative;min-height:36px;border:1px solid #e5e5e5;border-radius:6px;padding:4px 6px;font-size:12px;cursor:pointer;background:#fff}
+.cal-day:hover{border-color:#d4d4d4;background:#fafaf9}
+.cal-day.other-month{color:#d1d5db;background:#fafaf9;cursor:default}
+.cal-day.other-month:hover{background:#fafaf9}
+.cal-day.today{border-color:#b45309;font-weight:700}
+.cal-day.selected{background:#fff7ed;border-color:#b45309}
+.cal-day .cal-dot{position:absolute;bottom:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:#b45309;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+/* Filter row */
+.filter-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.filter-row .form-group{margin-bottom:0;min-width:150px}
+
+/* Category pills */
+.pill-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px}
+.pill{flex-shrink:0;padding:6px 12px;border-radius:100px;font-size:12px;font-weight:600;border:1px solid #e5e5e5;background:#fff;color:#6b7280;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.pill:hover{border-color:#c4b5a0;color:#1a1208}
+.pill.active{background:#fff7ed;color:#b45309;border-color:#fdba74}
+.pill .count{background:rgba(0,0,0,0.06);border-radius:100px;padding:0 6px;font-size:10px}
+
+/* Status chips */
+.status-chips{display:flex;gap:6px;flex-wrap:wrap}
+.status-chip{padding:5px 11px;border-radius:100px;font-size:12px;font-weight:600;border:1px solid #e5e5e5;background:#fff;color:#6b7280;cursor:pointer}
+.status-chip.active-pending{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+.status-chip.active-progress{background:#e0f2fe;color:#0369a1;border-color:#7dd3fc}
+.status-chip.active-resolved{background:#dcfce7;color:#166534;border-color:#86efac}
+
+/* Badges */
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap}
+.badge-cat{background:#f1f5f9;color:#475569}
+.badge-urgency-high{background:#fef2f2;color:#dc2626}
+.badge-urgency-medium{background:#fff7ed;color:#b45309}
+.badge-urgency-low{background:#f1f5f9;color:#6b7280}
+.badge-status-pending{background:#fef3c7;color:#92400e}
+.badge-status-progress{background:#e0f2fe;color:#0369a1}
+.badge-status-resolved{background:#dcfce7;color:#166534}
+
+/* Table */
+.table-wrap{overflow-x:auto}
+.vf-table{width:100%;border-collapse:collapse;font-size:13px}
+.vf-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;padding:8px 10px;border-bottom:2px solid #e5e5e5;white-space:nowrap}
+.vf-table td{padding:10px;border-bottom:1px solid #f3f4f6;vertical-align:top}
+.actions-cell{display:flex;gap:6px;white-space:nowrap}
+.btn-sm{padding:5px 8px;border-radius:5px;border:1px solid #e5e5e5;background:#fff;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:4px;font-family:inherit}
+.btn-sm i{width:13px;height:13px}
+.btn-edit{color:#374151}
+.btn-edit:hover{background:#f9fafb}
+.btn-del{color:#dc2626;border-color:#fecaca}
+.btn-del:hover{background:#fef2f2}
+.btn-save{background:#15803d;color:#fff;border-color:#15803d}
+.btn-save:hover{opacity:.9}
+.edit-row td{background:#fafaf9}
+.edit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;align-items:center}
+.edit-grid input,.edit-grid select,.edit-grid textarea{padding:8px 10px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit}
+.edit-grid textarea{grid-column:1/-1;min-height:60px}
+.edit-actions{display:flex;gap:8px;grid-column:1/-1}
+.status-select{font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid #d4d4d4;font-family:inherit}
+
+/* Preview / review cards */
+.review-banner{background:#fff7ed;border:1px solid #fdba74;color:#92400e;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.preview-card{border:1px solid #e5e5e5;border-radius:8px;padding:16px;margin-bottom:14px;background:#fff}
+.preview-card.has-error{border-color:#fecaca;background:#fef2f2}
+.preview-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.preview-card-head .fname{font-weight:700;font-size:13px;color:#6b7280}
+.preview-error-banner{background:#fef2f2;color:#dc2626;font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:10px}
+.preview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.preview-grid label{display:block;font-size:11px;font-weight:600;color:#6b7280;margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em}
+.preview-grid input,.preview-grid select,.preview-grid textarea{width:100%;padding:8px 10px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit}
+.preview-grid .full-width{grid-column:1/-1}
+.preview-grid textarea{min-height:60px}
+.preview-card-actions{display:flex;justify-content:flex-end;margin-top:10px}
+.review-actions{display:flex;gap:10px;margin-top:16px}
+.confidence-note{font-size:11px;color:#9ca3af;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Visitor Forms</h1>
+    <button class="btn btn-primary" onclick="openUploadModal()">
+      <i data-lucide="upload" style="width:15px;height:15px"></i> Upload Forms
+    </button>
+  </div>
+
+  <div id="review-section" style="display:none">
+    <div class="card">
+      <div class="review-banner">
+        <span id="review-count-label"></span>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="saveAllPreview()"><i data-lucide="check" style="width:14px;height:14px"></i> Save all</button>
+          <button class="btn btn-secondary" onclick="discardPreview()">Discard</button>
+        </div>
+      </div>
+      <div id="preview-cards"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Calendar</div>
+    <div class="cal-header">
+      <button class="cal-nav-btn" onclick="changeMonth(-1)">&lsaquo;</button>
+      <div>
+        <span id="cal-month-label" class="cal-month-label"></span>
+        <button class="cal-today-btn" onclick="jumpToday()">Today</button>
+      </div>
+      <button class="cal-nav-btn" onclick="changeMonth(1)">&rsaquo;</button>
+    </div>
+    <div class="cal-grid" id="cal-weekdays"></div>
+    <div class="cal-grid" id="cal-grid" style="margin-top:4px"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Category</div>
+    <div class="pill-strip" id="category-pills"></div>
+    <div class="section-title" style="margin-top:14px">Status</div>
+    <div class="status-chips" id="status-chips">
+      <button class="status-chip" data-status="" onclick="setStatusFilter('')">All</button>
+      <button class="status-chip" data-status="Pending" onclick="setStatusFilter('Pending')">Pending</button>
+      <button class="status-chip" data-status="In Progress" onclick="setStatusFilter('In Progress')">In Progress</button>
+      <button class="status-chip" data-status="Resolved" onclick="setStatusFilter('Resolved')">Resolved</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Filter &amp; export</div>
+    <div class="filter-row">
+      <div class="form-group">
+        <label>From</label>
+        <input type="date" id="range-from" onchange="onRangeChange()">
+      </div>
+      <div class="form-group">
+        <label>To</label>
+        <input type="date" id="range-to" onchange="onRangeChange()">
+      </div>
+      <button class="btn btn-secondary" onclick="clearRange()">Clear range</button>
+      <button class="btn btn-accent" onclick="downloadExcel()"><i data-lucide="file-spreadsheet" style="width:15px;height:15px"></i> Excel</button>
+      <button class="btn btn-accent" onclick="downloadRegisterPdf()"><i data-lucide="file-text" style="width:15px;height:15px"></i> PDF list</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title" id="list-title">All visitor forms</div>
+    <div class="cal-filter-bar" id="cal-filter-bar" style="display:none">
+      <span id="cal-filter-label"></span>
+      <button class="cal-clear-btn" onclick="clearDateFilter()">Show all</button>
+    </div>
+    <div class="table-wrap">
+      <table class="vf-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Name</th><th>Village/Mandal</th><th>Category</th>
+            <th>Urgency</th><th>Status</th><th>Officer</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="forms-tbody"></tbody>
+      </table>
+    </div>
+    <div id="empty-state" class="empty-state" style="display:none">No visitor forms found.</div>
+  </div>
+</div>
+
+<!-- UPLOAD MODAL -->
+<div id="upload-modal" class="modal-overlay" onclick="closeModals()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>Upload Visitor Forms</h3>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:12px">
+      Photograph or scan filled paper forms and upload them here. The AI reads each form,
+      extracts the name/date/issue, assigns a category and urgency — you'll review and can
+      correct everything before saving.
+    </p>
+    <div class="file-drop" onclick="document.getElementById('file-input').click()">
+      <i data-lucide="image-plus" style="width:22px;height:22px;margin-bottom:6px"></i><br>
+      Click to choose form photos (JPEG/PNG/PDF, up to 20 at once)
+    </div>
+    <input type="file" id="file-input" accept="image/*,.pdf" multiple style="display:none" onchange="onFilesChosen()">
+    <div class="file-list" id="file-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="extract-btn" onclick="submitUpload()" disabled>
+        <i data-lucide="sparkles" style="width:14px;height:14px"></i> Extract with AI
+      </button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
+
+let categories = [];
+let allItems = [];
+let selectedDateFilter = null;
+let rangeFrom = '';
+let rangeTo = '';
+let categoryFilter = '';
+let statusFilter = '';
+let previewItems = []; // { tmp_id, filename, extracted, priority_score, image_base64, image_mime, error }
+
+function getTodayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+const [__ty, __tm] = getTodayIST().split('-').map(Number);
+let calViewYear = __ty;
+let calViewMonth = __tm - 1;
+
+const CAL_WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function categoryLabel(key) {
+  return categories.find(c => c.key === key)?.label || key || 'Others';
+}
+function statusClass(status) {
+  return status === 'Resolved' ? 'resolved' : status === 'In Progress' ? 'progress' : 'pending';
+}
+function urgencyClass(u) {
+  return (u || 'Medium').toLowerCase();
+}
+
+// ── Bootstrap ────────────────────────────────────────────────────────────
+async function loadCategories() {
+  const r = await fetch('/api/visitor-forms/categories');
+  const data = await r.json();
+  categories = data.categories || [];
+  renderCategoryPills();
+}
+
+function renderCategoryPills() {
+  const counts = {};
+  allItems.forEach(v => { counts[v.category] = (counts[v.category] || 0) + 1; });
+  const all = `<button class="pill ${categoryFilter === '' ? 'active' : ''}" onclick="setCategoryFilter('')">All <span class="count">${allItems.length}</span></button>`;
+  const pills = categories.map(c => `
+    <button class="pill ${categoryFilter === c.key ? 'active' : ''}" onclick="setCategoryFilter('${c.key}')">
+      ${esc(c.label)} <span class="count">${counts[c.key] || 0}</span>
+    </button>
+  `).join('');
+  document.getElementById('category-pills').innerHTML = all + pills;
+}
+
+function setCategoryFilter(key) {
+  categoryFilter = key;
+  loadItems();
+}
+function setStatusFilter(status) {
+  statusFilter = status;
+  document.querySelectorAll('.status-chip').forEach(el => {
+    const active = el.dataset.status === status;
+    el.classList.toggle('active-pending', active && status === 'Pending');
+    el.classList.toggle('active-progress', active && status === 'In Progress');
+    el.classList.toggle('active-resolved', active && status === 'Resolved');
+  });
+  loadItems();
+}
+
+async function loadItems() {
+  const params = new URLSearchParams();
+  if (rangeFrom) params.set('from', rangeFrom);
+  if (rangeTo) params.set('to', rangeTo);
+  if (categoryFilter) params.set('category', categoryFilter);
+  if (statusFilter) params.set('status', statusFilter);
+  const r = await fetch('/api/visitor-forms' + (params.toString() ? '?' + params.toString() : ''));
+  const data = await r.json();
+  allItems = data.items || [];
+  renderCategoryPills();
+  renderCalendar();
+  renderTable();
+}
+
+// ── Calendar ─────────────────────────────────────────────────────────────
+function renderCalendar() {
+  const todayIST = getTodayIST();
+  const countByDate = {};
+  allItems.forEach(v => { countByDate[v.date_of_visit] = (countByDate[v.date_of_visit] || 0) + 1; });
+
+  document.getElementById('cal-month-label').textContent = `${CAL_MONTHS[calViewMonth]} ${calViewYear}`;
+  document.getElementById('cal-weekdays').innerHTML = CAL_WEEKDAYS.map(d => `<div class="cal-weekday">${d}</div>`).join('');
+
+  const firstDayOffset = new Date(calViewYear, calViewMonth, 1).getDay();
+  const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+  const pad = n => String(n).padStart(2, '0');
+
+  let cellsHtml = '';
+  for (let i = 0; i < firstDayOffset; i++) cellsHtml += '<div class="cal-day other-month"></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calViewYear}-${pad(calViewMonth + 1)}-${pad(day)}`;
+    const count = countByDate[dateStr] || 0;
+    const classes = ['cal-day'];
+    if (dateStr === todayIST) classes.push('today');
+    if (dateStr === selectedDateFilter) classes.push('selected');
+    cellsHtml += `<div class="${classes.join(' ')}" onclick="onCalDayClick('${dateStr}', ${count > 0})">
+      ${day}
+      ${count > 0 ? `<span class="cal-dot">${count}</span>` : ''}
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = cellsHtml;
+}
+function changeMonth(delta) {
+  calViewMonth += delta;
+  if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+  if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+  renderCalendar();
+}
+function jumpToday() {
+  const [ty, tm] = getTodayIST().split('-').map(Number);
+  calViewYear = ty; calViewMonth = tm - 1;
+  renderCalendar();
+}
+function onCalDayClick(dateStr, hasItems) {
+  if (!hasItems) return;
+  selectedDateFilter = selectedDateFilter === dateStr ? null : dateStr;
+  renderCalendar();
+  renderTable();
+}
+function clearDateFilter() {
+  selectedDateFilter = null;
+  renderCalendar();
+  renderTable();
+}
+
+function onRangeChange() {
+  rangeFrom = document.getElementById('range-from').value;
+  rangeTo = document.getElementById('range-to').value;
+  loadItems();
+}
+function clearRange() {
+  document.getElementById('range-from').value = '';
+  document.getElementById('range-to').value = '';
+  rangeFrom = ''; rangeTo = '';
+  loadItems();
+}
+
+// ── Table ────────────────────────────────────────────────────────────────
+function renderTable() {
+  const filterBar = document.getElementById('cal-filter-bar');
+  const filterLabel = document.getElementById('cal-filter-label');
+  const titleEl = document.getElementById('list-title');
+
+  let list = allItems;
+  if (selectedDateFilter) {
+    list = list.filter(v => v.date_of_visit === selectedDateFilter);
+    const label = selectedDateFilter === getTodayIST() ? 'Today' : new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+    filterLabel.textContent = `Showing forms on ${label}`;
+    filterBar.style.display = 'flex';
+    titleEl.textContent = `Visitor forms on ${label}`;
+  } else {
+    filterBar.style.display = 'none';
+    titleEl.textContent = 'All visitor forms';
+  }
+
+  const tbody = document.getElementById('forms-tbody');
+  const emptyState = document.getElementById('empty-state');
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+  emptyState.style.display = 'none';
+
+  const catOptions = categories.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join('');
+
+  tbody.innerHTML = list.map(v => `
+    <tr id="row-${v.id}">
+      <td>${esc(v.date_of_visit)}</td>
+      <td>${esc(v.full_name)}</td>
+      <td>${esc([v.village, v.mandal].filter(Boolean).join(', '))}</td>
+      <td><span class="badge badge-cat">${esc(categoryLabel(v.category))}</span></td>
+      <td><span class="badge badge-urgency-${urgencyClass(v.urgency)}" title="${esc(v.urgency_reason || '')}">${esc(v.urgency || 'Medium')}</span></td>
+      <td>
+        <select class="status-select" onchange="quickSetStatus('${v.id}', this.value)">
+          <option value="Pending" ${v.resolution_status === 'Pending' ? 'selected' : ''}>Pending</option>
+          <option value="In Progress" ${v.resolution_status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+          <option value="Resolved" ${v.resolution_status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+        </select>
+      </td>
+      <td>${esc(v.assigned_officer)}</td>
+      <td class="actions-cell">
+        <button class="btn-sm btn-edit" onclick="startEdit('${v.id}')" title="Edit"><i data-lucide="pencil"></i></button>
+        <button class="btn-sm btn-del" onclick="deleteItem('${v.id}')" title="Delete"><i data-lucide="trash-2"></i></button>
+        ${v.image_path ? `<button class="btn-sm btn-edit" onclick="window.open('/api/visitor-forms/${v.id}/image','_blank')" title="View original photo"><i data-lucide="image"></i></button>` : ''}
+      </td>
+    </tr>
+    <tr id="edit-${v.id}" class="edit-row" style="display:none">
+      <td colspan="8">
+        <div class="edit-grid">
+          <input type="date" id="e-date-${v.id}" value="${esc(v.date_of_visit)}">
+          <input id="e-name-${v.id}" value="${esc(v.full_name)}" placeholder="Name">
+          <input id="e-village-${v.id}" value="${esc(v.village)}" placeholder="Village">
+          <input id="e-mandal-${v.id}" value="${esc(v.mandal)}" placeholder="Mandal">
+          <input id="e-contact-${v.id}" value="${esc(v.contact_number)}" placeholder="Contact number">
+          <select id="e-category-${v.id}">${catOptions}</select>
+          <select id="e-urgency-${v.id}">
+            <option value="High" ${v.urgency === 'High' ? 'selected' : ''}>High</option>
+            <option value="Medium" ${v.urgency === 'Medium' ? 'selected' : ''}>Medium</option>
+            <option value="Low" ${v.urgency === 'Low' ? 'selected' : ''}>Low</option>
+          </select>
+          <select id="e-status-${v.id}">
+            <option value="Pending" ${v.resolution_status === 'Pending' ? 'selected' : ''}>Pending</option>
+            <option value="In Progress" ${v.resolution_status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+            <option value="Resolved" ${v.resolution_status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+          </select>
+          <input id="e-officer-${v.id}" value="${esc(v.assigned_officer)}" placeholder="Assigned officer">
+          <input id="e-deadline-${v.id}" value="${esc(v.deadline)}" placeholder="Deadline">
+          <textarea id="e-issue-${v.id}" placeholder="Issue description">${esc(v.issue_description)}</textarea>
+          <textarea id="e-action-${v.id}" placeholder="Action taken / to be taken">${esc(v.action_taken)}${v.action_to_be_taken ? ' | Next: ' + esc(v.action_to_be_taken) : ''}</textarea>
+          <div class="edit-actions">
+            <button class="btn-sm btn-save" onclick="saveEdit('${v.id}')"><i data-lucide="check"></i> Save</button>
+            <button class="btn-sm btn-edit" onclick="cancelEdit('${v.id}')">Cancel</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function startEdit(id) {
+  document.getElementById('row-' + id).style.display = 'none';
+  document.getElementById('edit-' + id).style.display = 'table-row';
+}
+function cancelEdit(id) {
+  document.getElementById('row-' + id).style.display = '';
+  document.getElementById('edit-' + id).style.display = 'none';
+}
+
+async function saveEdit(id) {
+  const body = {
+    date_of_visit: document.getElementById(`e-date-${id}`).value,
+    full_name: document.getElementById(`e-name-${id}`).value.trim(),
+    village: document.getElementById(`e-village-${id}`).value.trim(),
+    mandal: document.getElementById(`e-mandal-${id}`).value.trim(),
+    contact_number: document.getElementById(`e-contact-${id}`).value.trim(),
+    category: document.getElementById(`e-category-${id}`).value,
+    urgency: document.getElementById(`e-urgency-${id}`).value,
+    resolution_status: document.getElementById(`e-status-${id}`).value,
+    assigned_officer: document.getElementById(`e-officer-${id}`).value.trim(),
+    deadline: document.getElementById(`e-deadline-${id}`).value.trim(),
+    issue_description: document.getElementById(`e-issue-${id}`).value.trim(),
+  };
+  const r = await fetch('/api/visitor-forms/' + id, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+  await loadItems();
+}
+
+async function quickSetStatus(id, status) {
+  await fetch('/api/visitor-forms/' + id, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resolution_status: status }),
+  });
+  await loadItems();
+}
+
+async function deleteItem(id) {
+  if (!confirm('Delete this visitor form record?')) return;
+  await fetch('/api/visitor-forms/' + id, { method: 'DELETE' });
+  await loadItems();
+}
+
+// ── Upload / preview / commit ───────────────────────────────────────────
+function openUploadModal() {
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-list').innerHTML = '';
+  document.getElementById('extract-btn').disabled = true;
+  document.getElementById('upload-modal').style.display = 'flex';
+}
+function closeModals() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+}
+
+function onFilesChosen() {
+  const files = document.getElementById('file-input').files;
+  document.getElementById('file-list').innerHTML = Array.from(files).map(f => `<div>${esc(f.name)}</div>`).join('');
+  document.getElementById('extract-btn').disabled = files.length === 0;
+}
+
+async function submitUpload() {
+  const files = document.getElementById('file-input').files;
+  if (!files.length) return;
+
+  const btn = document.getElementById('extract-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-circle"></i> Extracting… this can take a bit for several forms';
+  if (window.lucide) lucide.createIcons();
+
+  const formData = new FormData();
+  Array.from(files).forEach(f => formData.append('images', f));
+
+  try {
+    const r = await fetch('/api/visitor-forms/upload', { method: 'POST', body: formData });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || 'Upload failed.'); return; }
+    previewItems = data.items || [];
+    closeModals();
+    renderPreview();
+  } catch (e) {
+    alert('Upload failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="sparkles" style="width:14px;height:14px"></i> Extract with AI';
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+function renderPreview() {
+  const section = document.getElementById('review-section');
+  if (!previewItems.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+
+  const okCount = previewItems.filter(p => !p.error).length;
+  const failCount = previewItems.length - okCount;
+  document.getElementById('review-count-label').textContent =
+    `${previewItems.length} form(s) uploaded — ${okCount} extracted` + (failCount ? `, ${failCount} need manual entry` : '') + '. Review before saving.';
+
+  const catOptions = categories.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join('');
+
+  document.getElementById('preview-cards').innerHTML = previewItems.map((p, i) => {
+    const ex = p.extracted || {};
+    return `
+    <div class="preview-card ${p.error ? 'has-error' : ''}">
+      <div class="preview-card-head">
+        <span class="fname">${esc(p.filename)}</span>
+        ${ex.ocr_confidence ? `<span class="badge badge-cat">OCR confidence: ${esc(ex.ocr_confidence)}</span>` : ''}
+      </div>
+      ${p.error ? `<div class="preview-error-banner">⚠ AI extraction failed: ${esc(p.error)} — enter the details manually below.</div>` : ''}
+      <div class="preview-grid">
+        <div><label>Name</label><input id="p-name-${i}" value="${esc(ex.full_name)}"></div>
+        <div><label>Date of visit</label><input id="p-date-${i}" value="${esc(ex.date_of_visit)}" placeholder="YYYY-MM-DD"></div>
+        <div><label>Village</label><input id="p-village-${i}" value="${esc(ex.village)}"></div>
+        <div><label>Mandal</label><input id="p-mandal-${i}" value="${esc(ex.mandal)}"></div>
+        <div><label>Contact number</label><input id="p-contact-${i}" value="${esc(ex.contact_number)}"></div>
+        <div><label>Category</label><select id="p-category-${i}">${catOptions}</select></div>
+        <div><label>Urgency ${ex.urgency_reason ? '(' + esc(ex.urgency_reason) + ')' : ''}</label>
+          <select id="p-urgency-${i}">
+            <option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option>
+          </select>
+        </div>
+        <div><label>Status</label>
+          <select id="p-status-${i}">
+            <option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Resolved">Resolved</option>
+          </select>
+        </div>
+        <div><label>Assigned officer</label><input id="p-officer-${i}" value="${esc(ex.assigned_officer)}"></div>
+        <div><label>Deadline</label><input id="p-deadline-${i}" value="${esc(ex.deadline)}"></div>
+        <div class="full-width"><label>Issue description</label><textarea id="p-issue-${i}">${esc(ex.issue_description)}</textarea></div>
+      </div>
+      <div class="preview-card-actions">
+        <button class="btn-sm btn-del" onclick="removePreviewItem(${i})"><i data-lucide="x"></i> Remove this form</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // set selects to extracted values after render
+  previewItems.forEach((p, i) => {
+    const ex = p.extracted || {};
+    const catEl = document.getElementById(`p-category-${i}`);
+    if (catEl) catEl.value = catOptions.includes(`value="${ex.category}"`) ? ex.category : 'others';
+    const urgEl = document.getElementById(`p-urgency-${i}`);
+    if (urgEl) urgEl.value = ex.urgency || 'Medium';
+    const statEl = document.getElementById(`p-status-${i}`);
+    if (statEl) statEl.value = ex.resolution_status || 'Pending';
+  });
+
+  if (window.lucide) lucide.createIcons();
+  section.scrollIntoView({ behavior: 'smooth' });
+}
+
+function removePreviewItem(i) {
+  previewItems.splice(i, 1);
+  renderPreview();
+}
+
+function discardPreview() {
+  if (!confirm('Discard all extracted forms without saving?')) return;
+  previewItems = [];
+  document.getElementById('review-section').style.display = 'none';
+}
+
+async function saveAllPreview() {
+  const items = previewItems.map((p, i) => ({
+    full_name: document.getElementById(`p-name-${i}`).value.trim(),
+    date_of_visit: document.getElementById(`p-date-${i}`).value.trim(),
+    village: document.getElementById(`p-village-${i}`).value.trim(),
+    mandal: document.getElementById(`p-mandal-${i}`).value.trim(),
+    contact_number: document.getElementById(`p-contact-${i}`).value.trim(),
+    category: document.getElementById(`p-category-${i}`).value,
+    urgency: document.getElementById(`p-urgency-${i}`).value,
+    resolution_status: document.getElementById(`p-status-${i}`).value,
+    assigned_officer: document.getElementById(`p-officer-${i}`).value.trim(),
+    deadline: document.getElementById(`p-deadline-${i}`).value.trim(),
+    issue_description: document.getElementById(`p-issue-${i}`).value.trim(),
+    address: p.extracted?.address || '',
+    assembly_constituency: p.extracted?.assembly_constituency || '',
+    reference_name: p.extracted?.reference_name || '',
+    reference_number: p.extracted?.reference_number || '',
+    email: p.extracted?.email || '',
+    action_taken: p.extracted?.action_taken || '',
+    action_to_be_taken: p.extracted?.action_to_be_taken || '',
+    urgency_reason: p.extracted?.urgency_reason || '',
+    ocr_confidence: p.extracted?.ocr_confidence || '',
+    image_base64: p.image_base64 || '',
+    image_mime: p.image_mime || '',
+  }));
+
+  const r = await fetch('/api/visitor-forms', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+
+  previewItems = [];
+  document.getElementById('review-section').style.display = 'none';
+  await loadItems();
+}
+
+// ── Exports ──────────────────────────────────────────────────────────────
+function exportParams() {
+  const params = new URLSearchParams();
+  if (rangeFrom) params.set('from', rangeFrom);
+  if (rangeTo) params.set('to', rangeTo);
+  if (categoryFilter) params.set('category', categoryFilter);
+  if (statusFilter) params.set('status', statusFilter);
+  return params.toString();
+}
+function downloadExcel() {
+  const q = exportParams();
+  window.open('/api/visitor-forms/export.xlsx' + (q ? '?' + q : ''), '_blank');
+}
+function downloadRegisterPdf() {
+  const q = exportParams();
+  window.open('/api/visitor-forms/export-pdf' + (q ? '?' + q : ''), '_blank');
+}
+
+(async function init() {
+  await loadCategories();
+  await loadItems();
+})();
+</script>
+</body>
+</html>
