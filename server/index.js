@@ -1130,6 +1130,7 @@ app.delete('/api/news/:id', (req, res) => {
 });
 
 // ── TTD Reference Letters ───────────────────────────────────────────────────
+const TTD_DARSHAN_TYPES = ['Break Darshan', 'Supadam'];
 function computeTtdReference(db, dateStr) {
   const year = (dateStr || getISTDateStr()).slice(0, 4);
   const count = (db.ttd_letters || []).filter(l => (l.reference || '').includes(`/${year}/`)).length;
@@ -1143,7 +1144,7 @@ function findTtdDuplicates(db, aadhar, excludeId) {
   if (!norm) return [];
   return (db.ttd_letters || [])
     .filter(l => l.id !== excludeId && normalizeAadhar(l.aadhar) === norm)
-    .map(l => ({ id: l.id, date: l.date, reference: l.reference, name: l.name }));
+    .map(l => ({ id: l.id, date: l.date, reference: l.reference, name: l.name, darshan_type: l.darshan_type }));
 }
 function ttdStatus(dateStr) {
   return (dateStr || '') < getISTDateStr() ? 'Given' : 'Upcoming';
@@ -1165,8 +1166,9 @@ app.get('/api/ttd-letters/check-duplicate', (req, res) => {
 });
 
 app.post('/api/ttd-letters', (req, res) => {
-  const { date, name, phone, aadhar, referred_by, remarks } = req.body;
-  if (!date || !name) return res.status(400).json({ error: 'date and name required' });
+  const { date, name, phone, aadhar, referred_by, remarks, darshan_type } = req.body;
+  if (!date || !name || !darshan_type || !TTD_DARSHAN_TYPES.includes(darshan_type))
+    return res.status(400).json({ error: 'date, name, and a valid darshan_type are required' });
 
   const db = readDB();
   const duplicate_warning = findTtdDuplicates(db, aadhar);
@@ -1174,6 +1176,7 @@ app.post('/api/ttd-letters', (req, res) => {
     id: `TTD${Date.now()}`,
     reference: computeTtdReference(db, date),
     date, name,
+    darshan_type,
     phone: phone || '',
     aadhar: aadhar || '',
     referred_by: referred_by || '',
@@ -1189,13 +1192,16 @@ app.patch('/api/ttd-letters/:id', (req, res) => {
   const db = readDB();
   const item = (db.ttd_letters || []).find(l => l.id === req.params.id);
   if (!item) return res.status(404).json({ error: 'Letter not found' });
-  const { date, name, phone, aadhar, referred_by, remarks } = req.body;
+  const { date, name, phone, aadhar, referred_by, remarks, darshan_type } = req.body;
+  if (darshan_type !== undefined && !TTD_DARSHAN_TYPES.includes(darshan_type))
+    return res.status(400).json({ error: 'invalid darshan_type' });
   if (date !== undefined) item.date = date;
   if (name !== undefined) item.name = name;
   if (phone !== undefined) item.phone = phone;
   if (aadhar !== undefined) item.aadhar = aadhar;
   if (referred_by !== undefined) item.referred_by = referred_by;
   if (remarks !== undefined) item.remarks = remarks;
+  if (darshan_type !== undefined) item.darshan_type = darshan_type;
   writeDB(db);
   const duplicate_warning = aadhar !== undefined ? findTtdDuplicates(db, aadhar, item.id) : [];
   res.json({ ok: true, item, duplicate_warning });
@@ -2355,12 +2361,13 @@ function buildTtdRegisterPDF(doc, letters, from, to) {
   const C = PDF_COLORS;
 
   const cols = [
-    { label: 'Date', width: 62 },
-    { label: 'Name', width: 105 },
-    { label: 'Phone', width: 72 },
-    { label: 'Aadhar', width: 90 },
-    { label: 'Reference', width: 90 },
-    { label: 'Status', width: 60 },
+    { label: 'Date', width: 55 },
+    { label: 'Name', width: 95 },
+    { label: 'Phone', width: 65 },
+    { label: 'Aadhar', width: 78 },
+    { label: 'Reference', width: 78 },
+    { label: 'Type', width: 68 },
+    { label: 'Status', width: 55 },
   ];
 
   function drawRow(values, font, size, color) {
@@ -2392,7 +2399,7 @@ function buildTtdRegisterPDF(doc, letters, from, to) {
       drawRow(cols.map(c => c.label), boldFont, 9, C.green);
     }
     const maskedAadhar = l.aadhar ? `••••${String(l.aadhar).slice(-4)}` : '';
-    drawRow([l.date, l.name, l.phone, maskedAadhar, l.reference, ttdStatus(l.date)], bodyFont, 8.5, C.ink);
+    drawRow([l.date, l.name, l.phone, maskedAadhar, l.reference, l.darshan_type, ttdStatus(l.date)], bodyFont, 8.5, C.ink);
   });
 
   if (!letters.length) {
@@ -2400,6 +2407,9 @@ function buildTtdRegisterPDF(doc, letters, from, to) {
   }
 }
 
+function darshanLabel(type) {
+  return type === 'Supadam' ? 'Supadam (Suprabhata Seva)' : (type || 'Special Darshan');
+}
 function buildTtdLetterPDF(doc, letter, mpName) {
   let teluguFontOk = false;
   try {
@@ -2429,7 +2439,7 @@ function buildTtdLetterPDF(doc, letter, mpName) {
   doc.text('Tirumala.', PDF_LEFT);
   doc.moveDown(1.5);
 
-  doc.font(boldFont).text('Sub: Recommendation for Special Darshan', PDF_LEFT, doc.y, { underline: true });
+  doc.font(boldFont).text(`Sub: Recommendation for ${darshanLabel(letter.darshan_type)}`, PDF_LEFT, doc.y, { underline: true });
   doc.moveDown(1);
 
   doc.font(bodyFont).text('Respected Sir/Madam,', PDF_LEFT);
@@ -2437,8 +2447,8 @@ function buildTtdLetterPDF(doc, letter, mpName) {
   doc.text(
     `This is to recommend ${letter.name}` +
     `${letter.aadhar ? ` (Aadhar No. ${letter.aadhar})` : ''}` +
-    `${letter.phone ? `, contact number ${letter.phone},` : ''} for special darshan / accommodation ` +
-    `facilities at Tirumala on ${formatDateLong(letter.date)}. Kind cooperation in this regard is requested.`,
+    `${letter.phone ? `, contact number ${letter.phone},` : ''} for ${darshanLabel(letter.darshan_type)} ` +
+    `at Tirumala on ${formatDateLong(letter.date)}. Kind cooperation in this regard is requested.`,
     PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'justify' }
   );
 
@@ -2473,7 +2483,8 @@ app.get('/api/ttd-letters/export.xlsx', (req, res) => {
 
   const rows = items.map(l => ({
     Date: l.date, Name: l.name, Phone: l.phone, Aadhar: l.aadhar,
-    Reference: l.reference, 'Referred By': l.referred_by, Remarks: l.remarks,
+    Reference: l.reference, 'Darshan Type': l.darshan_type,
+    'Referred By': l.referred_by, Remarks: l.remarks,
     Status: ttdStatus(l.date),
   }));
   const wb = XLSX.utils.book_new();

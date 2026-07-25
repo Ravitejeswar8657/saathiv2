@@ -122,6 +122,14 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
         <label>To</label>
         <input type="date" id="range-to" onchange="onRangeChange()">
       </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="type-filter" onchange="onTypeFilterChange()">
+          <option value="">All</option>
+          <option value="Break Darshan">Break Darshan</option>
+          <option value="Supadam">Supadam</option>
+        </select>
+      </div>
       <button class="btn btn-secondary" onclick="clearRange()">Clear range</button>
       <button class="btn btn-accent" onclick="downloadExcel()"><i data-lucide="file-spreadsheet" style="width:15px;height:15px"></i> Excel</button>
       <button class="btn btn-accent" onclick="downloadRegisterPdf()"><i data-lucide="file-text" style="width:15px;height:15px"></i> PDF list</button>
@@ -139,7 +147,7 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
         <thead>
           <tr>
             <th>Date</th><th>Name</th><th>Phone</th><th>Aadhar</th><th>Reference</th>
-            <th>Referred By</th><th>Remarks</th><th>Status</th><th></th>
+            <th>Darshan Type</th><th>Referred By</th><th>Remarks</th><th>Status</th><th></th>
           </tr>
         </thead>
         <tbody id="letters-tbody"></tbody>
@@ -157,6 +165,14 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
     <div class="form-group">
       <label>Date *</label>
       <input type="date" id="add-date">
+    </div>
+    <div class="form-group">
+      <label>Darshan Type *</label>
+      <select id="add-darshan-type">
+        <option value="">Select type…</option>
+        <option value="Break Darshan">Break Darshan</option>
+        <option value="Supadam">Supadam</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Name *</label>
@@ -190,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.
 
 let allLetters = [];
 let selectedDateFilter = null;
+let selectedTypeFilter = '';
 let rangeFrom = '';
 let rangeTo = '';
 
@@ -282,6 +299,11 @@ function clearRange() {
   loadLetters();
 }
 
+function onTypeFilterChange() {
+  selectedTypeFilter = document.getElementById('type-filter').value;
+  renderTable();
+}
+
 function statusOf(dateStr) {
   return dateStr < getTodayIST() ? 'Given' : 'Upcoming';
 }
@@ -297,6 +319,9 @@ function renderTable() {
   const titleEl = document.getElementById('list-title');
 
   let list = allLetters;
+  if (selectedTypeFilter) {
+    list = list.filter(l => l.darshan_type === selectedTypeFilter);
+  }
   if (selectedDateFilter) {
     list = list.filter(l => l.date === selectedDateFilter);
     const label = selectedDateFilter === getTodayIST() ? 'Today' : new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -324,6 +349,7 @@ function renderTable() {
       <td>${esc(l.phone)}</td>
       <td>${esc(maskAadhar(l.aadhar))}</td>
       <td>${esc(l.reference)}</td>
+      <td>${esc(l.darshan_type)}</td>
       <td>${esc(l.referred_by)}</td>
       <td>${esc(l.remarks)}</td>
       <td><span class="status-badge status-${statusOf(l.date) === 'Given' ? 'given' : 'upcoming'}">${statusOf(l.date)}</span></td>
@@ -334,9 +360,13 @@ function renderTable() {
       </td>
     </tr>
     <tr id="edit-${l.id}" class="edit-row" style="display:none">
-      <td colspan="9">
+      <td colspan="10">
         <div class="edit-grid">
           <input type="date" id="e-date-${l.id}" value="${esc(l.date)}">
+          <select id="e-darshan-${l.id}">
+            <option value="Break Darshan" ${l.darshan_type === 'Break Darshan' ? 'selected' : ''}>Break Darshan</option>
+            <option value="Supadam" ${l.darshan_type === 'Supadam' ? 'selected' : ''}>Supadam</option>
+          </select>
           <input id="e-name-${l.id}" value="${esc(l.name)}" placeholder="Name">
           <input id="e-phone-${l.id}" value="${esc(l.phone)}" placeholder="Phone">
           <input id="e-aadhar-${l.id}" value="${esc(l.aadhar)}" placeholder="Aadhar" onblur="checkAadharDuplicate('edit', '${l.id}')">
@@ -365,16 +395,17 @@ function cancelEdit(id) {
 
 async function saveEdit(id) {
   const date = document.getElementById(`e-date-${id}`).value;
+  const darshan_type = document.getElementById(`e-darshan-${id}`).value;
   const name = document.getElementById(`e-name-${id}`).value.trim();
   const phone = document.getElementById(`e-phone-${id}`).value.trim();
   const aadhar = document.getElementById(`e-aadhar-${id}`).value.trim();
   const referred_by = document.getElementById(`e-referred-${id}`).value.trim();
   const remarks = document.getElementById(`e-remarks-${id}`).value.trim();
-  if (!date || !name) { alert('Date and name are required.'); return; }
+  if (!date || !name || !darshan_type) { alert('Date, name, and darshan type are required.'); return; }
 
   const r = await fetch('/api/ttd-letters/' + id, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks }),
+    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks, darshan_type }),
   });
   const data = await r.json();
   if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
@@ -396,7 +427,7 @@ async function checkAadharDuplicate(mode, id) {
   const data = await r.json();
   const matches = (data.matches || []).filter(m => m.id !== id);
   if (matches.length) {
-    bannerEl.innerHTML = `⚠ This Aadhar already has ${matches.length} letter(s) on file — most recent: ${esc(matches[0].date)} (Ref ${esc(matches[0].reference)}). You can still save.`;
+    bannerEl.innerHTML = `⚠ This Aadhar already has ${matches.length} letter(s) on file — most recent: ${esc(matches[0].date)} (${esc(matches[0].darshan_type)}, Ref ${esc(matches[0].reference)}). You can still save.`;
     bannerEl.style.display = 'block';
   } else {
     bannerEl.style.display = 'none';
@@ -405,6 +436,7 @@ async function checkAadharDuplicate(mode, id) {
 
 function openAddModal() {
   document.getElementById('add-date').value = selectedDateFilter || getTodayIST();
+  document.getElementById('add-darshan-type').value = '';
   document.getElementById('add-name').value = '';
   document.getElementById('add-phone').value = '';
   document.getElementById('add-aadhar').value = '';
@@ -419,16 +451,17 @@ function closeModals() {
 
 async function submitAdd() {
   const date = document.getElementById('add-date').value;
+  const darshan_type = document.getElementById('add-darshan-type').value;
   const name = document.getElementById('add-name').value.trim();
   const phone = document.getElementById('add-phone').value.trim();
   const aadhar = document.getElementById('add-aadhar').value.trim();
   const referred_by = document.getElementById('add-referred-by').value.trim();
   const remarks = document.getElementById('add-remarks').value.trim();
-  if (!date || !name) { alert('Date and name are required.'); return; }
+  if (!date || !name || !darshan_type) { alert('Date, name, and darshan type are required.'); return; }
 
   const r = await fetch('/api/ttd-letters', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks }),
+    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks, darshan_type }),
   });
   const data = await r.json();
   if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
