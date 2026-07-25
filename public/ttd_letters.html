@@ -72,6 +72,8 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 .status-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap}
 .status-given{background:#f3f4f6;color:#374151}
 .status-upcoming{background:#fff7ed;color:#b45309}
+.status-pending{background:#fef3c7;color:#92400e}
+.status-confirmed{background:#dcfce7;color:#166534}
 .actions-cell{display:flex;gap:6px;white-space:nowrap}
 .btn-sm{padding:5px 8px;border-radius:5px;border:1px solid #e5e5e5;background:#fff;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:4px;font-family:inherit}
 .btn-sm i{width:13px;height:13px}
@@ -130,6 +132,14 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
           <option value="Supadam">Supadam</option>
         </select>
       </div>
+      <div class="form-group">
+        <label>Review</label>
+        <select id="review-filter" onchange="onReviewFilterChange()">
+          <option value="">All</option>
+          <option value="Pending Review">Pending Review</option>
+          <option value="Confirmed">Confirmed</option>
+        </select>
+      </div>
       <button class="btn btn-secondary" onclick="clearRange()">Clear range</button>
       <button class="btn btn-accent" onclick="downloadExcel()"><i data-lucide="file-spreadsheet" style="width:15px;height:15px"></i> Excel</button>
       <button class="btn btn-accent" onclick="downloadRegisterPdf()"><i data-lucide="file-text" style="width:15px;height:15px"></i> PDF list</button>
@@ -147,7 +157,7 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
         <thead>
           <tr>
             <th>Date</th><th>Name</th><th>Phone</th><th>Aadhar</th><th>Reference</th>
-            <th>Darshan Type</th><th>Referred By</th><th>Remarks</th><th>Status</th><th></th>
+            <th>Darshan Type</th><th>Party Size</th><th>Referred By</th><th>Remarks</th><th>Status</th><th>Review</th><th></th>
           </tr>
         </thead>
         <tbody id="letters-tbody"></tbody>
@@ -179,6 +189,10 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
       <input id="add-name" placeholder="Full name">
     </div>
     <div class="form-group">
+      <label>Number of people</label>
+      <input type="number" min="1" id="add-party-size" placeholder="e.g. 4 (Break Darshan max 6, Supadam max 10)">
+    </div>
+    <div class="form-group">
       <label>Phone number</label>
       <input id="add-phone" placeholder="10-digit mobile">
     </div>
@@ -207,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.
 let allLetters = [];
 let selectedDateFilter = null;
 let selectedTypeFilter = '';
+let selectedReviewFilter = '';
 let rangeFrom = '';
 let rangeTo = '';
 
@@ -239,7 +254,7 @@ async function loadLetters() {
 function renderCalendar() {
   const todayIST = getTodayIST();
   const countByDate = {};
-  allLetters.forEach(l => { countByDate[l.date] = (countByDate[l.date] || 0) + 1; });
+  allLetters.forEach(l => { if (l.review_status !== 'Pending Review') countByDate[l.date] = (countByDate[l.date] || 0) + 1; });
 
   document.getElementById('cal-month-label').textContent = `${CAL_MONTHS[calViewMonth]} ${calViewYear}`;
   document.getElementById('cal-weekdays').innerHTML = CAL_WEEKDAYS.map(d => `<div class="cal-weekday">${d}</div>`).join('');
@@ -303,6 +318,10 @@ function onTypeFilterChange() {
   selectedTypeFilter = document.getElementById('type-filter').value;
   renderTable();
 }
+function onReviewFilterChange() {
+  selectedReviewFilter = document.getElementById('review-filter').value;
+  renderTable();
+}
 
 function statusOf(dateStr) {
   return dateStr < getTodayIST() ? 'Given' : 'Upcoming';
@@ -321,6 +340,9 @@ function renderTable() {
   let list = allLetters;
   if (selectedTypeFilter) {
     list = list.filter(l => l.darshan_type === selectedTypeFilter);
+  }
+  if (selectedReviewFilter) {
+    list = list.filter(l => (l.review_status || 'Confirmed') === selectedReviewFilter);
   }
   if (selectedDateFilter) {
     list = list.filter(l => l.date === selectedDateFilter);
@@ -350,17 +372,20 @@ function renderTable() {
       <td>${esc(maskAadhar(l.aadhar))}</td>
       <td>${esc(l.reference)}</td>
       <td>${esc(l.darshan_type)}</td>
+      <td>${esc(l.party_size ?? '')}</td>
       <td>${esc(l.referred_by)}</td>
       <td>${esc(l.remarks)}</td>
       <td><span class="status-badge status-${statusOf(l.date) === 'Given' ? 'given' : 'upcoming'}">${statusOf(l.date)}</span></td>
+      <td><span class="status-badge status-${(l.review_status || 'Confirmed') === 'Confirmed' ? 'confirmed' : 'pending'}">${esc(l.review_status || 'Confirmed')}</span></td>
       <td class="actions-cell">
+        ${l.review_status === 'Pending Review' ? `<button class="btn-sm btn-save" onclick="confirmLetter('${l.id}')" title="Confirm"><i data-lucide="check-circle"></i></button>` : ''}
         <button class="btn-sm btn-edit" onclick="startEdit('${l.id}')" title="Edit"><i data-lucide="pencil"></i></button>
         <button class="btn-sm btn-del" onclick="deleteLetter('${l.id}')" title="Delete"><i data-lucide="trash-2"></i></button>
         <button class="btn-sm btn-edit" onclick="window.open('/api/ttd-letters/${l.id}/letter-pdf','_blank')" title="Download letter"><i data-lucide="file-down"></i></button>
       </td>
     </tr>
     <tr id="edit-${l.id}" class="edit-row" style="display:none">
-      <td colspan="10">
+      <td colspan="12">
         <div class="edit-grid">
           <input type="date" id="e-date-${l.id}" value="${esc(l.date)}">
           <select id="e-darshan-${l.id}">
@@ -368,6 +393,7 @@ function renderTable() {
             <option value="Supadam" ${l.darshan_type === 'Supadam' ? 'selected' : ''}>Supadam</option>
           </select>
           <input id="e-name-${l.id}" value="${esc(l.name)}" placeholder="Name">
+          <input type="number" min="1" id="e-party-${l.id}" value="${esc(l.party_size ?? '')}" placeholder="Number of people">
           <input id="e-phone-${l.id}" value="${esc(l.phone)}" placeholder="Phone">
           <input id="e-aadhar-${l.id}" value="${esc(l.aadhar)}" placeholder="Aadhar" onblur="checkAadharDuplicate('edit', '${l.id}')">
           <input id="e-referred-${l.id}" value="${esc(l.referred_by)}" placeholder="Referred by">
@@ -397,6 +423,8 @@ async function saveEdit(id) {
   const date = document.getElementById(`e-date-${id}`).value;
   const darshan_type = document.getElementById(`e-darshan-${id}`).value;
   const name = document.getElementById(`e-name-${id}`).value.trim();
+  const partySizeRaw = document.getElementById(`e-party-${id}`).value.trim();
+  const party_size = partySizeRaw ? Number(partySizeRaw) : null;
   const phone = document.getElementById(`e-phone-${id}`).value.trim();
   const aadhar = document.getElementById(`e-aadhar-${id}`).value.trim();
   const referred_by = document.getElementById(`e-referred-${id}`).value.trim();
@@ -405,10 +433,20 @@ async function saveEdit(id) {
 
   const r = await fetch('/api/ttd-letters/' + id, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks, darshan_type }),
+    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size }),
   });
   const data = await r.json();
   if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+  await loadLetters();
+}
+
+async function confirmLetter(id) {
+  const r = await fetch('/api/ttd-letters/' + id, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ review_status: 'Confirmed' }),
+  });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || 'Failed to confirm.'); return; }
   await loadLetters();
 }
 
@@ -438,6 +476,7 @@ function openAddModal() {
   document.getElementById('add-date').value = selectedDateFilter || getTodayIST();
   document.getElementById('add-darshan-type').value = '';
   document.getElementById('add-name').value = '';
+  document.getElementById('add-party-size').value = '';
   document.getElementById('add-phone').value = '';
   document.getElementById('add-aadhar').value = '';
   document.getElementById('add-referred-by').value = '';
@@ -453,6 +492,8 @@ async function submitAdd() {
   const date = document.getElementById('add-date').value;
   const darshan_type = document.getElementById('add-darshan-type').value;
   const name = document.getElementById('add-name').value.trim();
+  const partySizeRaw = document.getElementById('add-party-size').value.trim();
+  const party_size = partySizeRaw ? Number(partySizeRaw) : null;
   const phone = document.getElementById('add-phone').value.trim();
   const aadhar = document.getElementById('add-aadhar').value.trim();
   const referred_by = document.getElementById('add-referred-by').value.trim();
@@ -461,7 +502,7 @@ async function submitAdd() {
 
   const r = await fetch('/api/ttd-letters', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks, darshan_type }),
+    body: JSON.stringify({ date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size }),
   });
   const data = await r.json();
   if (!r.ok) { alert(data.error || 'Failed to save.'); return; }

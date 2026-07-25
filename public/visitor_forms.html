@@ -241,6 +241,52 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
   </div>
 </div>
 
+<!-- CREATE TTD LETTER MODAL -->
+<div id="ttd-modal" class="modal-overlay" onclick="closeModals()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>Create TTD Reference Letter</h3>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:12px">
+      Name comes from this visitor form. Darshan Type and Aadhar aren't captured on paper forms — please fill those in.
+    </p>
+    <div class="form-group">
+      <label>Date *</label>
+      <input type="date" id="ttd-date">
+    </div>
+    <div class="form-group">
+      <label>Darshan Type *</label>
+      <select id="ttd-darshan-type">
+        <option value="">Select type…</option>
+        <option value="Break Darshan">Break Darshan</option>
+        <option value="Supadam">Supadam</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Number of people</label>
+      <input type="number" min="1" id="ttd-party-size" placeholder="e.g. 4 (Break Darshan max 6, Supadam max 10)">
+    </div>
+    <div class="form-group">
+      <label>Phone number</label>
+      <input id="ttd-phone" placeholder="10-digit mobile">
+    </div>
+    <div class="form-group">
+      <label>Aadhar number</label>
+      <input id="ttd-aadhar" placeholder="12-digit Aadhar">
+    </div>
+    <div class="form-group">
+      <label>Referred by</label>
+      <input id="ttd-referred-by">
+    </div>
+    <div class="form-group">
+      <label>Remarks</label>
+      <textarea id="ttd-remarks" rows="3"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="submitTtdModal()">Save Letter</button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
 
@@ -423,7 +469,7 @@ function renderTable() {
       <td>${esc(v.date_of_visit)}</td>
       <td>${esc(v.full_name)}</td>
       <td>${esc([v.village, v.mandal].filter(Boolean).join(', '))}</td>
-      <td><span class="badge badge-cat">${esc(categoryLabel(v.category))}</span></td>
+      <td><span class="badge badge-cat">${esc(categoryLabel(v.category))}</span> ${(v.ttd_letter_refs || []).map(ref => `<span class="badge badge-status-resolved">${esc(ref)}</span>`).join(' ')}</td>
       <td><span class="badge badge-urgency-${urgencyClass(v.urgency)}" title="${esc(v.urgency_reason || '')}">${esc(v.urgency || 'Medium')}</span></td>
       <td>
         <select class="status-select" onchange="quickSetStatus('${v.id}', this.value)">
@@ -437,6 +483,7 @@ function renderTable() {
         <button class="btn-sm btn-edit" onclick="startEdit('${v.id}')" title="Edit"><i data-lucide="pencil"></i></button>
         <button class="btn-sm btn-del" onclick="deleteItem('${v.id}')" title="Delete"><i data-lucide="trash-2"></i></button>
         ${v.image_path ? `<button class="btn-sm btn-edit" onclick="window.open('/api/visitor-forms/${v.id}/image','_blank')" title="View original photo"><i data-lucide="image"></i></button>` : ''}
+        ${v.category === 'ttd_letter' ? `<button class="btn-sm btn-edit" onclick="openTtdModal('${v.id}')" title="Create TTD Letter"><i data-lucide="scroll"></i></button>` : ''}
       </td>
     </tr>
     <tr id="edit-${v.id}" class="edit-row" style="display:none">
@@ -516,6 +563,43 @@ async function quickSetStatus(id, status) {
 async function deleteItem(id) {
   if (!confirm('Delete this visitor form record?')) return;
   await fetch('/api/visitor-forms/' + id, { method: 'DELETE' });
+  await loadItems();
+}
+
+let currentTtdSourceId = null;
+
+function openTtdModal(id) {
+  const v = allItems.find(x => x.id === id);
+  if (!v) return;
+  currentTtdSourceId = id;
+  document.getElementById('ttd-date').value = v.date_of_visit || getTodayIST();
+  document.getElementById('ttd-darshan-type').value = '';
+  document.getElementById('ttd-party-size').value = '';
+  document.getElementById('ttd-phone').value = v.contact_number || '';
+  document.getElementById('ttd-aadhar').value = '';
+  document.getElementById('ttd-referred-by').value = v.reference_name || '';
+  document.getElementById('ttd-remarks').value = v.issue_description || '';
+  document.getElementById('ttd-modal').style.display = 'flex';
+}
+
+async function submitTtdModal() {
+  const date = document.getElementById('ttd-date').value;
+  const darshan_type = document.getElementById('ttd-darshan-type').value;
+  const partySizeRaw = document.getElementById('ttd-party-size').value.trim();
+  const party_size = partySizeRaw ? Number(partySizeRaw) : null;
+  const phone = document.getElementById('ttd-phone').value.trim();
+  const aadhar = document.getElementById('ttd-aadhar').value.trim();
+  const referred_by = document.getElementById('ttd-referred-by').value.trim();
+  const remarks = document.getElementById('ttd-remarks').value.trim();
+  if (!date || !darshan_type) { alert('Date and darshan type are required.'); return; }
+
+  const r = await fetch(`/api/visitor-forms/${currentTtdSourceId}/create-ttd-letter`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date, darshan_type, phone, aadhar, referred_by, remarks, party_size }),
+  });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+  closeModals();
   await loadItems();
 }
 

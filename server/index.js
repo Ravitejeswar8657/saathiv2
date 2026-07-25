@@ -1131,6 +1131,31 @@ app.delete('/api/news/:id', (req, res) => {
 
 // ── TTD Reference Letters ───────────────────────────────────────────────────
 const TTD_DARSHAN_TYPES = ['Break Darshan', 'Supadam'];
+const TTD_PARTY_LIMITS = { 'Break Darshan': 6, 'Supadam': 10 };
+function validatePartySize(darshan_type, party_size) {
+  if (party_size == null || party_size === '') return null;
+  const n = Number(party_size);
+  if (!Number.isInteger(n) || n < 1) return 'party_size must be a positive integer';
+  const limit = TTD_PARTY_LIMITS[darshan_type];
+  if (limit && n > limit) return `${darshan_type} is limited to ${limit} people (got ${n})`;
+  return null;
+}
+function buildTtdLetterItem(db, { date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size, review_status, source_visitor_form_id }) {
+  return {
+    id: `TTD${Date.now()}`,
+    reference: computeTtdReference(db, date),
+    date, name,
+    darshan_type: darshan_type || '',
+    phone: phone || '',
+    aadhar: aadhar || '',
+    referred_by: referred_by || '',
+    remarks: remarks || '',
+    party_size: party_size ?? null,
+    review_status: review_status || 'Confirmed',
+    source_visitor_form_id: source_visitor_form_id || null,
+    created_at: new Date().toISOString(),
+  };
+}
 function computeTtdReference(db, dateStr) {
   const year = (dateStr || getISTDateStr()).slice(0, 4);
   const count = (db.ttd_letters || []).filter(l => (l.reference || '').includes(`/${year}/`)).length;
@@ -1166,23 +1191,15 @@ app.get('/api/ttd-letters/check-duplicate', (req, res) => {
 });
 
 app.post('/api/ttd-letters', (req, res) => {
-  const { date, name, phone, aadhar, referred_by, remarks, darshan_type } = req.body;
+  const { date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size } = req.body;
   if (!date || !name || !darshan_type || !TTD_DARSHAN_TYPES.includes(darshan_type))
     return res.status(400).json({ error: 'date, name, and a valid darshan_type are required' });
+  const partySizeError = validatePartySize(darshan_type, party_size);
+  if (partySizeError) return res.status(400).json({ error: partySizeError });
 
   const db = readDB();
   const duplicate_warning = findTtdDuplicates(db, aadhar);
-  const item = {
-    id: `TTD${Date.now()}`,
-    reference: computeTtdReference(db, date),
-    date, name,
-    darshan_type,
-    phone: phone || '',
-    aadhar: aadhar || '',
-    referred_by: referred_by || '',
-    remarks: remarks || '',
-    created_at: new Date().toISOString(),
-  };
+  const item = buildTtdLetterItem(db, { date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size, review_status: 'Confirmed' });
   db.ttd_letters = [item, ...(db.ttd_letters || [])];
   writeDB(db);
   res.json({ ok: true, item, duplicate_warning });
@@ -1192,9 +1209,26 @@ app.patch('/api/ttd-letters/:id', (req, res) => {
   const db = readDB();
   const item = (db.ttd_letters || []).find(l => l.id === req.params.id);
   if (!item) return res.status(404).json({ error: 'Letter not found' });
-  const { date, name, phone, aadhar, referred_by, remarks, darshan_type } = req.body;
+  const { date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size, review_status } = req.body;
   if (darshan_type !== undefined && !TTD_DARSHAN_TYPES.includes(darshan_type))
     return res.status(400).json({ error: 'invalid darshan_type' });
+  if (party_size !== undefined) {
+    const partySizeError = validatePartySize(darshan_type !== undefined ? darshan_type : item.darshan_type, party_size);
+    if (partySizeError) return res.status(400).json({ error: partySizeError });
+  }
+  if (review_status !== undefined && !['Pending Review', 'Confirmed'].includes(review_status))
+    return res.status(400).json({ error: 'invalid review_status' });
+
+  if (review_status === 'Confirmed') {
+    const finalDate = date !== undefined ? date : item.date;
+    const finalDarshanType = darshan_type !== undefined ? darshan_type : item.darshan_type;
+    const finalPartySize = party_size !== undefined ? party_size : item.party_size;
+    if (!finalDate || !finalDarshanType || !TTD_DARSHAN_TYPES.includes(finalDarshanType) || finalPartySize == null)
+      return res.status(400).json({ error: 'Set Darshan Type, date, and party size before confirming' });
+    const partySizeError = validatePartySize(finalDarshanType, finalPartySize);
+    if (partySizeError) return res.status(400).json({ error: partySizeError });
+  }
+
   if (date !== undefined) item.date = date;
   if (name !== undefined) item.name = name;
   if (phone !== undefined) item.phone = phone;
@@ -1202,6 +1236,8 @@ app.patch('/api/ttd-letters/:id', (req, res) => {
   if (referred_by !== undefined) item.referred_by = referred_by;
   if (remarks !== undefined) item.remarks = remarks;
   if (darshan_type !== undefined) item.darshan_type = darshan_type;
+  if (party_size !== undefined) item.party_size = party_size;
+  if (review_status !== undefined) item.review_status = review_status;
   writeDB(db);
   const duplicate_warning = aadhar !== undefined ? findTtdDuplicates(db, aadhar, item.id) : [];
   res.json({ ok: true, item, duplicate_warning });
@@ -1334,9 +1370,26 @@ app.post('/api/visitor-forms', (req, res) => {
       ocr_confidence: it.ocr_confidence || '',
       priority_score: computePriorityScore(category, urgency),
       image_path,
+      ttd_letter_refs: [],
       created_at: new Date().toISOString(),
     };
   });
+
+  db.ttd_letters = db.ttd_letters || [];
+  for (const vf of saved) {
+    if (vf.category !== 'ttd_letter') continue;
+    const ttdItem = buildTtdLetterItem(db, {
+      date: vf.date_of_visit,
+      name: vf.full_name,
+      phone: vf.contact_number,
+      referred_by: vf.reference_name,
+      remarks: vf.issue_description,
+      review_status: 'Pending Review',
+      source_visitor_form_id: vf.id,
+    });
+    db.ttd_letters = [ttdItem, ...db.ttd_letters];
+    vf.ttd_letter_refs.push(ttdItem.reference);
+  }
 
   db.visitor_forms = [...saved, ...(db.visitor_forms || [])];
   writeDB(db);
@@ -1378,6 +1431,28 @@ app.patch('/api/visitor-forms/:id', (req, res) => {
   item.priority_score = computePriorityScore(item.category, item.urgency);
   writeDB(db);
   res.json({ ok: true, item });
+});
+
+app.post('/api/visitor-forms/:id/create-ttd-letter', (req, res) => {
+  const db = readDB();
+  const visitorForm = (db.visitor_forms || []).find(v => v.id === req.params.id);
+  if (!visitorForm) return res.status(404).json({ error: 'Visitor form not found' });
+
+  const { date, darshan_type, phone, aadhar, referred_by, remarks, party_size } = req.body;
+  if (!date || !darshan_type || !TTD_DARSHAN_TYPES.includes(darshan_type))
+    return res.status(400).json({ error: 'date and a valid darshan_type are required' });
+  const partySizeError = validatePartySize(darshan_type, party_size);
+  if (partySizeError) return res.status(400).json({ error: partySizeError });
+
+  const duplicate_warning = findTtdDuplicates(db, aadhar);
+  const item = buildTtdLetterItem(db, {
+    date, name: visitorForm.full_name, phone, aadhar, referred_by, remarks, darshan_type, party_size,
+    review_status: 'Confirmed', source_visitor_form_id: visitorForm.id,
+  });
+  db.ttd_letters = [item, ...(db.ttd_letters || [])];
+  visitorForm.ttd_letter_refs = [...(visitorForm.ttd_letter_refs || []), item.reference];
+  writeDB(db);
+  res.json({ ok: true, item, duplicate_warning, visitor_form: visitorForm });
 });
 
 app.delete('/api/visitor-forms/:id', (req, res) => {
