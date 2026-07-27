@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Social Media Calendar · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest" defer></script>
+<script src="/sidebar.js" defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
+body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999}
+.container{width:100%;padding:24px 32px;margin-top:3px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:22px;font-weight:700;color:#1a1208}
+.btn{padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-size:13px;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#1a1208;color:#fff}
+.btn-primary:hover{background:#374151}
+.btn-secondary{background:#fff;border:1px solid #e5e5e5;color:#1a1208}
+.btn-secondary:hover{background:#f9fafb}
+.card{background:#fff;border:1px solid #e5e5e5;border-top:3px solid #b45309;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px;padding-left:12px;border-left:3px solid #d97706}
+.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:#fff;border-radius:8px;width:100%;max-width:480px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,0.15);max-height:90vh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:700;color:#1a1208;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
+.form-group input,.form-group textarea{
+  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
+  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
+}
+.form-group input:focus,.form-group textarea:focus{
+  border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
+}
+.form-hint{font-size:11px;color:#6b7280;margin-top:4px}
+.file-preview-list{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.file-preview-item{font-size:12px;color:#374151;background:#fafaf9;border:1px solid #e5e5e5;border-radius:5px;padding:5px 8px;display:flex;align-items:center;gap:6px}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+.modal-actions .btn{flex:1;justify-content:center}
+
+/* Calendar (matches ttd_letters.html / index.html) */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.cal-nav-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit}
+.cal-nav-btn:hover{background:#f9fafb}
+.cal-month-label{font-weight:700;font-size:15px}
+.cal-today-btn{background:#1a1208;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px}
+.cal-today-btn:hover{opacity:.9}
+.cal-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:13px;color:#374151}
+.cal-clear-btn{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;padding:0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-weekday{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}
+.cal-day{position:relative;min-height:36px;border:1px solid #e5e5e5;border-radius:6px;padding:4px 6px;font-size:12px;cursor:pointer;background:#fff}
+.cal-day:hover{border-color:#d4d4d4;background:#fafaf9}
+.cal-day.other-month{color:#d1d5db;background:#fafaf9;cursor:default}
+.cal-day.other-month:hover{background:#fafaf9}
+.cal-day.today{border-color:#b45309;font-weight:700}
+.cal-day.selected{background:#fff7ed;border-color:#b45309}
+.cal-day .cal-dot{position:absolute;bottom:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:#b45309;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+/* Post cards */
+.posts-grid{display:flex;flex-direction:column;gap:12px}
+.post-card{border:1px solid #e5e5e5;border-radius:8px;padding:14px}
+.post-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.post-date{font-size:12px;font-weight:700;color:#b45309}
+.post-actions{display:flex;gap:6px}
+.btn-sm{padding:5px 8px;border-radius:5px;border:1px solid #e5e5e5;background:#fff;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:4px;font-family:inherit}
+.btn-sm i{width:13px;height:13px}
+.btn-edit{color:#374151}
+.btn-edit:hover{background:#f9fafb}
+.btn-del{color:#dc2626;border-color:#fecaca}
+.btn-del:hover{background:#fef2f2}
+.media-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.media-thumb{width:120px;height:120px;border-radius:6px;overflow:hidden;background:#f3f4f6;border:1px solid #e5e5e5;display:flex;align-items:center;justify-content:center}
+.media-thumb img,.media-thumb video{width:100%;height:100%;object-fit:cover}
+.media-pdf-chip{width:120px;height:120px;border-radius:6px;background:#fafaf9;border:1px solid #e5e5e5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:#374151;font-size:11px;text-align:center;padding:8px}
+.media-pdf-chip i{width:28px;height:28px;color:#b45309}
+.post-caption{font-size:13px;color:#1a1208;white-space:pre-wrap}
+.caption-edit textarea{width:100%;padding:8px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit;margin-bottom:8px}
+.caption-edit-actions{display:flex;gap:8px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Social Media Calendar</h1>
+    <button class="btn btn-primary" onclick="openAddModal()">
+      <i data-lucide="plus" style="width:15px;height:15px"></i> Add Post
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Calendar</div>
+    <div class="cal-header">
+      <button class="cal-nav-btn" onclick="changeMonth(-1)">&lsaquo;</button>
+      <div>
+        <span id="cal-month-label" class="cal-month-label"></span>
+        <button class="cal-today-btn" onclick="jumpToday()">Today</button>
+      </div>
+      <button class="cal-nav-btn" onclick="changeMonth(1)">&rsaquo;</button>
+    </div>
+    <div class="cal-grid" id="cal-weekdays"></div>
+    <div class="cal-grid" id="cal-grid" style="margin-top:4px"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title" id="list-title">All posts</div>
+    <div class="cal-filter-bar" id="cal-filter-bar" style="display:none">
+      <span id="cal-filter-label"></span>
+      <button class="cal-clear-btn" onclick="clearDateFilter()">Show all</button>
+    </div>
+    <div class="posts-grid" id="posts-grid"></div>
+    <div id="empty-state" class="empty-state" style="display:none">No posts found.</div>
+  </div>
+</div>
+
+<!-- ADD POST MODAL -->
+<div id="add-modal" class="modal-overlay" onclick="closeModals()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>Add Social Media Post</h3>
+    <div class="form-group">
+      <label>Date *</label>
+      <input type="date" id="add-date">
+    </div>
+    <div class="form-group">
+      <label>Media (images, videos, PDFs) *</label>
+      <input type="file" id="add-media" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,application/pdf" onchange="onMediaChosen()">
+      <div class="form-hint">You can select several files at once (e.g. a carousel of images).</div>
+      <div class="file-preview-list" id="file-preview-list"></div>
+    </div>
+    <div class="form-group">
+      <label>Caption</label>
+      <textarea id="add-caption" placeholder="Post caption..." rows="4"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="add-submit-btn" onclick="submitAdd()">Save Post</button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); loadPosts(); });
+
+let allPosts = [];
+let selectedDateFilter = null;
+
+function getTodayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+const [__ty, __tm] = getTodayIST().split('-').map(Number);
+let calViewYear = __ty;
+let calViewMonth = __tm - 1;
+
+const CAL_WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadPosts() {
+  const r = await fetch('/api/social-calendar');
+  const data = await r.json();
+  allPosts = data.posts || [];
+  renderCalendar();
+  renderPosts();
+}
+
+function renderCalendar() {
+  const todayIST = getTodayIST();
+  const countByDate = {};
+  allPosts.forEach(p => { countByDate[p.date] = (countByDate[p.date] || 0) + 1; });
+
+  document.getElementById('cal-month-label').textContent = `${CAL_MONTHS[calViewMonth]} ${calViewYear}`;
+  document.getElementById('cal-weekdays').innerHTML = CAL_WEEKDAYS.map(d => `<div class="cal-weekday">${d}</div>`).join('');
+
+  const firstDayOffset = new Date(calViewYear, calViewMonth, 1).getDay();
+  const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+  const pad = n => String(n).padStart(2, '0');
+
+  let cellsHtml = '';
+  for (let i = 0; i < firstDayOffset; i++) cellsHtml += '<div class="cal-day other-month"></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calViewYear}-${pad(calViewMonth + 1)}-${pad(day)}`;
+    const count = countByDate[dateStr] || 0;
+    const classes = ['cal-day'];
+    if (dateStr === todayIST) classes.push('today');
+    if (dateStr === selectedDateFilter) classes.push('selected');
+    cellsHtml += `<div class="${classes.join(' ')}" onclick="onCalDayClick('${dateStr}')">
+      ${day}
+      ${count > 0 ? `<span class="cal-dot">${count}</span>` : ''}
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = cellsHtml;
+}
+
+function changeMonth(delta) {
+  calViewMonth += delta;
+  if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+  if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+  renderCalendar();
+}
+function jumpToday() {
+  const [ty, tm] = getTodayIST().split('-').map(Number);
+  calViewYear = ty; calViewMonth = tm - 1;
+  renderCalendar();
+}
+function onCalDayClick(dateStr) {
+  selectedDateFilter = selectedDateFilter === dateStr ? null : dateStr;
+  renderCalendar();
+  renderPosts();
+}
+function clearDateFilter() {
+  selectedDateFilter = null;
+  renderCalendar();
+  renderPosts();
+}
+
+function mediaCellHtml(post, m) {
+  const src = `/api/social-calendar/media/${encodeURIComponent(m.filename)}`;
+  if (m.type === 'image') return `<div class="media-thumb"><img src="${src}" loading="lazy"></div>`;
+  if (m.type === 'video') return `<div class="media-thumb"><video src="${src}" controls></video></div>`;
+  return `<a class="media-pdf-chip" href="${src}" target="_blank"><i data-lucide="file-text"></i> PDF</a>`;
+}
+
+function renderPosts() {
+  const filterBar = document.getElementById('cal-filter-bar');
+  const filterLabel = document.getElementById('cal-filter-label');
+  const titleEl = document.getElementById('list-title');
+  const grid = document.getElementById('posts-grid');
+  const emptyEl = document.getElementById('empty-state');
+
+  let posts = allPosts;
+  if (selectedDateFilter) {
+    filterBar.style.display = 'flex';
+    filterLabel.textContent = `Showing posts for ${selectedDateFilter}`;
+    titleEl.textContent = `Posts on ${selectedDateFilter}`;
+    posts = posts.filter(p => p.date === selectedDateFilter);
+  } else {
+    filterBar.style.display = 'none';
+    titleEl.textContent = 'All posts';
+  }
+  posts = [...posts].sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at));
+
+  if (!posts.length) {
+    grid.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  grid.innerHTML = posts.map(p => `
+    <div class="post-card" id="card-${p.id}">
+      <div class="post-card-header">
+        <span class="post-date">${p.date}</span>
+        <div class="post-actions">
+          <button class="btn-sm btn-edit" onclick="startEditCaption('${p.id}')"><i data-lucide="pencil"></i> Edit caption</button>
+          <button class="btn-sm btn-del" onclick="deletePost('${p.id}')"><i data-lucide="trash-2"></i> Delete</button>
+        </div>
+      </div>
+      <div class="media-grid">${(p.media || []).map(m => mediaCellHtml(p, m)).join('')}</div>
+      <div class="post-caption-wrap" id="caption-wrap-${p.id}">
+        <div class="post-caption">${esc(p.caption) || '<span style="color:#9ca3af">No caption</span>'}</div>
+      </div>
+    </div>
+  `).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function startEditCaption(id) {
+  const post = allPosts.find(p => p.id === id);
+  if (!post) return;
+  const wrap = document.getElementById(`caption-wrap-${id}`);
+  wrap.innerHTML = `
+    <div class="caption-edit">
+      <textarea id="caption-input-${id}" rows="3">${esc(post.caption)}</textarea>
+      <div class="caption-edit-actions">
+        <button class="btn-sm btn-save" style="background:#15803d;color:#fff;border-color:#15803d" onclick="saveCaption('${id}')">Save</button>
+        <button class="btn-sm btn-edit" onclick="renderPosts()">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
+async function saveCaption(id) {
+  const caption = document.getElementById(`caption-input-${id}`).value;
+  const r = await fetch(`/api/social-calendar/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ caption }),
+  });
+  if (!r.ok) { alert('Failed to save caption.'); return; }
+  await loadPosts();
+}
+
+async function deletePost(id) {
+  if (!confirm('Delete this post and its media? This cannot be undone.')) return;
+  const r = await fetch(`/api/social-calendar/${id}`, { method: 'DELETE' });
+  if (!r.ok) { alert('Failed to delete post.'); return; }
+  await loadPosts();
+}
+
+function openAddModal() {
+  document.getElementById('add-date').value = selectedDateFilter || getTodayIST();
+  document.getElementById('add-caption').value = '';
+  document.getElementById('add-media').value = '';
+  document.getElementById('file-preview-list').innerHTML = '';
+  document.getElementById('add-modal').style.display = 'flex';
+}
+function closeModals() {
+  document.getElementById('add-modal').style.display = 'none';
+}
+
+function onMediaChosen() {
+  const files = document.getElementById('add-media').files;
+  const list = document.getElementById('file-preview-list');
+  list.innerHTML = Array.from(files).map(f => `<div class="file-preview-item"><i data-lucide="paperclip" style="width:12px;height:12px"></i> ${esc(f.name)}</div>`).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+async function submitAdd() {
+  const date = document.getElementById('add-date').value;
+  const files = document.getElementById('add-media').files;
+  const caption = document.getElementById('add-caption').value;
+  if (!date) { alert('Date is required.'); return; }
+  if (!files.length) { alert('At least one media file is required.'); return; }
+
+  const btn = document.getElementById('add-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const fd = new FormData();
+    fd.append('date', date);
+    fd.append('caption', caption);
+    Array.from(files).forEach(f => fd.append('media', f));
+    const r = await fetch('/api/social-calendar', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || 'Failed to save post.'); return; }
+    closeModals();
+    selectedDateFilter = date;
+    await loadPosts();
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Post';
+  }
+}
+</script>
+</body>
+</html>

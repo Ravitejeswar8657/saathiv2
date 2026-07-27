@@ -168,6 +168,17 @@
   .mini-event-name { font-size:13px; font-weight:600; color:#1a1208; }
   .mini-event-meta { font-size:12px; color:#78716c; margin-top:2px; }
 
+  /* Social media calendar mini-widget */
+  .social-mini-grid { display: flex; flex-direction: column; gap: 8px; }
+  .social-mini-card { display: flex; gap: 10px; padding: 8px; border: 1px solid #e5e5e5; border-radius: 6px; text-decoration: none; color: inherit; transition: border-color .15s, background .15s; }
+  .social-mini-card:hover { border-color: #d97706; background: #fffbeb; }
+  .social-mini-thumb { width: 44px; height: 44px; border-radius: 5px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e5e5; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .social-mini-thumb img, .social-mini-thumb video { width: 100%; height: 100%; object-fit: cover; }
+  .social-mini-thumb i { width: 18px; height: 18px; color: #b45309; }
+  .social-mini-body { min-width: 0; }
+  .social-mini-date { font-size: 11px; font-weight: 700; color: #b45309; }
+  .social-mini-caption { font-size: 12px; color: #374151; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   /* Live news (matches admin.html) */
   .live-news-item { padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
   .live-news-item:last-child { border-bottom: none; }
@@ -348,6 +359,14 @@
       <div id="live-news-list"></div>
     </section>
   </div>
+
+  <section class="card" id="social-widget" style="margin-top:24px">
+    <div class="widget-header">
+      <span class="widget-title">Social Media Calendar</span>
+      <a href="/social_calendar.html" class="widget-link">View full calendar &rarr;</a>
+    </div>
+    <div id="social-posts-list" class="social-mini-grid"></div>
+  </section>
 
 </main>
 
@@ -536,9 +555,51 @@ async function loadLiveNews() {
   }
 }
 
+// ── Social media calendar (recent posts) ────────────────────────────────────
+async function loadSocialPosts() {
+  const listEl = document.getElementById('social-posts-list');
+  try {
+    const r = await fetch('/api/social-calendar');
+    const data = await r.json();
+    const posts = (data.posts || [])
+      .sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at))
+      .slice(0, 5);
+
+    if (posts.length === 0) {
+      listEl.innerHTML = `<p class="empty-state">No posts yet — <a href="/social_calendar.html" style="color:#b45309;font-weight:600">Add one &rarr;</a></p>`;
+      return;
+    }
+
+    listEl.innerHTML = posts.map(p => {
+      const dateLabel = new Date(p.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      const first = (p.media || [])[0];
+      let thumb = '<i data-lucide="image"></i>';
+      if (first) {
+        const src = `/api/social-calendar/media/${encodeURIComponent(first.filename)}`;
+        if (first.type === 'image') thumb = `<img src="${src}" loading="lazy">`;
+        else if (first.type === 'video') thumb = `<video src="${src}"></video>`;
+        else thumb = '<i data-lucide="file-text"></i>';
+      }
+      const captionText = p.caption ? p.caption.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) : 'No caption';
+      return `
+      <a href="/social_calendar.html" class="social-mini-card">
+        <div class="social-mini-thumb">${thumb}</div>
+        <div class="social-mini-body">
+          <div class="social-mini-date">${dateLabel}${p.media && p.media.length > 1 ? ' · ' + p.media.length + ' files' : ''}</div>
+          <div class="social-mini-caption">${captionText}</div>
+        </div>
+      </a>`;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+  } catch (e) {
+    listEl.innerHTML = '<p class="empty-state">Failed to load social posts.</p>';
+  }
+}
+
 loadStats();
 loadSchedule();
 loadLiveNews();
+loadSocialPosts();
 </script>
 </body>
 </html>

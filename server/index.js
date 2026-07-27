@@ -25,6 +25,7 @@ const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH
 const DB_PATH = path.join(VOLUME, 'db.json');
 const WA_AUTH_PATH = path.join(VOLUME, 'wa_auth');
 const VISITOR_IMAGES_PATH = path.join(VOLUME, 'visitor_form_images');
+const SOCIAL_MEDIA_PATH = path.join(VOLUME, 'social_calendar_media');
 const BASE_URL = process.env.BASE_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
 const TELUGU_FONT_PATH = path.join(ROOT, 'public', 'fonts', 'NotoSansTelugu.ttf');
@@ -33,6 +34,7 @@ const TELUGU_FONT_PATH = path.join(ROOT, 'public', 'fonts', 'NotoSansTelugu.ttf'
 fs.mkdirSync(VOLUME, { recursive: true });
 fs.mkdirSync(WA_AUTH_PATH, { recursive: true });
 fs.mkdirSync(VISITOR_IMAGES_PATH, { recursive: true });
+fs.mkdirSync(SOCIAL_MEDIA_PATH, { recursive: true });
 
 // Seed db.json from bundled snapshot if volume is empty
 const SEED_PATH = path.join(ROOT, 'data', 'db.json');
@@ -50,6 +52,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 // Separate instance for visitor-form photo batches — phone camera photos run larger than
 // the 10MB cap above, and a day's forms are uploaded together (up to 20 files at once).
 const uploadVisitorForms = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 20 } });
+// Social media calendar posts can include video, which runs much larger than photos.
+const uploadSocialMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 10 } });
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
 function readDB() {
@@ -1473,6 +1477,81 @@ app.get('/api/visitor-forms/:id/image', (req, res) => {
   if (!item || !item.image_path) return res.status(404).json({ error: 'No image on file' });
   const p = path.join(VISITOR_IMAGES_PATH, item.image_path);
   if (!fs.existsSync(p)) return res.status(404).json({ error: 'Image file missing' });
+  res.sendFile(p);
+});
+
+// ── Social Media Calendar ───────────────────────────────────────────────────
+const SOCIAL_MEDIA_MIMES = {
+  'image/jpeg': { type: 'image', ext: 'jpg' },
+  'image/png':  { type: 'image', ext: 'png' },
+  'image/webp': { type: 'image', ext: 'webp' },
+  'video/mp4':       { type: 'video', ext: 'mp4' },
+  'video/quicktime': { type: 'video', ext: 'mov' },
+  'video/webm':      { type: 'video', ext: 'webm' },
+  'application/pdf': { type: 'pdf', ext: 'pdf' },
+};
+
+app.get('/api/social-calendar', (req, res) => {
+  const db = readDB();
+  let posts = db.social_posts || [];
+  const { from, to } = req.query;
+  if (from) posts = posts.filter(p => p.date >= from);
+  if (to) posts = posts.filter(p => p.date <= to);
+  res.json({ posts });
+});
+
+app.post('/api/social-calendar', uploadSocialMedia.array('media', 10), (req, res) => {
+  const { date, caption } = req.body;
+  if (!date) return res.status(400).json({ error: 'date is required' });
+  if (!req.files || !req.files.length) return res.status(400).json({ error: 'At least one media file is required' });
+
+  const id = `SM${Date.now()}`;
+  const media = [];
+  for (let i = 0; i < req.files.length; i++) {
+    const file = req.files[i];
+    const info = SOCIAL_MEDIA_MIMES[file.mimetype];
+    if (!info) return res.status(400).json({ error: `Unsupported file type: ${file.mimetype}` });
+    const filename = `${id}_${i}.${info.ext}`;
+    fs.writeFileSync(path.join(SOCIAL_MEDIA_PATH, filename), file.buffer);
+    media.push({ filename, mime: file.mimetype, type: info.type });
+  }
+
+  const item = { id, date, caption: caption || '', media, created_at: new Date().toISOString() };
+  const db = readDB();
+  db.social_posts = [item, ...(db.social_posts || [])];
+  writeDB(db);
+  res.json({ ok: true, item });
+});
+
+app.patch('/api/social-calendar/:id', (req, res) => {
+  const db = readDB();
+  const item = (db.social_posts || []).find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Post not found' });
+  const { date, caption } = req.body;
+  if (date !== undefined) item.date = date;
+  if (caption !== undefined) item.caption = caption;
+  writeDB(db);
+  res.json({ ok: true, item });
+});
+
+app.delete('/api/social-calendar/:id', (req, res) => {
+  const db = readDB();
+  const item = (db.social_posts || []).find(p => p.id === req.params.id);
+  if (item) {
+    (item.media || []).forEach(m => {
+      const p = path.join(SOCIAL_MEDIA_PATH, m.filename);
+      fs.existsSync(p) && fs.unlinkSync(p);
+    });
+  }
+  db.social_posts = (db.social_posts || []).filter(p => p.id !== req.params.id);
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.get('/api/social-calendar/media/:filename', (req, res) => {
+  const safeName = path.basename(req.params.filename);
+  const p = path.join(SOCIAL_MEDIA_PATH, safeName);
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'File not found' });
   res.sendFile(p);
 });
 

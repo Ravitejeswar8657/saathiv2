@@ -67,6 +67,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `journalist.html` | Alternate journalist form |
 | `ttd_letters.html` | TTD reference letter register — calendar view, Aadhar duplicate check, Excel/PDF exports, per-letter PDF |
 | `visitor_forms.html` | Visitor form register — office staff upload photographed paper visitor forms; Gemini AI OCR-extracts fields and assigns a category/urgency, staff review/correct in an editable preview before saving; category pills, calendar, status tracking, Excel/PDF exports |
+| `social_calendar.html` | Social media content calendar — calendar view where each date can hold multiple posts, each post carrying one or more media files (images/video/PDF) plus a caption |
 
 ### Key API endpoints
 
@@ -108,6 +109,11 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | GET | `/api/visitor-forms/:id/image` | Retrieve the original uploaded photo for a record |
 | GET | `/api/visitor-forms/export.xlsx` | Export visitor forms as Excel |
 | GET | `/api/visitor-forms/export-pdf` | Export visitor forms register as PDF |
+| GET | `/api/social-calendar` | List social media posts (filterable by `from`/`to`) |
+| POST | `/api/social-calendar` | Create a post (multipart: `date`, `caption`, up to 10 files under `media`) |
+| PATCH | `/api/social-calendar/:id` | Edit a post's `date`/`caption` |
+| DELETE | `/api/social-calendar/:id` | Remove a post and its stored media files |
+| GET | `/api/social-calendar/media/:filename` | Retrieve a stored media file |
 | GET | `/health` | Railway health check |
 
 ## Environment variables
