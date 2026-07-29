@@ -215,3 +215,35 @@ Write two things:
 
   return callGemini([{ text: prompt }], SUGGESTION_SCHEMA);
 }
+
+const LETTER_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    subject: { type: 'STRING' },
+    body: { type: 'STRING' },
+  },
+  required: ['subject', 'body'],
+};
+
+// Advisory only — drafts a formal letter for staff to review and edit before it's
+// ever printed or sent; never wired into the save/commit path itself.
+export async function draftDepartmentLetter(grievance, departmentInfo, mpName) {
+  const prompt = `You are drafting a formal letter from an Indian Member of Parliament's office to a
+government department head, requesting action on a constituent's grievance. Formal, respectful register.
+
+Recipient: ${departmentInfo.department_head}, ${departmentInfo.department}
+From: ${mpName || 'Member of Parliament'}
+Constituent: ${grievance.full_name || '(name not given)'}, ${[grievance.village, grievance.mandal].filter(Boolean).join(', ') || '(location not given)'}
+Contact: ${grievance.contact_number || 'not given'}
+Category: ${grievance.category || 'others'}
+Urgency: ${grievance.urgency || 'Medium'}
+Issue: ${grievance.issue_description || '(no description)'}
+
+Write two things:
+1. "subject" — a single-line formal subject (no "Sub:" prefix — that's added separately), specific to this issue.
+2. "body" — 2-4 formal paragraphs: state the issue, request specific action/inquiry, close requesting a
+status update within a reasonable window. Do not invent facts (dates, officer names, reference numbers)
+not present above.`;
+
+  return callGemini([{ text: prompt }], LETTER_SCHEMA);
+}

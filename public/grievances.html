@@ -60,11 +60,7 @@
 .channel-cell{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px;color:var(--stone-600)}
 .channel-cell [data-lucide]{width:14px;height:14px;flex-shrink:0;color:var(--stone-400)}
 
-/* Log Grievance modal — type / record / attach */
-.log-tabs{display:flex;gap:6px;margin-bottom:12px}
-.log-tab{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--radius-full);font-size:13px;font-weight:600;border:1px solid var(--border);background:#fff;color:var(--stone-600);cursor:pointer}
-.log-tab.active{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-border)}
-.log-tab [data-lucide]{width:14px;height:14px}
+/* Log Grievance modal — universal intake: text / photo+camera / audio, all optional */
 .recorder{display:flex;align-items:center;gap:12px}
 .rec-timer{font-variant-numeric:tabular-nums;font-weight:600;font-size:15px;color:var(--stone-600)}
 .rec-dot{width:10px;height:10px;border-radius:50%;background:var(--danger);animation:rec-pulse 1.2s ease-in-out infinite}
@@ -72,6 +68,15 @@
 @media (prefers-reduced-motion:reduce){.rec-dot{animation:none}}
 .transcript-box{grid-column:1/-1}
 .transcript-box audio{width:100%;margin-bottom:6px}
+
+/* Attachment thumbnail gallery — Log Grievance modal + merged preview card */
+.attachment-gallery{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.attachment-gallery:empty{margin-bottom:0}
+.thumb-wrap{position:relative;width:64px;height:64px}
+.thumb, .thumb-pdf{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+.thumb-pdf{display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--stone-500)}
+.thumb-remove{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:1px solid var(--border);background:#fff;color:var(--stone-600);font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.attachment-gallery audio{width:100%}
 </style>
 </head>
 <body>
@@ -197,14 +202,14 @@
   </div>
 </div>
 
-<!-- LOG GRIEVANCE MODAL (phone call / walk-in, typed or dictated) -->
+<!-- LOG GRIEVANCE MODAL (universal intake: text, photo/PDF + camera, audio — any mix) -->
 <div id="log-modal" class="modal-overlay" onclick="closeModals()">
   <div class="modal" onclick="event.stopPropagation()">
     <h3>Log Grievance</h3>
     <p class="modal-hint">
-      For grievances that arrive by phone or at the desk with no paper form. Type the summary,
-      or record it and let the AI transcribe — Telugu, English or a mix. You'll review and can
-      correct everything before saving.
+      Add anything you have for this grievance — a typed note, a photo of a form (or take one
+      now), a PDF, and/or a voice recording — in any combination. The AI reads whatever you
+      attach and merges it into one entry. You'll review and can correct everything before saving.
     </p>
 
     <div class="form-group">
@@ -215,39 +220,41 @@
       </select>
     </div>
 
-    <div class="log-tabs">
-      <button class="log-tab active" data-tab="type" onclick="setLogTab('type')"><i data-lucide="keyboard"></i> Type</button>
-      <button class="log-tab" data-tab="record" onclick="setLogTab('record')"><i data-lucide="mic"></i> Record</button>
-      <button class="log-tab" data-tab="file" onclick="setLogTab('file')"><i data-lucide="paperclip"></i> Attach audio</button>
+    <div class="form-group">
+      <label>What is the grievance? (optional)</label>
+      <textarea id="log-text" rows="4" placeholder="e.g. Ramesh from Karempudi called — his widow pension has not come for three months, he has visited the MRO office twice already."></textarea>
     </div>
 
-    <div id="log-pane-type" class="log-pane">
-      <div class="form-group">
-        <label>What is the grievance?</label>
-        <textarea id="log-text" rows="5" placeholder="e.g. Ramesh from Karempudi called — his widow pension has not come for three months, he has visited the MRO office twice already."></textarea>
-      </div>
+    <div class="section-title" style="margin-top:12px">Photos / PDF (optional)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('log-camera-input').click()">
+        <i data-lucide="camera"></i> Take photo
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('log-file-input').click()">
+        <i data-lucide="image-plus"></i> Choose file(s)
+      </button>
     </div>
+    <input type="file" id="log-camera-input" accept="image/*" capture="environment" style="display:none" onchange="onLogImagesChosen(this)">
+    <input type="file" id="log-file-input" accept="image/*,.pdf" multiple style="display:none" onchange="onLogImagesChosen(this)">
+    <div class="attachment-gallery" id="log-image-list"></div>
 
-    <div id="log-pane-record" class="log-pane" style="display:none">
-      <div class="recorder">
-        <button class="btn btn-primary" id="rec-btn" onclick="toggleRecording()">
-          <i data-lucide="mic"></i> Start recording
-        </button>
-        <span class="rec-timer" id="rec-timer">0:00</span>
-        <span class="rec-dot" id="rec-dot" style="display:none"></span>
-      </div>
-      <div class="modal-hint" id="rec-hint">Up to 5 minutes. Speak naturally — mention the name, village and the problem.</div>
-      <audio id="rec-playback" controls style="display:none;width:100%;margin-top:10px"></audio>
+    <div class="section-title" style="margin-top:12px">Audio (optional)</div>
+    <div class="recorder">
+      <button class="btn btn-secondary btn-sm" id="rec-btn" onclick="toggleRecording()">
+        <i data-lucide="mic"></i> Start recording
+      </button>
+      <span class="rec-timer" id="rec-timer">0:00</span>
+      <span class="rec-dot" id="rec-dot" style="display:none"></span>
     </div>
-
-    <div id="log-pane-file" class="log-pane" style="display:none">
-      <div class="file-drop" onclick="document.getElementById('audio-input').click()">
-        <i data-lucide="file-audio"></i><br>
-        Click to choose an audio file (WAV, MP3, M4A, AAC, OGG, FLAC)
-      </div>
-      <input type="file" id="audio-input" accept="audio/*" style="display:none" onchange="onAudioChosen()">
-      <div class="file-preview-list" id="audio-file-list"></div>
+    <div class="modal-hint" id="rec-hint">Up to 5 minutes. Speak naturally — mention the name, village and the problem.</div>
+    <audio id="rec-playback" controls style="display:none;width:100%;margin-top:6px"></audio>
+    <div class="modal-hint" style="margin:8px 0 4px">— or attach an audio file instead —</div>
+    <div class="file-drop" onclick="document.getElementById('audio-input').click()">
+      <i data-lucide="file-audio"></i><br>
+      Click to choose an audio file (WAV, MP3, M4A, AAC, OGG, FLAC)
     </div>
+    <input type="file" id="audio-input" accept="audio/*" style="display:none" onchange="onAudioChosen()">
+    <div class="file-preview-list" id="audio-file-list"></div>
 
     <div class="section-title" style="margin-top:16px">Known details (optional)</div>
     <p class="modal-hint">Anything you fill in here overrides what the AI picks up.</p>
@@ -326,7 +333,10 @@ let categoryFilter = '';
 let statusFilter = '';
 let channelFilter = '';
 // { tmp_id, filename, channel, intake_mode, extracted, priority_score,
-//   image_base64, image_mime, transcript, pending_media, audio_url, error }
+//   image_base64, image_mime, transcript, error,
+//   media: [{ pending_media, mime, type, label, local_url }] } — media[] only on
+// merged (intake_mode 'mixed') items; bulk-uploaded (intake_mode 'ocr') items still
+// carry a single inline image_base64/image_mime as before.
 let previewItems = [];
 
 const CHANNEL_META = {
@@ -610,6 +620,18 @@ function renderTable() {
               <button class="btn btn-sm btn-ghost" onclick="copySuggestedAction('${v.id}')"><i data-lucide="copy"></i> Copy into Action To Be Taken</button>
             </div>
           </div>
+          <div class="full-width suggestion-panel">
+            ${v.category === 'ttd_letter' ? `
+            <p class="modal-hint">Use the TTD Letter button (row actions) for this category.</p>` : `
+            <button class="btn btn-sm btn-secondary" id="letter-btn-${v.id}" onclick="draftDepartmentLetter('${v.id}')"><i data-lucide="file-signature"></i> Draft letter to department</button>
+            <div id="letter-body-${v.id}" style="${v.drafted_letter_subject || v.drafted_letter_body ? '' : 'display:none'}">
+              <label>Subject</label>
+              <input id="letter-subject-${v.id}" value="${esc(v.drafted_letter_subject)}">
+              <label>Body</label>
+              <textarea id="letter-text-${v.id}" rows="6">${esc(v.drafted_letter_body)}</textarea>
+              <button class="btn btn-sm btn-ghost" onclick="downloadDepartmentLetter('${v.id}')"><i data-lucide="file-down"></i> Download letter PDF</button>
+            </div>`}
+          </div>
           <div class="edit-actions">
             <button class="btn btn-sm btn-success" onclick="saveEdit('${v.id}')"><i data-lucide="check"></i> Save</button>
             <button class="btn btn-sm btn-ghost" onclick="cancelEdit('${v.id}')">Cancel</button>
@@ -659,6 +681,44 @@ function copySuggestedAction(id) {
   const actionEl = document.getElementById(`e-action-${id}`);
   actionEl.value = actionEl.value.trim() ? actionEl.value.trim() + '\n' + suggested : suggested;
   SaathiUI.toast('Copied — remember to Save.', 'info');
+}
+
+// Advisory only — auto-saves the draft on generation (so the AI call isn't lost if
+// staff navigate away), but nothing is printed/sent until Download is clicked.
+async function draftDepartmentLetter(id) {
+  const btn = document.getElementById(`letter-btn-${id}`);
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-circle"></i> Drafting…';
+  if (window.lucide) lucide.createIcons();
+  try {
+    const r = await fetch(`/api/grievances/${id}/draft-letter`, { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok) { SaathiUI.toast(data.error || 'Letter draft failed.', 'danger'); return; }
+    document.getElementById(`letter-subject-${id}`).value = data.item.drafted_letter_subject || '';
+    document.getElementById(`letter-text-${id}`).value = data.item.drafted_letter_body || '';
+    document.getElementById(`letter-body-${id}`).style.display = 'block';
+  } catch (e) {
+    SaathiUI.toast('Letter draft failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="file-signature"></i> Draft letter to department';
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// Saves whatever is in the subject/body boxes first, so the PDF always matches
+// what's on screen, then opens it — same window.open download pattern as
+// ttd_letters.html uses for its letter PDFs.
+async function downloadDepartmentLetter(id) {
+  const body = {
+    drafted_letter_subject: document.getElementById(`letter-subject-${id}`).value.trim(),
+    drafted_letter_body: document.getElementById(`letter-text-${id}`).value.trim(),
+  };
+  const r = await fetch('/api/grievances/' + id, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!r.ok) { SaathiUI.toast('Could not save the letter before downloading.', 'danger'); return; }
+  window.open(`/api/grievances/${id}/department-letter-pdf`, '_blank');
 }
 
 async function saveEdit(id) {
@@ -751,8 +811,9 @@ function closeModals() {
   document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
 }
 
-// ── Log Grievance (phone/walk-in, typed or dictated) ────────────────────
-let logTab = 'type';
+// ── Log Grievance (universal intake: text / photo+camera / audio, any mix) ──
+let pendingLogImages = [];     // File objects staged for this submission
+let pendingLogImageUrls = [];  // matching object URLs (empty string for PDFs)
 let recordedBlob = null;      // WAV blob ready to upload
 let recordedUrl = null;       // object URL for the in-modal player
 let mediaRecorder = null;
@@ -770,18 +831,40 @@ function openLogModal() {
   document.getElementById('audio-input').value = '';
   document.getElementById('audio-file-list').innerHTML = '';
   document.getElementById('log-duplicate-hint').style.display = 'none';
+  document.getElementById('log-camera-input').value = '';
+  document.getElementById('log-file-input').value = '';
+  pendingLogImageUrls.forEach(u => u && URL.revokeObjectURL(u));
+  pendingLogImages = [];
+  pendingLogImageUrls = [];
+  renderLogImageList();
   discardRecording();
-  setLogTab('type');
   document.getElementById('log-modal').style.display = 'flex';
   if (window.lucide) lucide.createIcons();
 }
 
-function setLogTab(tab) {
-  logTab = tab;
-  document.querySelectorAll('.log-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
-  ['type', 'record', 'file'].forEach(t => {
-    document.getElementById(`log-pane-${t}`).style.display = t === tab ? 'block' : 'none';
+function onLogImagesChosen(inputEl) {
+  Array.from(inputEl.files).forEach(f => {
+    pendingLogImages.push(f);
+    pendingLogImageUrls.push(f.type === 'application/pdf' ? '' : URL.createObjectURL(f));
   });
+  inputEl.value = ''; // allow re-choosing the same file, or taking another photo
+  renderLogImageList();
+}
+
+function removeLogImage(i) {
+  if (pendingLogImageUrls[i]) URL.revokeObjectURL(pendingLogImageUrls[i]);
+  pendingLogImages.splice(i, 1);
+  pendingLogImageUrls.splice(i, 1);
+  renderLogImageList();
+}
+
+function renderLogImageList() {
+  document.getElementById('log-image-list').innerHTML = pendingLogImages.map((f, i) => `
+    <div class="thumb-wrap">
+      ${pendingLogImageUrls[i] ? `<img class="thumb" src="${pendingLogImageUrls[i]}">` : `<div class="thumb thumb-pdf"><i data-lucide="file-text"></i></div>`}
+      <button type="button" class="thumb-remove" onclick="removeLogImage(${i})" title="Remove">&times;</button>
+    </div>`).join('');
+  if (window.lucide) lucide.createIcons();
 }
 
 function onAudioChosen() {
@@ -811,8 +894,7 @@ async function toggleRecording() {
 
   // Needs a secure context; on plain http:// the API simply isn't there.
   if (!navigator.mediaDevices?.getUserMedia) {
-    SaathiUI.toast('Recording needs a secure (https) connection — type the summary instead.', 'danger');
-    setLogTab('type');
+    SaathiUI.toast('Recording needs a secure (https) connection — type the summary or attach an audio file instead.', 'danger');
     return;
   }
 
@@ -821,10 +903,9 @@ async function toggleRecording() {
   } catch (e) {
     SaathiUI.toast(
       e.name === 'NotAllowedError'
-        ? 'Microphone permission was denied — type the summary instead.'
+        ? 'Microphone permission was denied — type the summary or attach an audio file instead.'
         : 'Could not start the microphone: ' + e.message,
       'danger');
-    setLogTab('type');
     return;
   }
 
@@ -933,79 +1014,66 @@ function encodeWav(samples, sampleRate) {
 
 async function submitLog() {
   const channel = document.getElementById('log-channel').value;
-  const known = {
-    full_name: document.getElementById('log-name').value.trim(),
-    contact_number: document.getElementById('log-contact').value.trim(),
-    village: document.getElementById('log-village').value.trim(),
-    logged_by: document.getElementById('log-by').value.trim(),
-  };
+  const text = document.getElementById('log-text').value.trim();
+  const audioFile = document.getElementById('audio-input').files[0];
+  const audio = recordedBlob || audioFile;
 
-  const btn = document.getElementById('log-extract-btn');
-  const restore = () => {
-    btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="sparkles"></i> Extract with AI';
-    if (window.lucide) lucide.createIcons();
-  };
-
-  let request;
-  if (logTab === 'type') {
-    const text = document.getElementById('log-text').value.trim();
-    if (!text) { SaathiUI.toast('Write the grievance first.', 'danger'); return; }
-    request = fetch('/api/grievances/log-text', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, channel, ...known }),
-    });
-  } else {
-    const audio = logTab === 'record' ? recordedBlob : document.getElementById('audio-input').files[0];
-    if (!audio) {
-      SaathiUI.toast(logTab === 'record' ? 'Record something first.' : 'Choose an audio file first.', 'danger');
-      return;
-    }
-    const fd = new FormData();
-    fd.append('audio', audio, logTab === 'record' ? 'dictation.wav' : audio.name);
-    fd.append('channel', channel);
-    Object.entries(known).forEach(([k, v]) => fd.append(k, v));
-    request = fetch('/api/grievances/log-audio', { method: 'POST', body: fd });
+  if (!text && !pendingLogImages.length && !audio) {
+    SaathiUI.toast('Add a typed note, a photo/PDF, or audio before extracting.', 'danger');
+    return;
   }
 
+  const fd = new FormData();
+  if (text) fd.append('text', text);
+  pendingLogImages.forEach(f => fd.append('images', f));
+  if (audio) fd.append('audio', audio, recordedBlob ? 'dictation.wav' : audio.name);
+  fd.append('channel', channel);
+  fd.append('full_name', document.getElementById('log-name').value.trim());
+  fd.append('contact_number', document.getElementById('log-contact').value.trim());
+  fd.append('village', document.getElementById('log-village').value.trim());
+  fd.append('logged_by', document.getElementById('log-by').value.trim());
+
+  const btn = document.getElementById('log-extract-btn');
   btn.disabled = true;
-  btn.innerHTML = logTab === 'type'
-    ? '<i data-lucide="loader-circle"></i> Extracting…'
-    : '<i data-lucide="loader-circle"></i> Transcribing… this takes a moment';
+  btn.innerHTML = '<i data-lucide="loader-circle"></i> Extracting… this can take a moment';
   if (window.lucide) lucide.createIcons();
 
   try {
-    const r = await request;
+    const r = await fetch('/api/grievances/log', { method: 'POST', body: fd });
     const data = await r.json();
-    if (!r.ok) {
-      SaathiUI.toast(data.error || 'Extraction failed.', 'danger');
-      // Transcription can fail with the recording still stored server-side, so
-      // staff can write it up by hand rather than losing the audio.
-      if (data.items?.length) {
-        previewItems = attachLocalAudio(data.items);
-        closeModals();
-        renderPreview();
-      }
-      return;
-    }
-    previewItems = attachLocalAudio(data.items || []);
+    if (!r.ok) { SaathiUI.toast(data.error || 'Extraction failed.', 'danger'); return; }
+    previewItems = attachLocalMedia(data.items || [], { audioFile });
     closeModals();
     renderPreview();
   } catch (e) {
     SaathiUI.toast('Extraction failed: ' + e.message, 'danger');
   } finally {
-    restore();
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="sparkles"></i> Extract with AI';
+    if (window.lucide) lucide.createIcons();
   }
 }
 
-// Keep the local object URL alive on the preview card so staff can replay what
-// they just recorded without a round trip to the server.
-function attachLocalAudio(items) {
-  if (logTab === 'record' && recordedUrl) {
-    items.forEach(it => { if (it.pending_media) it.audio_url = recordedUrl; });
-    recordedUrl = null; // ownership moves to the preview card
-    recordedBlob = null;
+// Keep local object URLs alive on the preview card so staff can see the photo(s)
+// and replay the audio they just attached, without a round trip to the server.
+// The server returns media in submission order (images first, audio last).
+function attachLocalMedia(items, { audioFile }) {
+  const item = items[0];
+  if (item?.media?.length) {
+    let imgI = 0;
+    item.media.forEach(m => {
+      if (m.type === 'audio') {
+        m.local_url = recordedUrl || (audioFile ? URL.createObjectURL(audioFile) : null);
+      } else {
+        m.local_url = pendingLogImageUrls[imgI] || null;
+        imgI += 1;
+      }
+    });
   }
+  recordedUrl = null; // ownership moves to the preview card
+  recordedBlob = null;
+  pendingLogImages = [];
+  pendingLogImageUrls = []; // ownership moves to the preview card
   return items;
 }
 
@@ -1072,10 +1140,14 @@ function renderPreview() {
       </div>
       ${p.error ? `<div class="preview-error-banner"><i data-lucide="triangle-alert"></i> AI extraction failed: ${esc(p.error)} — enter the details manually below.</div>` : ''}
       ${ex.is_grievance === false ? `<div class="preview-error-banner"><i data-lucide="triangle-alert"></i> The AI didn't read this as a grievance. Check it before saving.</div>` : ''}
+      ${(p.media || []).length ? `
+      <div class="attachment-gallery">
+        ${p.media.filter(m => m.type !== 'audio').map(m => m.local_url ? `<img class="thumb" src="${m.local_url}">` : `<div class="thumb thumb-pdf"><i data-lucide="file-text"></i></div>`).join('')}
+      </div>` : ''}
       <div class="preview-grid">
-        ${p.intake_mode === 'dictated' ? `
+        ${(p.media || []).some(m => m.type === 'audio') ? `
         <div class="transcript-box">
-          ${p.audio_url ? `<audio controls src="${p.audio_url}"></audio>` : ''}
+          ${p.media.find(m => m.type === 'audio')?.local_url ? `<audio controls src="${p.media.find(m => m.type === 'audio').local_url}"></audio>` : ''}
           <label>Transcript — correct any mistakes before saving</label>
           <textarea id="p-transcript-${i}" rows="3">${esc(p.transcript || '')}</textarea>
         </div>` : ''}
@@ -1122,13 +1194,17 @@ function renderPreview() {
   section.scrollIntoView({ behavior: 'smooth' });
 }
 
-// Audio parked server-side by /log-audio is only claimed when a record is saved, so
-// anything dropped from the preview has to be cleaned up explicitly.
+// Media parked server-side by /api/grievances/log (or the legacy singular
+// pending_media shape) is only claimed when a record is saved, so anything dropped
+// from the preview has to be cleaned up explicitly — one entry, or several.
 function releasePendingMedia(item) {
-  if (item?.audio_url) URL.revokeObjectURL(item.audio_url);
-  if (!item?.pending_media) return;
-  fetch('/api/grievances/pending-media/' + encodeURIComponent(item.pending_media), { method: 'DELETE' })
-    .catch(() => { /* the 24h server-side sweep will get it */ });
+  const entries = item?.media?.length ? item.media : (item?.pending_media ? [item] : []);
+  for (const m of entries) {
+    if (m.local_url) URL.revokeObjectURL(m.local_url);
+    if (!m.pending_media) continue;
+    fetch('/api/grievances/pending-media/' + encodeURIComponent(m.pending_media), { method: 'DELETE' })
+      .catch(() => { /* the 24h server-side sweep will get it */ });
+  }
 }
 
 function removePreviewItem(i) {
@@ -1172,8 +1248,9 @@ async function saveAllPreview() {
     intake_mode: p.intake_mode || 'ocr',
     logged_by: p.logged_by || '',
     transcript: document.getElementById(`p-transcript-${i}`)?.value.trim() || p.transcript || '',
-    pending_media: p.pending_media || '',
-    media_type: p.media_type || '',
+    // Merged single-grievance intake carries several attachments (media[]); the bulk
+    // form-photo uploader still carries exactly one, inline as image_base64 above.
+    media: (p.media || []).map(m => ({ pending_media: m.pending_media, mime: m.mime, type: m.type, label: m.label })),
   }));
 
   const r = await fetch('/api/grievances', {
@@ -1183,7 +1260,7 @@ async function saveAllPreview() {
   const data = await r.json();
   if (!r.ok) { SaathiUI.toast(data.error || 'Failed to save.', 'danger'); return; }
 
-  previewItems.forEach(p => { if (p.audio_url) URL.revokeObjectURL(p.audio_url); });
+  previewItems.forEach(p => (p.media || []).forEach(m => { if (m.local_url) URL.revokeObjectURL(m.local_url); }));
   previewItems = [];
   document.getElementById('review-section').style.display = 'none';
 

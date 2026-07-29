@@ -58,6 +58,24 @@ if (!fs.existsSync(DB_PATH) && fs.existsSync(SEED_PATH)) {
   console.log('✓ Database seeded from bundled snapshot');
 }
 
+// One-time migration: 'pension_welfare' category was merged into the broader
+// 'social_welfare_bc' ("Social Welfare & BC/Minority Welfare") category.
+(function migratePensionWelfareCategory() {
+  try {
+    const db = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+    let changed = false;
+    for (const g of db.grievances || []) {
+      if (g.category === 'pension_welfare') { g.category = 'social_welfare_bc'; changed = true; }
+    }
+    if (changed) {
+      fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+      console.log('✓ Migrated pension_welfare grievances to social_welfare_bc');
+    }
+  } catch (e) {
+    console.error('pension_welfare migration skipped:', e.message);
+  }
+})();
+
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -68,6 +86,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 // cap above (a day's forms are uploaded together, up to 20 files at once), and dictated
 // audio is bulkier still.
 const uploadGrievanceMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 20 } });
+// Universal "Log Grievance" intake — one grievance's own attachments (not a batch of
+// different forms like /upload), so a smaller cap than the bulk uploader's 20.
+const logGrievanceMedia = uploadGrievanceMedia.fields([
+  { name: 'images', maxCount: 10 },
+  { name: 'audio', maxCount: 1 },
+]);
 // Social media calendar posts can include video, which runs much larger than photos.
 const uploadSocialMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 10 } });
 
@@ -1356,28 +1380,39 @@ app.delete('/api/ttd-letters/:id', (req, res) => {
 });
 
 // ── Visitor Forms (AI OCR + categorization) ────────────────────────────────
+// `department`/`recipientTitle` are used only by the "draft letter to department" feature
+// (buildDepartmentLetterPDF) to address the letter — they don't affect triage/scoring.
 const ISSUE_CATEGORIES = [
-  { key: 'cmrf_medical',          label: 'CMRF/Medical Assistance',        weight: 90 },
-  { key: 'police_law_order',      label: 'Police/Law & Order',             weight: 85 },
-  { key: 'public_grievance',      label: 'Public Grievance',               weight: 75 },
-  { key: 'irrigation_water',      label: 'Irrigation & Water Resources',   weight: 75 },
-  { key: 'pension_welfare',       label: 'Pension & Social Welfare',       weight: 70 },
-  { key: 'housing',               label: 'Housing',                        weight: 70 },
-  { key: 'electricity',           label: 'Electricity',                    weight: 65 },
-  { key: 'revenue_land',          label: 'Revenue & Land Issues',          weight: 65 },
-  { key: 'roads_infrastructure',  label: 'Roads & Infrastructure',         weight: 60 },
-  { key: 'education_fee',         label: 'Education/Fee Concession',       weight: 60 },
-  { key: 'agriculture',           label: 'Agriculture',                    weight: 60 },
-  { key: 'banking_financial',     label: 'Banking & Financial Issues',     weight: 55 },
-  { key: 'employee_transfer',     label: 'Employee Transfer',              weight: 50 },
-  { key: 'mplads',                label: 'MPLADS',                         weight: 50 },
-  { key: 'recommendation_letter', label: 'Recommendation/Request Letter',  weight: 45 },
-  { key: 'ttd_letter',            label: 'TTD Recommendation Letter',      weight: 40 },
-  { key: 'nominated_posts',       label: 'Nominated Posts',                weight: 40 },
-  { key: 'party_organizational',  label: 'Party/Organizational Matter',    weight: 35 },
-  { key: 'others',                label: 'Others',                        weight: 30 },
+  { key: 'cmrf_medical',          label: 'CMRF/Medical Assistance',                  weight: 90, department: 'CMRF / Medical Assistance',                department_head: 'The District Collector (CMRF Cell)' },
+  { key: 'police_law_order',      label: 'Police Department',                        weight: 85, department: 'Police Department',                        department_head: 'The Superintendent of Police (SP)' },
+  { key: 'public_grievance',      label: 'Public Grievance',                         weight: 75, department: 'Public Grievance',                         department_head: 'The District Collector' },
+  { key: 'irrigation_water',      label: 'Irrigation / Water Resources Department',  weight: 75, department: 'Irrigation / Water Resources Department',  department_head: 'The Executive Engineer, Irrigation Department' },
+  { key: 'medical_health_dept',   label: 'Medical and Health Department',            weight: 75, department: 'Medical and Health Department',            department_head: 'The District Medical & Health Officer (DM&HO)' },
+  { key: 'social_welfare_bc',     label: 'Social Welfare & BC/Minority Welfare',     weight: 70, department: 'Social Welfare & BC/Minority Welfare',     department_head: 'The District Social Welfare Officer' },
+  { key: 'housing',               label: 'Housing',                                 weight: 70, department: 'Housing',                                 department_head: 'The Project Officer, AP State Housing Corporation' },
+  { key: 'electricity',           label: 'Electricity',                             weight: 65, department: 'Electricity',                             department_head: 'The Assistant Divisional Engineer (ADE), Electricity' },
+  { key: 'revenue_land',          label: 'Revenue Department',                      weight: 65, department: 'Revenue Department',                      department_head: 'The Tehsildar / District Revenue Officer' },
+  { key: 'panchayat_raj_rural',   label: 'Panchayat Raj & Rural Development',        weight: 65, department: 'Panchayat Raj & Rural Development',        department_head: 'The District Panchayat Officer' },
+  { key: 'civil_supplies',        label: 'Civil Supplies Department',               weight: 60, department: 'Civil Supplies Department',               department_head: 'The District Supply Officer' },
+  { key: 'roads_infrastructure',  label: 'Roads and Buildings (R&B)',               weight: 60, department: 'Roads and Buildings (R&B)',               department_head: 'The Executive Engineer, R&B' },
+  { key: 'education_fee',         label: 'Education Department',                    weight: 60, department: 'Education Department',                    department_head: 'The District Educational Officer (DEO)' },
+  { key: 'agriculture',           label: 'Agriculture Department',                  weight: 60, department: 'Agriculture Department',                  department_head: 'The Joint Director of Agriculture' },
+  { key: 'transport_dept',        label: 'Transport Department',                    weight: 55, department: 'Transport Department',                    department_head: 'The Regional Transport Officer (RTO)' },
+  { key: 'banking_financial',     label: 'Institutional and Commercial Banks',      weight: 55, department: 'Institutional and Commercial Banks',      department_head: 'The Lead District Manager (LDM)' },
+  { key: 'employee_transfer',     label: 'Employee Transfer',                       weight: 50, department: 'MP Office (internal)',                    department_head: 'The District Collector' },
+  { key: 'mplads',                label: 'MPLADS',                                  weight: 50, department: 'MP Office (internal)',                    department_head: 'The District Collector' },
+  { key: 'horticulture',          label: 'Horticulture Department',                 weight: 50, department: 'Horticulture Department',                 department_head: 'The Deputy Director of Horticulture' },
+  { key: 'fisheries',             label: 'Fisheries Department',                    weight: 50, department: 'Fisheries Department',                    department_head: 'The Assistant Director of Fisheries' },
+  { key: 'recommendation_letter', label: 'Recommendation/Request Letter',           weight: 45, department: 'MP Office (internal)',                    department_head: 'The District Collector' },
+  { key: 'ttd_letter',            label: 'TTD Recommendation Letter',               weight: 40, department: 'TTD (uses its own dedicated letter flow)', department_head: 'The Executive Officer, TTD' },
+  { key: 'nominated_posts',       label: 'Nominated Posts',                         weight: 40, department: 'MP Office (internal)',                    department_head: 'The District Collector' },
+  { key: 'party_organizational',  label: 'Party/Organizational Matter',             weight: 35, department: 'MP Office (internal)',                    department_head: 'The District Collector' },
+  { key: 'others',                label: 'Others',                                 weight: 30, department: 'General / Others',                        department_head: 'The District Collector' },
 ];
 const ISSUE_CATEGORY_KEYS = new Set(ISSUE_CATEGORIES.map(c => c.key));
+function categoryDepartmentInfo(key) {
+  return ISSUE_CATEGORIES.find(c => c.key === key) || ISSUE_CATEGORIES.find(c => c.key === 'others');
+}
 const RESOLUTION_STATUSES = new Set(['Pending', 'In Progress', 'Resolved']);
 const URGENCY_WEIGHTS = { High: 100, Medium: 60, Low: 30 };
 
@@ -1457,86 +1492,157 @@ app.post('/api/grievances/upload', uploadGrievanceMedia.array('images', 20), asy
   res.json({ ok: true, items: results, count: results.length });
 });
 
-// Shared shaping for the text/audio intake paths so both return the exact envelope
-// /upload does — the frontend renders all three through one preview-card path.
-function buildExtractionPreview(tmp_id, extracted, overrides, extra) {
-  const category = ISSUE_CATEGORY_KEYS.has(extracted.category) ? extracted.category : 'others';
-  const urgency = URGENCY_WEIGHTS[extracted.urgency] !== undefined ? extracted.urgency : 'Medium';
-  // Anything staff typed in the form beats what the AI inferred from the narration.
-  const stated = Object.fromEntries(Object.entries(overrides).filter(([, v]) => v));
-  return {
-    tmp_id,
-    extracted: { ...extracted, ...stated, category, urgency },
-    priority_score: computePriorityScore(category, urgency),
-    ...extra,
-  };
+// Universal single-grievance intake — any combination of typed text, photo(s)/PDF,
+// and audio (recorded or attached) submitted together become ONE merged grievance,
+// not one record per attachment (that's what the bulk /upload digitizer is for).
+// Priority order across sources reflects which one is most likely to hold a given
+// kind of detail: a photographed form has dedicated printed boxes for identity/
+// location fields, so OCR wins those; dictation tends to carry the fullest verbal
+// description of the actual problem, so it wins the category/urgency judgement.
+function mergeGrievanceExtraction({ imageResults, audioResult, textResult, typedText, known }) {
+  const scalarFields = [
+    'full_name', 'address', 'village', 'mandal', 'assembly_constituency',
+    'reference_name', 'reference_number', 'contact_number', 'email', 'date_of_visit',
+    'assigned_officer', 'deadline', 'action_taken', 'action_to_be_taken',
+  ];
+  const successfulImages = imageResults.filter(r => r.ok).map(r => r.extracted);
+  const scalarSources = [
+    ...successfulImages,
+    ...(audioResult?.ok ? [audioResult.extracted] : []),
+    ...(textResult?.ok ? [textResult.extracted] : []),
+  ];
+
+  const merged = {};
+  for (const field of scalarFields) {
+    merged[field] = '';
+    for (const src of scalarSources) {
+      if (src[field]) { merged[field] = src[field]; break; }
+    }
+  }
+
+  // category/urgency/urgency_reason are chosen as one coherent bundle from a single
+  // richest source — never mix category from one source with urgency from another.
+  const bundleSource = audioResult?.ok ? audioResult.extracted
+    : (successfulImages[0] || (textResult?.ok ? textResult.extracted : null));
+  merged.category = (bundleSource && ISSUE_CATEGORY_KEYS.has(bundleSource.category)) ? bundleSource.category : 'others';
+  merged.urgency = (bundleSource && URGENCY_WEIGHTS[bundleSource.urgency] !== undefined) ? bundleSource.urgency : 'Medium';
+  merged.urgency_reason = bundleSource?.urgency_reason || '';
+  merged.confidence = (bundleSource && bundleSource.confidence) || '';
+  merged.ocr_confidence = imageResults.find(r => r.ok)?.extracted?.ocr_confidence || '';
+  merged.transcript = audioResult?.ok ? (audioResult.extracted.transcript || '') : '';
+
+  // A photographed form is inherently a valid intake regardless of this flag; only
+  // gate it out when every non-image source that ran explicitly said "not a grievance".
+  const succeededNonImage = [audioResult, textResult].filter(r => r && r.ok);
+  const allExplicitFalse = succeededNonImage.length > 0 && succeededNonImage.every(r => r.extracted.is_grievance === false);
+  merged.is_grievance = successfulImages.length > 0 ? true : !allExplicitFalse;
+
+  // issue_description is concatenated, never chosen — every present source
+  // contributes its own labeled paragraph so nothing is silently dropped.
+  const parts = [];
+  if (audioResult) {
+    parts.push(audioResult.ok
+      ? `[From voice note]: ${audioResult.extracted.transcript || ''}`
+      : `[From voice note]: (extraction failed — ${audioResult.error})`);
+  }
+  if (typedText) parts.push(`[Typed note]: ${typedText}`);
+  imageResults.forEach((r, i) => {
+    const label = `[From attached photo ${i + 1}${r.file ? ' — ' + r.file : ''}]`;
+    parts.push(r.ok
+      ? `${label}: ${r.extracted.issue_description || ''}`
+      : `${label}: (extraction failed — ${r.error})`);
+  });
+  merged.issue_description = parts.join('\n\n');
+
+  // Staff-typed known fields always win outright over anything AI-extracted.
+  for (const [k, v] of Object.entries(known)) if (v) merged[k] = v;
+
+  return merged;
 }
 
-app.post('/api/grievances/log-text', async (req, res) => {
-  const { text, channel, logged_by, full_name, contact_number, village } = req.body;
-  if (!text || !String(text).trim()) return res.status(400).json({ error: 'text is required' });
-  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
-
-  const ch = GRIEVANCE_CHANNELS.has(channel) ? channel : 'phone_call';
-  const gemini = await import('./gemini.js');
-  const tmp_id = `tmp${Date.now()}_0`;
-
-  try {
-    const extracted = await gemini.extractGrievanceFromText(String(text), ISSUE_CATEGORIES);
-    const item = buildExtractionPreview(
-      tmp_id, extracted,
-      { full_name, contact_number, village },
-      { channel: ch, intake_mode: 'typed', logged_by: logged_by || '', source_text: String(text) },
-    );
-    res.json({ ok: true, items: [item], count: 1 });
-  } catch (e) {
-    res.status(502).json({ error: `AI extraction failed: ${e.message}` });
+app.post('/api/grievances/log', logGrievanceMedia, async (req, res) => {
+  const text = String(req.body.text || '').trim();
+  const images = req.files?.images || [];
+  const audioFile = req.files?.audio?.[0];
+  if (!text && !images.length && !audioFile) {
+    return res.status(400).json({ error: 'Add at least one of: typed text, a photo/PDF, or audio.' });
   }
-});
-
-app.post('/api/grievances/log-audio', uploadGrievanceMedia.single('audio'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'An audio file is required' });
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
 
-  const ext = GRIEVANCE_AUDIO_MIMES[req.file.mimetype];
-  if (!ext) {
-    return res.status(400).json({
-      error: `Unsupported audio type: ${req.file.mimetype}. Use WAV, MP3, M4A, AAC, OGG or FLAC.`,
-    });
+  const allowedImageMimes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+  for (const f of images) {
+    if (!allowedImageMimes.has(f.mimetype)) {
+      return res.status(400).json({ error: `Unsupported file type: ${f.mimetype}` });
+    }
+  }
+  let audioExt = null;
+  if (audioFile) {
+    audioExt = GRIEVANCE_AUDIO_MIMES[audioFile.mimetype];
+    if (!audioExt) {
+      return res.status(400).json({
+        error: `Unsupported audio type: ${audioFile.mimetype}. Use WAV, MP3, M4A, AAC, OGG or FLAC.`,
+      });
+    }
   }
 
   const { channel, logged_by, full_name, contact_number, village } = req.body;
   const ch = GRIEVANCE_CHANNELS.has(channel) ? channel : 'phone_call';
-  const gemini = await import('./gemini.js');
-  const tmp_id = `tmp${Date.now()}_0`;
+  const known = { full_name, contact_number, village };
 
-  // Park the audio on disk and hand back a filename. Round-tripping it as base64
-  // through the JSON commit body would blow express.json's 10mb cap.
-  const pending_media = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  // Park every attachment to disk immediately — nothing is lost if a Gemini call
+  // below fails, and it sidesteps express.json's 10mb cap for this multipart path.
+  const media = [];
   try {
-    fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, pending_media), req.file.buffer);
-  } catch (e) {
-    return res.status(500).json({ error: `Could not store the recording: ${e.message}` });
-  }
-
-  try {
-    const extracted = await gemini.extractGrievanceFromAudio(req.file.buffer, req.file.mimetype, ISSUE_CATEGORIES);
-    const item = buildExtractionPreview(
-      tmp_id, extracted,
-      { full_name, contact_number, village },
-      {
-        channel: ch, intake_mode: 'dictated', logged_by: logged_by || '',
-        transcript: extracted.transcript || '', pending_media, media_type: 'audio',
-      },
-    );
-    res.json({ ok: true, items: [item], count: 1 });
-  } catch (e) {
-    // Keep the recording — staff can still write the grievance up by hand from it.
-    res.status(502).json({
-      error: `AI transcription failed: ${e.message}`,
-      items: [{ tmp_id, channel: ch, intake_mode: 'dictated', pending_media, media_type: 'audio', error: e.message }],
+    images.forEach((f, i) => {
+      const ext = f.mimetype.includes('png') ? 'png' : f.mimetype.includes('pdf') ? 'pdf' : f.mimetype.includes('webp') ? 'webp' : 'jpg';
+      const filename = `tmp_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), f.buffer);
+      media.push({ pending_media: filename, mime: f.mimetype, type: f.mimetype === 'application/pdf' ? 'pdf' : 'image', label: `Attached photo ${i + 1}` });
     });
+    if (audioFile) {
+      const filename = `tmp_${Date.now()}_audio_${Math.random().toString(36).slice(2, 8)}.${audioExt}`;
+      fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), audioFile.buffer);
+      media.push({ pending_media: filename, mime: audioFile.mimetype, type: 'audio', label: 'Voice note' });
+    }
+  } catch (e) {
+    return res.status(500).json({ error: `Could not store attachment(s): ${e.message}` });
   }
+
+  const gemini = await import('./gemini.js');
+  const [imageResults, audioResult, textResult] = await Promise.all([
+    Promise.all(images.map(async (f, i) => {
+      try {
+        const extracted = await gemini.extractGrievanceFromImage(f.buffer, f.mimetype, ISSUE_CATEGORIES);
+        return { ok: true, idx: i, file: f.originalname, extracted };
+      } catch (e) {
+        return { ok: false, idx: i, file: f.originalname, error: e.message };
+      }
+    })),
+    audioFile
+      ? gemini.extractGrievanceFromAudio(audioFile.buffer, audioFile.mimetype, ISSUE_CATEGORIES)
+          .then(extracted => ({ ok: true, extracted }))
+          .catch(e => ({ ok: false, error: e.message }))
+      : null,
+    text
+      ? gemini.extractGrievanceFromText(text, ISSUE_CATEGORIES)
+          .then(extracted => ({ ok: true, extracted }))
+          .catch(e => ({ ok: false, error: e.message }))
+      : null,
+  ]);
+
+  const merged = mergeGrievanceExtraction({ imageResults, audioResult, textResult, typedText: text, known });
+  const tmp_id = `tmp${Date.now()}_0`;
+  const item = {
+    tmp_id,
+    channel: ch,
+    intake_mode: 'mixed',
+    logged_by: logged_by || '',
+    extracted: merged,
+    transcript: merged.transcript || '',
+    priority_score: computePriorityScore(merged.category, merged.urgency),
+    media,
+  };
+  res.json({ ok: true, items: [item], count: 1 });
 });
 
 // Called when staff discard a preview, so abandoned recordings don't pile up.
@@ -1612,41 +1718,77 @@ function buildGrievanceRecord(db, it, id) {
   const urgency = URGENCY_WEIGHTS[it.urgency] !== undefined ? it.urgency : 'Medium';
   const channel = GRIEVANCE_CHANNELS.has(it.channel) ? it.channel : 'walk_in';
 
-  // Two ways media arrives: inline base64 (form photos, unchanged) or a filename
-  // already parked on disk — by /log-audio (tmp_*) or a promoted WhatsApp voice-note
-  // inbox entry (INB*) — which we adopt by renaming it to the record either way.
-  let image_path = '';
-  let media_type = '';
-  if (it.pending_media) {
-    const safeName = path.basename(String(it.pending_media));
-    const src = path.join(GRIEVANCE_MEDIA_PATH, safeName);
-    if (fs.existsSync(src)) {
+  // Media arrives one of two shapes: the new universal intake's `media` array (each
+  // entry a pending_media filename parked on disk, one grievance can carry several
+  // attachments), or the legacy singular shape used by /upload, the bulk-upload
+  // preview commit, and the WhatsApp inbox promote path — a single `pending_media`
+  // (parked by /log-audio historically, or a promoted voice-note inbox entry) or
+  // inline `image_base64` (form photos). The legacy path is kept byte-identical;
+  // either way we end up with one `media` array on the record.
+  let media = [];
+  if (Array.isArray(it.media) && it.media.length) {
+    media = it.media.map((m, idx) => {
+      let filePath = '';
+      if (m.pending_media) {
+        const safeName = path.basename(String(m.pending_media));
+        const src = path.join(GRIEVANCE_MEDIA_PATH, safeName);
+        if (fs.existsSync(src)) {
+          try {
+            const filename = `${id}_${idx}${path.extname(safeName)}`;
+            fs.renameSync(src, path.join(GRIEVANCE_MEDIA_PATH, filename));
+            filePath = filename;
+          } catch (e) {
+            console.error('Failed to adopt pending grievance media:', e.message);
+          }
+        }
+      } else if (m.image_base64) {
+        try {
+          const mime = m.mime || '';
+          const ext = mime.includes('png') ? 'png' : mime.includes('pdf') ? 'pdf' : mime.includes('webp') ? 'webp' : 'jpg';
+          const filename = `${id}_${idx}.${ext}`;
+          fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), Buffer.from(m.image_base64, 'base64'));
+          filePath = filename;
+        } catch (e) {
+          console.error('Failed to persist grievance image:', e.message);
+        }
+      }
+      return filePath ? { path: filePath, mime: m.mime || '', type: m.type || 'image', label: m.label || '' } : null;
+    }).filter(Boolean);
+  } else {
+    let image_path = '';
+    let media_type = '';
+    if (it.pending_media) {
+      const safeName = path.basename(String(it.pending_media));
+      const src = path.join(GRIEVANCE_MEDIA_PATH, safeName);
+      if (fs.existsSync(src)) {
+        try {
+          const filename = `${id}${path.extname(safeName)}`;
+          fs.renameSync(src, path.join(GRIEVANCE_MEDIA_PATH, filename));
+          image_path = filename;
+          media_type = it.media_type === 'audio' ? 'audio' : 'image';
+        } catch (e) {
+          console.error('Failed to adopt pending grievance media:', e.message);
+        }
+      }
+    } else if (it.image_base64) {
       try {
-        const filename = `${id}${path.extname(safeName)}`;
-        fs.renameSync(src, path.join(GRIEVANCE_MEDIA_PATH, filename));
+        const mime = it.image_mime || '';
+        const ext = mime.includes('png') ? 'png' : mime.includes('pdf') ? 'pdf' : 'jpg';
+        const filename = `${id}.${ext}`;
+        fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), Buffer.from(it.image_base64, 'base64'));
         image_path = filename;
-        media_type = it.media_type === 'audio' ? 'audio' : 'image';
+        media_type = ext === 'pdf' ? 'pdf' : 'image';
       } catch (e) {
-        console.error('Failed to adopt pending grievance media:', e.message);
+        console.error('Failed to persist grievance image:', e.message);
       }
     }
-  } else if (it.image_base64) {
-    try {
-      const mime = it.image_mime || '';
-      const ext = mime.includes('png') ? 'png' : mime.includes('pdf') ? 'pdf' : 'jpg';
-      const filename = `${id}.${ext}`;
-      fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), Buffer.from(it.image_base64, 'base64'));
-      image_path = filename;
-      media_type = ext === 'pdf' ? 'pdf' : 'image';
-    } catch (e) {
-      console.error('Failed to persist grievance image:', e.message);
-    }
+    if (image_path) media = [{ path: image_path, mime: it.image_mime || '', type: media_type, label: media_type === 'audio' ? 'Audio' : 'Attachment' }];
   }
 
   const record = {
     id,
     channel,
-    intake_mode: ['typed', 'ocr', 'dictated'].includes(it.intake_mode) ? it.intake_mode : 'typed',
+    intake_mode: ['typed', 'ocr', 'dictated', 'mixed'].includes(it.intake_mode) ? it.intake_mode : 'typed',
     logged_by: it.logged_by || '',
     full_name: it.full_name || '',
     address: it.address || '',
@@ -1670,13 +1812,18 @@ function buildGrievanceRecord(db, it, id) {
     ocr_confidence: it.ocr_confidence || '',
     transcript: it.transcript || '',
     priority_score: computePriorityScore(category, urgency),
-    image_path,
-    media_type,
+    // Legacy singular fields mirror the first attachment so every existing reader
+    // (table row media button, delete cleanup, exports) keeps working unchanged.
+    image_path: media[0]?.path || '',
+    media_type: media[0]?.type || '',
+    media,
     ttd_letter_refs: [],
     linked_grievance_ids: [],
     escalated_at: '',
     suggested_response: '',
     suggested_next_action: '',
+    drafted_letter_subject: '',
+    drafted_letter_body: '',
     created_at: new Date().toISOString(),
   };
 
@@ -1804,6 +1951,7 @@ app.patch('/api/grievances/:id', (req, res) => {
     'reference_name', 'reference_number', 'contact_number', 'email',
     'date_of_visit', 'issue_description', 'action_taken', 'action_to_be_taken',
     'assigned_officer', 'deadline', 'transcript',
+    'drafted_letter_subject', 'drafted_letter_body',
   ];
   for (const f of fields) if (req.body[f] !== undefined) item[f] = req.body[f];
 
@@ -1840,6 +1988,49 @@ app.post('/api/grievances/:id/suggest-response', async (req, res) => {
   }
 });
 
+// Advisory only, auto-saved on generation (same precedent as suggest-response) so
+// the AI call isn't lost if staff navigate away before manually saving; staff can
+// still hand-edit the text afterwards via PATCH.
+app.post('/api/grievances/:id/draft-letter', async (req, res) => {
+  const db = readDB();
+  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Grievance not found' });
+  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
+
+  try {
+    const gemini = await import('./gemini.js');
+    const dept = categoryDepartmentInfo(item.category);
+    const draft = await gemini.draftDepartmentLetter(item, dept, db.metadata?.mp_name);
+    item.drafted_letter_subject = draft.subject || '';
+    item.drafted_letter_body = draft.body || '';
+    writeDB(db);
+    res.json({ ok: true, item });
+  } catch (e) {
+    res.status(502).json({ error: `AI letter draft failed: ${e.message}` });
+  }
+});
+
+app.get('/api/grievances/:id/department-letter-pdf', (req, res) => {
+  const db = readDB();
+  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Grievance not found' });
+  if (!item.drafted_letter_subject && !item.drafted_letter_body)
+    return res.status(400).json({ error: 'Draft a letter first.' });
+
+  const dept = categoryDepartmentInfo(item.category);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="department-letter-${item.id}.pdf"`);
+
+  const doc = new PDFDocument({ margin: 50, size: 'A4' });
+  doc.pipe(res);
+  try {
+    buildDepartmentLetterPDF(doc, item, dept, db.metadata?.mp_name);
+  } catch (e) {
+    console.error('Department letter PDF generation error:', e);
+  }
+  doc.end();
+});
+
 app.post('/api/grievances/:id/create-ttd-letter', (req, res) => {
   const db = readDB();
   const visitorForm = (db.grievances || []).find(v => v.id === req.params.id);
@@ -1865,9 +2056,10 @@ app.post('/api/grievances/:id/create-ttd-letter', (req, res) => {
 app.delete('/api/grievances/:id', (req, res) => {
   const db = readDB();
   const item = (db.grievances || []).find(v => v.id === req.params.id);
-  if (item?.image_path) {
-    const p = path.join(GRIEVANCE_MEDIA_PATH, item.image_path);
-    fs.existsSync(p) && fs.unlinkSync(p);
+  const mediaList = item?.media?.length ? item.media : (item?.image_path ? [{ path: item.image_path }] : []);
+  for (const m of mediaList) {
+    const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(m.path));
+    if (fs.existsSync(p)) fs.unlinkSync(p);
   }
   db.grievances = (db.grievances || []).filter(v => v.id !== req.params.id);
   writeDB(db);
@@ -1882,13 +2074,18 @@ const GRIEVANCE_MEDIA_CONTENT_TYPES = {
   '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.flac': 'audio/flac',
 };
 
-app.get('/api/grievances/:id/media', (req, res) => {
+app.get('/api/grievances/:id/media/:index?', (req, res) => {
   const db = readDB();
   const item = (db.grievances || []).find(v => v.id === req.params.id);
-  if (!item || !item.image_path) return res.status(404).json({ error: 'No media on file' });
-  const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(item.image_path));
+  if (!item) return res.status(404).json({ error: 'Grievance not found' });
+  const mediaList = item.media?.length ? item.media
+    : (item.image_path ? [{ path: item.image_path, mime: '', type: item.media_type || 'image' }] : []);
+  const idx = req.params.index !== undefined ? parseInt(req.params.index, 10) : 0;
+  const entry = mediaList[idx];
+  if (!entry) return res.status(404).json({ error: 'No media on file' });
+  const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(entry.path));
   if (!fs.existsSync(p)) return res.status(404).json({ error: 'Media file missing' });
-  const contentType = GRIEVANCE_MEDIA_CONTENT_TYPES[path.extname(p).toLowerCase()];
+  const contentType = entry.mime || GRIEVANCE_MEDIA_CONTENT_TYPES[path.extname(p).toLowerCase()];
   if (contentType) res.setHeader('Content-Type', contentType);
   res.sendFile(p);
 });
@@ -3115,6 +3312,57 @@ function buildTtdLetterPDF(doc, letter, mpName) {
     doc.moveDown(0.5);
     doc.text(`Referred by: ${letter.referred_by}`, PDF_LEFT, doc.y, { width: PDF_WIDTH });
   }
+
+  doc.moveDown(3);
+  doc.font(bodyFont).text('Thanking you,', PDF_LEFT);
+  doc.moveDown(2);
+  doc.font(boldFont).text(mpName || 'Member of Parliament', PDF_LEFT);
+  doc.font(bodyFont).fontSize(9).fillColor(C.slate).text('Palanadu Parliamentary Constituency', PDF_LEFT);
+
+  doc.fontSize(8).fillColor('#9ca3af').text(
+    '(Draft v1 letter format — wording to be finalized.)',
+    PDF_LEFT, doc.page.height - 60, { width: PDF_WIDTH, align: 'center' }
+  );
+}
+
+// "Draft letter to department" — advisory AI-drafted letter for a grievance's
+// category, addressed via that category's department/department_head. Modeled
+// closely on buildTtdLetterPDF above (same layout constants/font/disclaimer).
+function buildDepartmentLetterPDF(doc, grievance, departmentInfo, mpName) {
+  let teluguFontOk = false;
+  try {
+    doc.registerFont('Body', TELUGU_FONT_PATH);
+    doc.registerFont('Body-Bold', TELUGU_FONT_PATH);
+    teluguFontOk = true;
+  } catch { /* falls back to Helvetica */ }
+  const bodyFont = teluguFontOk ? 'Body' : 'Helvetica';
+  const boldFont = teluguFontOk ? 'Body-Bold' : 'Helvetica-Bold';
+  const C = PDF_COLORS;
+
+  doc.font(boldFont).fontSize(14).fillColor(C.ink)
+    .text(mpName || 'Member of Parliament, Palanadu', PDF_LEFT, 40, { width: PDF_WIDTH, align: 'center' });
+  doc.font(bodyFont).fontSize(10).fillColor(C.slate)
+    .text('Narasaraopet Constituency · Palanadu District', PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'center' });
+  doc.moveDown(2);
+  doc.x = PDF_LEFT;
+
+  doc.font(bodyFont).fontSize(10).fillColor(C.ink);
+  doc.text(`Ref: ${grievance.id}`, PDF_LEFT);
+  doc.text(`Date: ${formatDateLong(getISTDateStr())}`, PDF_LEFT);
+  doc.moveDown(1.5);
+
+  doc.text('To,', PDF_LEFT);
+  doc.text(`${departmentInfo.department_head},`, PDF_LEFT);
+  doc.text(`${departmentInfo.department},`, PDF_LEFT);
+  doc.text(`${grievance.mandal || grievance.village || 'Palanadu District'}.`, PDF_LEFT);
+  doc.moveDown(1.5);
+
+  doc.font(boldFont).text(`Sub: ${grievance.drafted_letter_subject}`, PDF_LEFT, doc.y, { underline: true, width: PDF_WIDTH });
+  doc.moveDown(1);
+
+  doc.font(bodyFont).text('Respected Sir/Madam,', PDF_LEFT);
+  doc.moveDown(0.5);
+  doc.text(grievance.drafted_letter_body, PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'justify' });
 
   doc.moveDown(3);
   doc.font(bodyFont).text('Thanking you,', PDF_LEFT);

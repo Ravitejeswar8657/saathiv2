@@ -67,7 +67,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `heatmap.html` | Mandal-level coverage heatmap (Leaflet + OpenStreetMap, no API key) — contact density, average priority score, and grievance-register hotspots (count/top category/avg priority per mandal, from `/api/grievances`, additive to the legacy `contact.open_grievance` count) per mandal, joined against `public/assets/mandal_coords.json` (generated once via `scripts/geocode_mandals.js`) |
 | `journalist.html` | Alternate journalist form |
 | `ttd_letters.html` | TTD reference letter register — calendar view, Aadhar duplicate check, Excel/PDF exports, per-letter PDF |
-| `grievances.html` | Unified grievance register across intake channels. Walk-ins: staff upload photographed paper forms, Gemini OCR-extracts the fields. Phone calls / desk visits with no form: staff type a summary, or dictate it (browser mic, or an attached audio file) and Gemini transcribes it. Every route assigns a category/urgency that staff review and correct in an editable preview before saving; channel column and filter, category pills, calendar, status tracking, Excel/PDF exports, live duplicate-check banner, linked-grievance badges, and an on-demand AI-suggested-response panel (advisory only — never auto-populates the action fields) |
+| `grievances.html` | Unified grievance register across intake channels. Bulk "Upload Forms": staff photograph/scan many paper forms at once, Gemini OCR-extracts each into its own record. "Log Grievance" is a universal single-grievance intake — any combination of typed text, photo(s)/PDF (camera capture or file picker), and audio (mic recording or attached file) submitted together merge into one AI-reviewed record, never one-per-attachment. Every route assigns a category/urgency that staff review and correct in an editable preview before saving; channel column and filter, category pills, calendar, status tracking, Excel/PDF exports, live duplicate-check banner, linked-grievance badges, an on-demand AI-suggested-response panel (advisory only — never auto-populates the action fields), and an on-demand "Draft letter to department" panel (advisory AI-drafted letter to the grievance category's department head, editable, downloadable as PDF) |
 | `grievance_inbox.html` | WhatsApp Inbox — staff triage queue for open public WhatsApp intake (`server/whatsapp.js`'s `setOnPublicMessage`). Every 1:1 message/voice note from a number other than the MP's own lands here first with its AI classification; nothing reaches `grievances.html` until staff Promote (which also sends the sender a WhatsApp acknowledgement with the new grievance's id) or Dismiss it. History toggle shows past promoted/dismissed entries |
 | `social_calendar.html` | Social media content calendar — calendar view where each date can hold multiple posts, each post carrying one or more media files (images/video/PDF) plus a caption |
 
@@ -102,21 +102,22 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | GET | `/api/ttd-letters/export.xlsx` | Export TTD letters as Excel |
 | GET | `/api/ttd-letters/export-pdf` | Export TTD letters register as PDF |
 | GET | `/api/ttd-letters/:id/letter-pdf` | Generate a single formal TTD letter PDF |
-| GET | `/api/grievances/categories` | List the grievance issue category taxonomy |
-| POST | `/api/grievances/upload` | Upload photographed form images (multipart, field `images`, up to 20); Gemini OCR-extracts + categorizes each, returns results for review — does not write to DB |
-| POST | `/api/grievances/log-text` | Extract + categorize a typed grievance summary (phone call / walk-in); returns the same review envelope as `/upload` |
-| POST | `/api/grievances/log-audio` | Transcribe + categorize a dictated grievance (multipart, field `audio`); parks the recording server-side and returns its filename as `pending_media` |
-| DELETE | `/api/grievances/pending-media/:filename` | Drop a parked recording when staff discard the review (a startup sweep also clears `tmp_*` files older than 24h) |
-| POST | `/api/grievances` | Commit the (staff-reviewed/edited) items to the register; claims any `pending_media` |
+| GET | `/api/grievances/categories` | List the grievance issue category taxonomy (each entry also carries `department`/`department_head`, used only by the draft-letter feature) |
+| POST | `/api/grievances/upload` | Upload photographed form images (multipart, field `images`, up to 20); Gemini OCR-extracts + categorizes each into its own record for review — does not write to DB |
+| POST | `/api/grievances/log` | Universal single-grievance intake (multipart: optional `text`, optional `images[]` up to 10, optional `audio`) — runs whichever of OCR/transcription/text-triage apply and merges them into ONE reviewable record (`intake_mode: 'mixed'`); attachments are parked server-side as `pending_media` (same abandonment sweep as below) |
+| DELETE | `/api/grievances/pending-media/:filename` | Drop a parked attachment when staff discard the review (a startup sweep also clears `tmp_*` files older than 24h) |
+| POST | `/api/grievances` | Commit the (staff-reviewed/edited) items to the register; claims any `pending_media`/`media[]` |
 | GET | `/api/grievances` | List grievances (filterable by `from`/`to`/`category`/`status`/`channel`) |
 | PATCH | `/api/grievances/:id` | Edit a grievance record (partial update) |
-| DELETE | `/api/grievances/:id` | Remove a grievance record (and its stored media) |
-| GET | `/api/grievances/:id/media` | Retrieve the record's source media — form photo, PDF or audio |
+| DELETE | `/api/grievances/:id` | Remove a grievance record (and all of its stored media) |
+| GET | `/api/grievances/:id/media/:index?` | Retrieve one of the record's source media files — form photo, PDF or audio; `:index` defaults to 0 (the first/legacy single attachment) |
 | GET | `/api/grievances/export.xlsx` | Export grievances as Excel |
 | GET | `/api/grievances/export-pdf` | Export the grievances register as PDF |
 | POST | `/api/grievances/:id/create-ttd-letter` | Manually create a TTD reference letter from an existing grievance record (paper forms don't capture darshan type/Aadhar, so staff supply those) |
 | GET | `/api/grievances/duplicate-check` | Live duplicate check by `phone`/`text`/`name`/`village` — phone is an exact-match signal, the rest are fuzzy "possible match" hints |
 | POST | `/api/grievances/:id/suggest-response` | On-demand AI draft of a citizen reply + internal next action (advisory — writes only `suggested_response`/`suggested_next_action`, never `action_taken`/`action_to_be_taken`) |
+| POST | `/api/grievances/:id/draft-letter` | On-demand AI draft of a formal letter to the grievance category's department head (advisory — auto-saves only `drafted_letter_subject`/`drafted_letter_body`) |
+| GET | `/api/grievances/:id/department-letter-pdf` | Render the (possibly staff-edited) drafted letter as a PDF, addressed via the category's `department`/`department_head` — 400s if no draft exists yet |
 | GET | `/api/grievance-inbox` | List WhatsApp Inbox entries (filterable by `?status=pending_review\|promoted\|dismissed`) |
 | POST | `/api/grievance-inbox/:id/promote` | Save a reviewed inbox entry into `db.grievances` (channel `whatsapp_text`/`whatsapp_voice`) and send the sender a WhatsApp acknowledgement |
 | POST | `/api/grievance-inbox/:id/dismiss` | Mark an inbox entry as not a grievance; no reply sent |
@@ -140,12 +141,15 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 
 ### Grievance extraction (`server/gemini.js`)
 
-Lazy-imported on first use (same pattern as `whatsapp.js`) so a missing `GEMINI_API_KEY` doesn't crash the server. All calls share one `callGemini(parts, responseSchema, timeoutMs)` helper and a common field schema; four entry points wrap it:
+Lazy-imported on first use (same pattern as `whatsapp.js`) so a missing `GEMINI_API_KEY` doesn't crash the server. All calls share one `callGemini(parts, responseSchema, timeoutMs)` helper and a common field schema; entry points wrap it:
 
 - `extractGrievanceFromImage(buffer, mimeType, categories)` — OCRs a photographed walk-in form; adds `ocr_confidence`.
 - `extractGrievanceFromText(text, categories)` — triages a typed phone-call summary or WhatsApp message; adds `is_grievance` + `confidence` so non-grievances (greetings, spam) can be gated out of the register.
 - `extractGrievanceFromAudio(buffer, mimeType, categories)` — transcribes dictated audio or a WhatsApp voice note (Telugu/English/mixed, original script) and extracts from the transcript; adds `transcript`, and runs on a 45s timeout instead of the 30s default.
 - `suggestGrievanceResponse(grievance)` — on-demand, text-only draft of a citizen-facing reply plus an internal next-action note; advisory only, never wired into the save/commit path.
+- `draftDepartmentLetter(grievance, departmentInfo, mpName)` — on-demand, text-only draft of a formal letter (`subject`/`body`) to a government department head for the grievance's category; advisory only, auto-saved on generation but never auto-printed/sent.
+
+`POST /api/grievances/log` (the universal intake) calls `extractGrievanceFromImage`/`extractGrievanceFromAudio`/`extractGrievanceFromText` in whatever combination the submission includes, then merges the results into one record via `mergeGrievanceExtraction` in `server/index.js` (image OCR wins scalar identity/location fields; audio dictation wins the category/urgency judgement; `issue_description` is concatenated per-source, never chosen, so nothing is silently dropped).
 
 Each extraction path constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Source media is persisted to `VOLUME/grievance_media/` for later manual re-verification of low-confidence reads.
 
