@@ -59,7 +59,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 
 | Page | Purpose |
 |---|---|
-| `index.html` | Main team dashboard — contacts, schedule, brief, news |
+| `index.html` | Main team dashboard — contacts, schedule, brief, news, grievance-register stat tile |
 | `news.html` | Journalist submission form |
 | `pa_schedule.html` | PA schedule upload |
 | `pa_issues.html` | Issue/grievance logging |
@@ -93,7 +93,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | POST | `/api/wa-response/confirm` | Admin confirms/overrides WA response |
 | GET | `/api/wa-status` | WhatsApp connection state + QR data |
 | GET | `/api/live-news` | Cached Google News RSS (Palanadu keywords) |
-| GET | `/api/stats` | Aggregate counts |
+| GET | `/api/stats` | Aggregate counts, including `open_grievances_register` (unresolved `db.grievances`, distinct from the legacy `with_grievances` contact-flag count) |
 | GET | `/api/ttd-letters` | List TTD reference letters (filterable by `from`/`to`) |
 | GET | `/api/ttd-letters/check-duplicate` | Check for existing letters by Aadhar |
 | POST | `/api/ttd-letters` | Create TTD reference letter |
@@ -114,6 +114,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | GET | `/api/grievances/:id/media` | Retrieve the record's source media — form photo, PDF or audio |
 | GET | `/api/grievances/export.xlsx` | Export grievances as Excel |
 | GET | `/api/grievances/export-pdf` | Export the grievances register as PDF |
+| POST | `/api/grievances/:id/create-ttd-letter` | Manually create a TTD reference letter from an existing grievance record (paper forms don't capture darshan type/Aadhar, so staff supply those) |
 | GET | `/api/grievances/duplicate-check` | Live duplicate check by `phone`/`text`/`name`/`village` — phone is an exact-match signal, the rest are fuzzy "possible match" hints |
 | POST | `/api/grievances/:id/suggest-response` | On-demand AI draft of a citizen reply + internal next action (advisory — writes only `suggested_response`/`suggested_next_action`, never `action_taken`/`action_to_be_taken`) |
 | GET | `/api/grievance-inbox` | List WhatsApp Inbox entries (filterable by `?status=pending_review\|promoted\|dismissed`) |
@@ -139,7 +140,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 
 ### Grievance extraction (`server/gemini.js`)
 
-Lazy-imported on first use (same pattern as `whatsapp.js`) so a missing `GEMINI_API_KEY` doesn't crash the server. All calls share one `callGemini(parts, responseSchema, timeoutMs)` helper and a common field schema; three entry points wrap it:
+Lazy-imported on first use (same pattern as `whatsapp.js`) so a missing `GEMINI_API_KEY` doesn't crash the server. All calls share one `callGemini(parts, responseSchema, timeoutMs)` helper and a common field schema; four entry points wrap it:
 
 - `extractGrievanceFromImage(buffer, mimeType, categories)` — OCRs a photographed walk-in form; adds `ocr_confidence`.
 - `extractGrievanceFromText(text, categories)` — triages a typed phone-call summary or WhatsApp message; adds `is_grievance` + `confidence` so non-grievances (greetings, spam) can be gated out of the register.
