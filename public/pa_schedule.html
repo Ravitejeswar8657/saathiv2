@@ -4,97 +4,56 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Schedule · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="/js/saathi-ui.js" defer></script>
 <script src="/sidebar.js" defer></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
-body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999}
-.container{width:100%;padding:24px 32px;margin-top:3px}
-.back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:#b45309;text-decoration:none}
-.back-link:hover{color:#92400e}
-.header{margin-bottom:24px}
-.header h1{font-size:22px;font-weight:700;color:#1a1208}
-.header p{font-size:14px;color:#6b7280;margin-top:4px}
-.card{background:#fff;border:1px solid #e5e5e5;border-top:3px solid #b45309;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px;padding-left:12px;border-left:3px solid #d97706}
+.back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:var(--accent);text-decoration:none}
+.back-link:hover{color:var(--accent-hover)}
+.card{margin-bottom:16px}
+.section-title{margin-bottom:14px}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:480px){.form-row{grid-template-columns:1fr}}
 .form-group{margin-bottom:14px}
-.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
-.form-group input,.form-group textarea,.form-group select{
-  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
-  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
-}
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
-  border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
-}
-.form-group textarea{resize:vertical;min-height:80px}
-.submit-btn{
-  background:#1a1208;color:#fff;border:none;border-radius:6px;padding:12px 20px;
-  font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;width:100%;
-  display:flex;align-items:center;justify-content:center;gap:8px
-}
-.submit-btn:hover{background:#374151}
-.submit-btn:disabled{background:#9ca3af;cursor:not-allowed}
-.nearby-result{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:16px;margin-top:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.nearby-result h4{font-size:14px;font-weight:600;color:#374151;margin-bottom:4px}
-.nearby-result .hint{font-size:12px;color:#6b7280;margin-bottom:12px}
+.form-group input,.form-group select,.form-group textarea{width:100%}
+.form-group textarea{min-height:80px}
+.btn-block{width:100%;justify-content:center}
+.nearby-result{background:#fff;border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;margin-top:16px;box-shadow:var(--shadow-sm)}
+.nearby-result h4{font-size:14px;font-weight:600;color:var(--stone-700);margin-bottom:4px}
+.nearby-result .hint{font-size:12px;color:var(--stone-500);margin-bottom:12px}
 .nearby-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f3f4f6;font-size:14px}
 .nearby-item:last-child{border:none}
 .tag{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block;margin-left:6px}
 .tag-t1{background:#fef3c7;color:#92400e}
-.tag-t2{background:#e0f2fe;color:#0369a1}
-.tag-t3{background:#f1f5f9;color:#64748b}
-.phone-link{color:#b45309;text-decoration:none;font-weight:600;font-size:13px}
+.tag-t2{background:var(--info-bg);color:var(--info)}
+.tag-t3{background:var(--neutral-bg);color:var(--neutral)}
+.phone-link{color:var(--accent);text-decoration:none;font-weight:600;font-size:13px}
 .phone-link:hover{text-decoration:underline}
-.event-card{display:flex;justify-content:space-between;align-items:flex-start;padding:14px;border:1px solid #e5e5e5;border-radius:8px;margin-bottom:10px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.event-name{font-size:14px;font-weight:600;color:#1a1208}
-.event-meta{font-size:12px;color:#6b7280;margin-top:2px}
-.delete-btn{background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;padding:4px 8px;border-radius:4px}
-.delete-btn:hover{color:#dc2626;background:#fef2f2}
+.event-card{display:flex;justify-content:space-between;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:10px;background:#fff;box-shadow:var(--shadow-sm)}
+.event-name{font-size:14px;font-weight:600;color:var(--ink)}
+.event-meta{font-size:12px;color:var(--stone-500);margin-top:2px}
+.delete-icon-btn{background:none;border:none;color:var(--stone-400);cursor:pointer;padding:6px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center}
+.delete-icon-btn:hover{color:var(--danger);background:var(--danger-bg)}
+.delete-icon-btn [data-lucide]{width:16px;height:16px}
 .event-contacts{margin-top:10px;padding-top:10px;border-top:1px solid #f3f4f6}
-.event-contacts-label{font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px}
-.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
-@keyframes spin{to{transform:rotate(360deg)}}
+.event-contacts-label{font-size:12px;font-weight:600;color:var(--stone-500);margin-bottom:6px}
 .time-picker{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .time-picker select{width:auto;padding:10px 8px}
-.time-ok-btn{
-  padding:10px 14px;background:#1a1208;color:#fff;border:none;border-radius:6px;
-  font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap
-}
-.time-ok-btn:hover{background:#374151}
-.time-confirmed{font-size:12px;color:#0f766e;font-weight:600;margin-top:5px}
-.prep-link-btn{display:inline-block;background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;color:#b45309;text-decoration:none;margin-top:8px}
-.prep-link-btn:hover{background:#fff7ed}
-.mini-btn{background:#1a1208;color:#fff;border:none;border-radius:5px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer}
-.mini-btn:hover{opacity:.9}
-.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
-.cal-nav-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit}
-.cal-nav-btn:hover{background:#f9fafb}
-.cal-month-label{font-weight:700;font-size:15px}
-.cal-today-btn{background:#1a1208;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px}
-.cal-today-btn:hover{opacity:.9}
-.cal-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:13px;color:#374151}
-.cal-clear-btn{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;padding:0}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cal-weekday{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}
-.cal-day{position:relative;min-height:44px;border:1px solid #e5e5e5;border-radius:6px;padding:4px 6px;font-size:12px;cursor:pointer;background:#fff}
-.cal-day:hover{border-color:#d4d4d4;background:#fafaf9}
-.cal-day.other-month{color:#d1d5db;background:#fafaf9;cursor:default}
-.cal-day.other-month:hover{background:#fafaf9}
-.cal-day.today{border-color:#b45309;font-weight:700}
-.cal-day.selected{background:#fff7ed;border-color:#b45309}
-.cal-day .cal-dot{position:absolute;bottom:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:#b45309;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+.time-confirmed{font-size:12px;color:var(--success);font-weight:600;margin-top:5px}
+.prep-link-btn{display:inline-block;background:#fff;border:1px solid #d4d4d4;border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;font-weight:600;color:var(--accent);text-decoration:none;margin-top:8px}
+.prep-link-btn:hover{background:var(--accent-bg)}
 @media(max-width:480px){.cal-day{min-height:36px;font-size:11px}}
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="header">
-    <h1>MP Schedule & Events</h1>
-    <p>Schedule events and find nearby priority contacts.</p>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">MP Schedule &amp; Events</h1>
+      <p class="page-subtitle">Schedule events and find nearby priority contacts.</p>
+    </div>
   </div>
 
   <div class="card">
@@ -118,7 +77,7 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
             <option value="30">30</option><option value="45">45</option>
           </select>
           <select id="sch-ampm"><option>AM</option><option>PM</option></select>
-          <button type="button" class="time-ok-btn" onclick="confirmTime()">OK</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="confirmTime()">OK</button>
         </div>
         <div id="time-confirmed" class="time-confirmed"></div>
         <input type="hidden" id="sch-time" value=""/>
@@ -148,7 +107,7 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
       </div>
     </div>
     <div class="form-group"><label>Description</label><textarea id="sch-desc" placeholder="Agenda or notes..."></textarea></div>
-    <button class="submit-btn" onclick="submitSchedule()">
+    <button class="btn btn-primary btn-block" id="schedule-submit-btn" onclick="submitSchedule()">
       <i data-lucide="calendar-plus" style="width:16px;height:16px"></i> Save & Find Nearby Contacts
     </button>
   </div>
@@ -160,7 +119,7 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
       <label>Download brief PDF for</label>
       <input type="date" id="pdf-date">
     </div>
-    <button class="mini-btn" style="padding:10px 16px;font-size:14px" onclick="downloadBriefPdf()">Download Final Brief PDF</button>
+    <button class="btn btn-primary" onclick="downloadBriefPdf()">Download Final Brief PDF</button>
   </div>
 
   <div class="card" id="calendar-card">
@@ -254,7 +213,7 @@ document.addEventListener('change', e => {
 
 function downloadBriefPdf() {
   const date = document.getElementById('pdf-date').value;
-  if (!date) { alert('Pick a date first.'); return; }
+  if (!date) { SaathiUI.toast('Pick a date first.', 'danger'); return; }
   window.open(`/api/brief-pdf?date=${date}`, '_blank');
 }
 
@@ -262,7 +221,7 @@ function confirmTime() {
   const h = document.getElementById('sch-hour').value;
   const m = document.getElementById('sch-min').value || '00';
   const ampm = document.getElementById('sch-ampm').value;
-  if (!h) { alert('Please select an hour.'); return; }
+  if (!h) { SaathiUI.toast('Please select an hour.', 'danger'); return; }
   let hour24 = parseInt(h, 10);
   if (ampm === 'PM' && hour24 !== 12) hour24 += 12;
   if (ampm === 'AM' && hour24 === 12) hour24 = 0;
@@ -325,12 +284,12 @@ function renderList() {
     const isToday = date === todayIST;
     const dateLabel = isToday ? 'Today' : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 
-    html += `<div style="margin-top:24px;margin-bottom:12px;padding:14px 16px;background:${isToday ? '#fffbeb' : '#f9fafb'};border:1px solid ${isToday ? '#fde68a' : '#e5e5e5'};border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    html += `<div style="margin-top:24px;margin-bottom:12px;padding:14px 16px;background:${isToday ? 'var(--accent-bg)' : '#f9fafb'};border:1px solid ${isToday ? 'var(--accent-border)' : 'var(--border)'};border-radius:var(--radius-md);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <div>
-        <div style="font-size:15px;font-weight:700;color:${isToday ? '#92400e' : '#374151'}">${dateLabel} · ${evts.length} event${evts.length > 1 ? 's' : ''}</div>
-        <div style="font-size:12px;color:#78716c;margin-top:2px">${date}</div>
+        <div style="font-size:15px;font-weight:700;color:${isToday ? 'var(--accent-hover)' : 'var(--stone-700)'}">${dateLabel} · ${evts.length} event${evts.length > 1 ? 's' : ''}</div>
+        <div style="font-size:12px;color:var(--stone-500);margin-top:2px">${date}</div>
       </div>
-      <a href="/brief_workflow.html?date=${date}" style="display:inline-flex;align-items:center;gap:6px;padding:10px 18px;background:${isToday ? '#b45309' : '#1a1208'};color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600">Prepare brief &rarr;</a>
+      <a href="/brief_workflow.html?date=${date}" class="btn ${isToday ? 'btn-accent' : 'btn-primary'}">Prepare brief &rarr;</a>
     </div>`;
 
     evts.forEach(ev => {
@@ -351,7 +310,7 @@ function renderList() {
             </div>
           ` : ''}
         </div>
-        <button onclick="deleteSchedule('${ev.id}')" class="delete-btn" title="Delete event">&times;</button>
+        <button onclick="deleteSchedule('${ev.id}')" class="delete-icon-btn" title="Delete event"><i data-lucide="trash-2"></i></button>
       </div>`;
     });
   });
@@ -440,9 +399,9 @@ async function submitSchedule() {
   const mandal = mandalSel === '__other__' ? document.getElementById('sch-mandal-custom').value.trim() : mandalSel;
   const villageSel = document.getElementById('sch-village').value;
   const village = villageSel === '__other__' ? document.getElementById('sch-village-custom').value.trim() : villageSel;
-  if (!name || !date || !mandal) { alert('Fill required fields.'); return; }
+  if (!name || !date || !mandal) { SaathiUI.toast('Fill required fields.', 'danger'); return; }
 
-  const btn = document.querySelector('.submit-btn');
+  const btn = document.getElementById('schedule-submit-btn');
   btn.disabled = true; btn.textContent = 'Processing...';
 
   try {
@@ -473,7 +432,7 @@ async function submitSchedule() {
     document.getElementById('schedule-result').innerHTML = html;
     loadSchedule();
   } catch(e) {
-    alert(e.message);
+    SaathiUI.toast(e.message, 'danger');
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i data-lucide="calendar-plus" style="width:16px;height:16px"></i> Save & Find Nearby Contacts';
@@ -482,7 +441,7 @@ async function submitSchedule() {
 }
 
 async function deleteSchedule(id) {
-  if (confirm('Delete this event?')) {
+  if (await SaathiUI.confirm('Delete this event? This cannot be undone.')) {
     await fetch(`/api/schedule/${id}`, { method: 'DELETE' });
     loadSchedule();
   }

@@ -4,92 +4,41 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Social Media Calendar · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest" defer></script>
 <script src="/sidebar.js" defer></script>
+<script src="/js/saathi-ui.js" defer></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
-body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999}
-.container{width:100%;padding:24px 32px;margin-top:3px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-.header h1{font-size:22px;font-weight:700;color:#1a1208}
-.btn{padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-size:13px;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-.btn-primary{background:#1a1208;color:#fff}
-.btn-primary:hover{background:#374151}
-.btn-secondary{background:#fff;border:1px solid #e5e5e5;color:#1a1208}
-.btn-secondary:hover{background:#f9fafb}
-.card{background:#fff;border:1px solid #e5e5e5;border-top:3px solid #b45309;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px;padding-left:12px;border-left:3px solid #d97706}
-.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
-
-/* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
-.modal{background:#fff;border-radius:8px;width:100%;max-width:480px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,0.15);max-height:90vh;overflow-y:auto}
-.modal h3{font-size:16px;font-weight:700;color:#1a1208;margin-bottom:16px}
-.form-group{margin-bottom:14px}
-.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
-.form-group input,.form-group textarea{
-  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
-  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
-}
-.form-group input:focus,.form-group textarea:focus{
-  border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
-}
-.form-hint{font-size:11px;color:#6b7280;margin-top:4px}
-.file-preview-list{margin-top:8px;display:flex;flex-direction:column;gap:4px}
-.file-preview-item{font-size:12px;color:#374151;background:#fafaf9;border:1px solid #e5e5e5;border-radius:5px;padding:5px 8px;display:flex;align-items:center;gap:6px}
-.modal-actions{display:flex;gap:10px;margin-top:20px}
-.modal-actions .btn{flex:1;justify-content:center}
-
-/* Calendar (matches ttd_letters.html / index.html) */
-.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
-.cal-nav-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit}
-.cal-nav-btn:hover{background:#f9fafb}
-.cal-month-label{font-weight:700;font-size:15px}
-.cal-today-btn{background:#1a1208;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px}
-.cal-today-btn:hover{opacity:.9}
-.cal-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:13px;color:#374151}
-.cal-clear-btn{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;padding:0}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cal-weekday{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}
-.cal-day{position:relative;min-height:36px;border:1px solid #e5e5e5;border-radius:6px;padding:4px 6px;font-size:12px;cursor:pointer;background:#fff}
-.cal-day:hover{border-color:#d4d4d4;background:#fafaf9}
-.cal-day.other-month{color:#d1d5db;background:#fafaf9;cursor:default}
-.cal-day.other-month:hover{background:#fafaf9}
-.cal-day.today{border-color:#b45309;font-weight:700}
-.cal-day.selected{background:#fff7ed;border-color:#b45309}
-.cal-day .cal-dot{position:absolute;bottom:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:#b45309;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+.container { padding: 24px 32px; }
+.form-hint{font-size:11px;color:var(--stone-500);margin-top:4px}
 
 /* Post cards */
 .posts-grid{display:flex;flex-direction:column;gap:12px}
-.post-card{border:1px solid #e5e5e5;border-radius:8px;padding:14px}
+.post-card{padding:14px}
 .post-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.post-date{font-size:12px;font-weight:700;color:#b45309}
+.post-date{font-size:12px;font-weight:700;color:var(--accent)}
 .post-actions{display:flex;gap:6px}
-.btn-sm{padding:5px 8px;border-radius:5px;border:1px solid #e5e5e5;background:#fff;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:4px;font-family:inherit}
-.btn-sm i{width:13px;height:13px}
-.btn-edit{color:#374151}
-.btn-edit:hover{background:#f9fafb}
-.btn-del{color:#dc2626;border-color:#fecaca}
-.btn-del:hover{background:#fef2f2}
 .media-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.media-thumb{width:120px;height:120px;border-radius:6px;overflow:hidden;background:#f3f4f6;border:1px solid #e5e5e5;display:flex;align-items:center;justify-content:center}
+.media-thumb{width:120px;height:120px;border-radius:var(--radius-sm);overflow:hidden;background:#f3f4f6;border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
 .media-thumb img,.media-thumb video{width:100%;height:100%;object-fit:cover}
-.media-pdf-chip{width:120px;height:120px;border-radius:6px;background:#fafaf9;border:1px solid #e5e5e5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:#374151;font-size:11px;text-align:center;padding:8px}
-.media-pdf-chip i{width:28px;height:28px;color:#b45309}
-.post-caption{font-size:13px;color:#1a1208;white-space:pre-wrap}
-.caption-edit textarea{width:100%;padding:8px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit;margin-bottom:8px}
+.media-pdf-chip{width:120px;height:120px;border-radius:var(--radius-sm);background:var(--bg);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:var(--stone-700);font-size:11px;text-align:center;padding:8px}
+.media-pdf-chip i{width:28px;height:28px;color:var(--accent)}
+.post-caption{font-size:13px;color:var(--ink);white-space:pre-wrap}
+.post-caption .no-caption{color:var(--stone-400)}
+.caption-edit textarea{width:100%;margin-bottom:8px}
 .caption-edit-actions{display:flex;gap:8px}
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="header">
-    <h1>Social Media Calendar</h1>
-    <button class="btn btn-primary" onclick="openAddModal()">
-      <i data-lucide="plus" style="width:15px;height:15px"></i> Add Post
-    </button>
+  <div class="page-header">
+    <div><h1 class="page-title">Social Media Calendar</h1></div>
+    <div class="page-header-actions">
+      <button class="btn btn-primary" onclick="openAddModal()">
+        <i data-lucide="plus"></i> Add Post
+      </button>
+    </div>
   </div>
 
   <div class="card">
@@ -127,7 +76,11 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
     </div>
     <div class="form-group">
       <label>Media (images, videos, PDFs) *</label>
-      <input type="file" id="add-media" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,application/pdf" onchange="onMediaChosen()">
+      <div class="file-drop" onclick="document.getElementById('add-media').click()">
+        <i data-lucide="image-plus"></i><br>
+        Click to choose photos, videos, or PDFs
+      </div>
+      <input type="file" id="add-media" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,application/pdf" style="display:none" onchange="onMediaChosen()">
       <div class="form-hint">You can select several files at once (e.g. a carousel of images).</div>
       <div class="file-preview-list" id="file-preview-list"></div>
     </div>
@@ -191,7 +144,7 @@ function renderCalendar() {
     const classes = ['cal-day'];
     if (dateStr === todayIST) classes.push('today');
     if (dateStr === selectedDateFilter) classes.push('selected');
-    cellsHtml += `<div class="${classes.join(' ')}" onclick="onCalDayClick('${dateStr}')">
+    cellsHtml += `<div class="${classes.join(' ')}" onclick="onCalDayClick('${dateStr}', ${count > 0})">
       ${day}
       ${count > 0 ? `<span class="cal-dot">${count}</span>` : ''}
     </div>`;
@@ -210,7 +163,8 @@ function jumpToday() {
   calViewYear = ty; calViewMonth = tm - 1;
   renderCalendar();
 }
-function onCalDayClick(dateStr) {
+function onCalDayClick(dateStr, hasPosts) {
+  if (!hasPosts) return;
   selectedDateFilter = selectedDateFilter === dateStr ? null : dateStr;
   renderCalendar();
   renderPosts();
@@ -255,17 +209,17 @@ function renderPosts() {
   emptyEl.style.display = 'none';
 
   grid.innerHTML = posts.map(p => `
-    <div class="post-card" id="card-${p.id}">
+    <div class="post-card card-sub" id="card-${p.id}">
       <div class="post-card-header">
         <span class="post-date">${p.date}</span>
         <div class="post-actions">
-          <button class="btn-sm btn-edit" onclick="startEditCaption('${p.id}')"><i data-lucide="pencil"></i> Edit caption</button>
-          <button class="btn-sm btn-del" onclick="deletePost('${p.id}')"><i data-lucide="trash-2"></i> Delete</button>
+          <button class="btn btn-sm btn-ghost" onclick="startEditCaption('${p.id}')"><i data-lucide="pencil"></i> Edit caption</button>
+          <button class="btn btn-sm btn-danger" onclick="deletePost('${p.id}')"><i data-lucide="trash-2"></i> Delete</button>
         </div>
       </div>
       <div class="media-grid">${(p.media || []).map(m => mediaCellHtml(p, m)).join('')}</div>
       <div class="post-caption-wrap" id="caption-wrap-${p.id}">
-        <div class="post-caption">${esc(p.caption) || '<span style="color:#9ca3af">No caption</span>'}</div>
+        <div class="post-caption">${esc(p.caption) || '<span class="no-caption">No caption</span>'}</div>
       </div>
     </div>
   `).join('');
@@ -281,8 +235,8 @@ function startEditCaption(id) {
     <div class="caption-edit">
       <textarea id="caption-input-${id}" rows="3">${esc(post.caption)}</textarea>
       <div class="caption-edit-actions">
-        <button class="btn-sm btn-save" style="background:#15803d;color:#fff;border-color:#15803d" onclick="saveCaption('${id}')">Save</button>
-        <button class="btn-sm btn-edit" onclick="renderPosts()">Cancel</button>
+        <button class="btn btn-sm btn-success" onclick="saveCaption('${id}')">Save</button>
+        <button class="btn btn-sm btn-ghost" onclick="renderPosts()">Cancel</button>
       </div>
     </div>
   `;
@@ -295,14 +249,16 @@ async function saveCaption(id) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ caption }),
   });
-  if (!r.ok) { alert('Failed to save caption.'); return; }
+  if (!r.ok) { SaathiUI.toast('Failed to save caption.', 'danger'); return; }
+  SaathiUI.toast('Caption updated.', 'success');
   await loadPosts();
 }
 
 async function deletePost(id) {
-  if (!confirm('Delete this post and its media? This cannot be undone.')) return;
+  if (!(await SaathiUI.confirm('Delete this post and its media? This cannot be undone.'))) return;
   const r = await fetch(`/api/social-calendar/${id}`, { method: 'DELETE' });
-  if (!r.ok) { alert('Failed to delete post.'); return; }
+  if (!r.ok) { SaathiUI.toast('Failed to delete post.', 'danger'); return; }
+  SaathiUI.toast('Post deleted.', 'success');
   await loadPosts();
 }
 
@@ -320,7 +276,7 @@ function closeModals() {
 function onMediaChosen() {
   const files = document.getElementById('add-media').files;
   const list = document.getElementById('file-preview-list');
-  list.innerHTML = Array.from(files).map(f => `<div class="file-preview-item"><i data-lucide="paperclip" style="width:12px;height:12px"></i> ${esc(f.name)}</div>`).join('');
+  list.innerHTML = Array.from(files).map(f => `<div class="file-preview-item"><i data-lucide="paperclip"></i> ${esc(f.name)}</div>`).join('');
   if (window.lucide) lucide.createIcons();
 }
 
@@ -328,8 +284,8 @@ async function submitAdd() {
   const date = document.getElementById('add-date').value;
   const files = document.getElementById('add-media').files;
   const caption = document.getElementById('add-caption').value;
-  if (!date) { alert('Date is required.'); return; }
-  if (!files.length) { alert('At least one media file is required.'); return; }
+  if (!date) { SaathiUI.toast('Date is required.', 'danger'); return; }
+  if (!files.length) { SaathiUI.toast('At least one media file is required.', 'danger'); return; }
 
   const btn = document.getElementById('add-submit-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
@@ -340,9 +296,10 @@ async function submitAdd() {
     Array.from(files).forEach(f => fd.append('media', f));
     const r = await fetch('/api/social-calendar', { method: 'POST', body: fd });
     const data = await r.json();
-    if (!r.ok) { alert(data.error || 'Failed to save post.'); return; }
+    if (!r.ok) { SaathiUI.toast(data.error || 'Failed to save post.', 'danger'); return; }
     closeModals();
     selectedDateFilter = date;
+    SaathiUI.toast('Post saved.', 'success');
     await loadPosts();
   } finally {
     btn.disabled = false; btn.textContent = 'Save Post';

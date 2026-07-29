@@ -1,0 +1,438 @@
+/*
+  Saathi v2 — shared design system.
+  Every page links this file and keeps only page-specific layout in its own <style> block.
+  Pages must load two Google Fonts families in <head>:
+    https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap
+*/
+
+@font-face {
+  font-family: 'Noto Sans Telugu';
+  src: url('/fonts/NotoSansTelugu.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+:lang(te), .te { font-family: 'Noto Sans Telugu', 'Inter', system-ui, sans-serif; }
+
+:root {
+  /* Core */
+  --ink: #1a1208;
+  --bg: #fafaf9;
+  --card: #fff;
+  --border: #e5e5e5;
+
+  /* Warm neutral ramp — replaces the #6b7280/#9ca3af/#374151/#78716c mixture */
+  --stone-400: #a8a29e;
+  --stone-500: #78716c;
+  --stone-600: #57534e;
+  --stone-700: #44403c;
+
+  /* Brand / accent (amber) */
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --accent-light: #d97706;
+  --accent-bg: #fff7ed;
+  --accent-border: #fdba74;
+
+  /* Semantic status colors — workflow state only, never brand/categorical use */
+  --success: #0f766e;
+  --success-bg: #f0fdfa;
+  --success-border: #99f6e4;
+
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+
+  --info: #0369a1;
+  --info-bg: #e0f2fe;
+  --info-border: #7dd3fc;
+
+  --neutral: #475569;
+  --neutral-bg: #f1f5f9;
+  --neutral-border: #e2e8f0;
+
+  /* Radius scale */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;   /* reserved for hero/feature cards only */
+  --radius-full: 999px;
+
+  /* Shadows — ink-tinted instead of pure black, for warmth */
+  --shadow-sm: 0 1px 2px rgba(26, 18, 8, .06);
+  --shadow-md: 0 4px 16px rgba(26, 18, 8, .10);
+  --shadow-lg: 0 12px 40px rgba(26, 18, 8, .16);
+
+  /* Type */
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Fraunces', 'Inter', system-ui, serif;
+
+  /* Layout */
+  --sidebar-w: 220px;
+  --container-pad: 32px;
+}
+
+/* ── Reset & base ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light), var(--accent));
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 999;
+}
+
+a { color: inherit; }
+
+.container {
+  width: 100%;
+  padding: var(--container-pad) var(--container-pad) 80px;
+}
+
+/* ── Letterhead page header (signature element) ──────────────────────── */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  margin-bottom: 28px;
+  margin-top: 3px;
+  border-bottom: 2px solid var(--ink);
+  position: relative;
+}
+.page-header::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -5px;
+  height: 1px;
+  background: var(--border);
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.15;
+}
+.page-subtitle {
+  font-size: 13px;
+  color: var(--stone-500);
+  margin-top: 4px;
+}
+.page-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Government letterhead band (index.html) */
+.gov-header {
+  background: var(--accent-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  margin-top: 3px;
+}
+.gov-header-inner {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.gov-header .emblem {
+  height: 52px;
+  width: 52px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.gov-header-text {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1;
+}
+
+/* Section labels (small uppercase eyebrow — stays Inter, not display type) */
+.section-label, .section-title, .widget-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--stone-500);
+  padding-left: 12px;
+  border-left: 3px solid var(--accent-light);
+}
+.section-label { margin-bottom: 16px; }
+.widget-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px;
+}
+.widget-header .widget-title { margin: 0; }
+.widget-link { font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.widget-link:hover { color: var(--accent-hover); }
+
+.empty-state { font-size: 13px; color: var(--stone-500); padding: 8px 0; }
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.card + .card { margin-top: 16px; }
+
+/* Nested/secondary cards (post-card, preview-card) get the same top-stripe
+   treatment as .card so they never read as a demoted, less-finished unit */
+.card-sub {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Buttons — one system, four unambiguous meanings ─────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px; font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  line-height: 1.2;
+}
+.btn [data-lucide] { width: 15px; height: 15px; flex-shrink: 0; }
+.btn-sm { padding: 6px 10px; font-size: 12px; border-radius: var(--radius-sm); }
+
+.btn-primary { background: var(--ink); color: #fff; }
+.btn-primary:hover { background: var(--stone-700); }
+
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #115e56; }
+
+.btn-secondary { background: #fff; color: var(--ink); border-color: var(--border); }
+.btn-secondary:hover { background: var(--bg); border-color: #d4d4d4; }
+
+.btn-danger { background: #fff; color: var(--danger); border-color: var(--danger-border); }
+.btn-danger:hover { background: var(--danger-bg); }
+
+.btn-ghost { background: transparent; color: var(--stone-600); border-color: var(--border); }
+.btn-ghost:hover { background: var(--bg); }
+
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Badges / chips / pills ───────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  text-transform: uppercase;
+}
+.badge-accent  { background: var(--accent-bg);  color: var(--accent);  border-color: var(--accent-border); }
+.badge-success { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+.badge-danger  { background: var(--danger-bg);  color: var(--danger);  border-color: var(--danger-border); }
+.badge-info    { background: var(--info-bg);    color: var(--info);    border-color: var(--info-border); }
+.badge-neutral { background: var(--neutral-bg); color: var(--neutral); border-color: var(--neutral-border); }
+
+.chip, .pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--stone-600);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.chip:hover, .pill:hover { border-color: #d6d3d1; }
+.chip.active, .pill.active {
+  background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border);
+}
+.chip .count, .pill .count {
+  background: rgba(0,0,0,.06); border-radius: var(--radius-full);
+  font-size: 10px; padding: 1px 6px;
+}
+
+/* ── Forms ────────────────────────────────────────────────────────────── */
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 12px; font-weight: 600; color: var(--stone-600); }
+input, select, textarea {
+  font-family: var(--font-body);
+  font-size: 13px;
+  padding: 10px 12px;
+  border: 1px solid #d4d4d4;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--ink);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, .12);
+}
+textarea { resize: vertical; font-family: inherit; }
+
+/* Custom file dropzone (promoted from visitor_forms.html) */
+.file-drop {
+  border: 2px dashed #d4d4d4;
+  border-radius: var(--radius-md);
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--stone-500);
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.file-drop:hover, .file-drop.dragover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.file-drop [data-lucide] { width: 28px; height: 28px; margin-bottom: 8px; }
+.file-drop input[type="file"] { display: none; }
+.file-preview-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.file-preview-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--stone-600);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 6px 10px; margin-top: 6px;
+}
+
+/* ── Modal ────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(26, 18, 8, .5);
+  display: none; align-items: center; justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+/* Pages toggle visibility via inline style.display = 'flex' / 'none';
+   .open is provided for pages that prefer a class-based toggle. */
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-width: 480px; width: 100%;
+  max-height: 90vh; overflow-y: auto;
+  padding: 24px;
+}
+.modal h3 {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 600;
+  margin-bottom: 16px;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.modal-actions .btn { flex: 1; justify-content: center; }
+
+/* Confirm dialog (replaces native confirm()) */
+.confirm-dialog .modal { max-width: 380px; text-align: center; }
+.confirm-dialog-icon {
+  width: 40px; height: 40px; border-radius: var(--radius-full);
+  background: var(--danger-bg); color: var(--danger);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+}
+.confirm-dialog-icon [data-lucide] { width: 20px; height: 20px; }
+.confirm-dialog p { font-size: 13px; color: var(--stone-600); margin-bottom: 4px; }
+.confirm-dialog .modal-actions { justify-content: center; }
+
+/* ── Toast (promoted from broadcast.html) ────────────────────────────── */
+#saathi-toast-container {
+  position: fixed; bottom: 24px; right: 24px; z-index: 500;
+  display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.saathi-toast {
+  background: var(--ink); color: #fff;
+  font-size: 13px; font-weight: 500;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  display: flex; align-items: center; gap: 8px;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .2s ease, transform .2s ease;
+  pointer-events: auto;
+  max-width: 360px;
+}
+.saathi-toast.show { opacity: 1; transform: translateY(0); }
+.saathi-toast.toast-danger { background: #7f1d1d; }
+.saathi-toast.toast-success { background: #134e4a; }
+.saathi-toast [data-lucide] { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; }
+th {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--stone-500);
+  text-align: left; padding: 8px 10px;
+  border-bottom: 2px solid var(--border);
+}
+td { padding: 10px; font-size: 13px; border-bottom: 1px solid #f3f4f6; }
+.table-wrap { overflow-x: auto; }
+
+/* ── Calendar widget (shared visual spec — logic stays per-page) ─────── */
+.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.cal-nav-btn { background: #fff; border: 1px solid #d4d4d4; border-radius: var(--radius-sm); padding: 6px 10px; cursor: pointer; font-size: 14px; font-family: inherit; }
+.cal-nav-btn:hover { background: var(--bg); }
+.cal-month-label { font-weight: 700; font-size: 15px; }
+.cal-today-btn { background: var(--ink); color: #fff; border: none; border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; margin-left: 8px; }
+.cal-today-btn:hover { opacity: .9; }
+.cal-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 16px 0 4px; font-size: 13px; color: var(--stone-600); }
+.cal-clear-btn { font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: underline; background: none; border: none; font-family: inherit; padding: 0; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-weekday { font-size: 11px; font-weight: 600; color: var(--stone-500); text-align: center; padding: 4px 0; }
+.cal-day { position: relative; min-height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 6px; font-size: 12px; cursor: pointer; background: #fff; }
+.cal-day:hover { border-color: #d4d4d4; background: var(--bg); }
+.cal-day.other-month { color: #d1d5db; background: var(--bg); cursor: default; }
+.cal-day.other-month:hover { background: var(--bg); }
+.cal-day.today { border-color: var(--accent); font-weight: 700; }
+.cal-day.selected { background: var(--accent-bg); border-color: var(--accent); }
+.cal-day .cal-dot { position: absolute; bottom: 4px; right: 4px; min-width: 14px; height: 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+
+/* ── Focus visibility (keyboard access) ──────────────────────────────── */
+a:focus-visible, button:focus-visible, .btn:focus-visible, .chip:focus-visible,
+.pill:focus-visible, .cal-day:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  :root { --container-pad: 20px; }
+  .page-title { font-size: 22px; }
+}

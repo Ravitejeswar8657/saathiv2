@@ -4,140 +4,58 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Visitor Forms · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest" defer></script>
 <script src="/sidebar.js" defer></script>
+<script src="/js/saathi-ui.js" defer></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
-body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999}
-.container{width:100%;padding:24px 32px;margin-top:3px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-.header h1{font-size:22px;font-weight:700;color:#1a1208}
-.btn{padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-size:13px;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-.btn-primary{background:#1a1208;color:#fff}
-.btn-primary:hover{background:#374151}
-.btn-secondary{background:#fff;border:1px solid #e5e5e5;color:#1a1208}
-.btn-secondary:hover{background:#f9fafb}
-.btn-accent{background:#b45309;color:#fff}
-.btn-accent:hover{background:#92400e}
-.btn:disabled{opacity:.5;cursor:default}
-.card{background:#fff;border:1px solid #e5e5e5;border-top:3px solid #b45309;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px;padding-left:12px;border-left:3px solid #d97706}
-.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
-
-/* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
-.modal{background:#fff;border-radius:8px;width:100%;max-width:480px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,0.15);max-height:90vh;overflow-y:auto}
-.modal h3{font-size:16px;font-weight:700;color:#1a1208;margin-bottom:16px}
-.form-group{margin-bottom:14px}
-.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
-.form-group input,.form-group textarea,.form-group select{
-  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
-  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
-}
-.form-group input:focus,.form-group textarea:focus,.form-group select:focus{
-  border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
-}
-.modal-actions{display:flex;gap:10px;margin-top:20px}
-.modal-actions .btn{flex:1;justify-content:center}
-.file-drop{border:2px dashed #d4d4d4;border-radius:8px;padding:24px;text-align:center;color:#6b7280;font-size:13px;cursor:pointer}
-.file-drop:hover{border-color:#b45309;color:#b45309}
-.file-list{margin-top:10px;font-size:12px;color:#374151}
-.file-list div{padding:2px 0}
-
-/* Calendar */
-.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
-.cal-nav-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit}
-.cal-nav-btn:hover{background:#f9fafb}
-.cal-month-label{font-weight:700;font-size:15px}
-.cal-today-btn{background:#1a1208;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px}
-.cal-today-btn:hover{opacity:.9}
-.cal-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:13px;color:#374151}
-.cal-clear-btn{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;padding:0}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cal-weekday{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}
-.cal-day{position:relative;min-height:36px;border:1px solid #e5e5e5;border-radius:6px;padding:4px 6px;font-size:12px;cursor:pointer;background:#fff}
-.cal-day:hover{border-color:#d4d4d4;background:#fafaf9}
-.cal-day.other-month{color:#d1d5db;background:#fafaf9;cursor:default}
-.cal-day.other-month:hover{background:#fafaf9}
-.cal-day.today{border-color:#b45309;font-weight:700}
-.cal-day.selected{background:#fff7ed;border-color:#b45309}
-.cal-day .cal-dot{position:absolute;bottom:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:#b45309;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+.container { padding: 24px 32px; }
+.modal-hint{font-size:12px;color:var(--stone-500);margin-bottom:12px}
 
 /* Filter row */
 .filter-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
 .filter-row .form-group{margin-bottom:0;min-width:150px}
 
-/* Category pills */
-.pill-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px}
-.pill{flex-shrink:0;padding:6px 12px;border-radius:100px;font-size:12px;font-weight:600;border:1px solid #e5e5e5;background:#fff;color:#6b7280;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
-.pill:hover{border-color:#c4b5a0;color:#1a1208}
-.pill.active{background:#fff7ed;color:#b45309;border-color:#fdba74}
-.pill .count{background:rgba(0,0,0,0.06);border-radius:100px;padding:0 6px;font-size:10px}
-
-/* Status chips */
+/* Status filter chips (Pending / In Progress / Resolved) */
 .status-chips{display:flex;gap:6px;flex-wrap:wrap}
-.status-chip{padding:5px 11px;border-radius:100px;font-size:12px;font-weight:600;border:1px solid #e5e5e5;background:#fff;color:#6b7280;cursor:pointer}
-.status-chip.active-pending{background:#fef3c7;color:#92400e;border-color:#fcd34d}
-.status-chip.active-progress{background:#e0f2fe;color:#0369a1;border-color:#7dd3fc}
-.status-chip.active-resolved{background:#dcfce7;color:#166534;border-color:#86efac}
+.status-chip{padding:7px 14px;border-radius:var(--radius-full);font-size:13px;font-weight:600;border:1px solid var(--border);background:#fff;color:var(--stone-600);cursor:pointer}
+.status-chip.active-pending{background:var(--neutral-bg);color:var(--neutral);border-color:var(--neutral-border)}
+.status-chip.active-progress{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
+.status-chip.active-resolved{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
 
-/* Badges */
-.badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap}
-.badge-cat{background:#f1f5f9;color:#475569}
-.badge-urgency-high{background:#fef2f2;color:#dc2626}
-.badge-urgency-medium{background:#fff7ed;color:#b45309}
-.badge-urgency-low{background:#f1f5f9;color:#6b7280}
-.badge-status-pending{background:#fef3c7;color:#92400e}
-.badge-status-progress{background:#e0f2fe;color:#0369a1}
-.badge-status-resolved{background:#dcfce7;color:#166534}
-
-/* Table */
-.table-wrap{overflow-x:auto}
-.vf-table{width:100%;border-collapse:collapse;font-size:13px}
-.vf-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;padding:8px 10px;border-bottom:2px solid #e5e5e5;white-space:nowrap}
-.vf-table td{padding:10px;border-bottom:1px solid #f3f4f6;vertical-align:top}
+/* Table specifics */
 .actions-cell{display:flex;gap:6px;white-space:nowrap}
-.btn-sm{padding:5px 8px;border-radius:5px;border:1px solid #e5e5e5;background:#fff;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:4px;font-family:inherit}
-.btn-sm i{width:13px;height:13px}
-.btn-edit{color:#374151}
-.btn-edit:hover{background:#f9fafb}
-.btn-del{color:#dc2626;border-color:#fecaca}
-.btn-del:hover{background:#fef2f2}
-.btn-save{background:#15803d;color:#fff;border-color:#15803d}
-.btn-save:hover{opacity:.9}
-.edit-row td{background:#fafaf9}
+.edit-row td{background:var(--bg)}
 .edit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;align-items:center}
-.edit-grid input,.edit-grid select,.edit-grid textarea{padding:8px 10px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit}
 .edit-grid textarea{grid-column:1/-1;min-height:60px}
 .edit-actions{display:flex;gap:8px;grid-column:1/-1}
-.status-select{font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid #d4d4d4;font-family:inherit}
+.status-select{font-size:12px;padding:4px 6px;border-radius:var(--radius-sm);border:1px solid #d4d4d4;font-family:inherit}
 
 /* Preview / review cards */
-.review-banner{background:#fff7ed;border:1px solid #fdba74;color:#92400e;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.preview-card{border:1px solid #e5e5e5;border-radius:8px;padding:16px;margin-bottom:14px;background:#fff}
-.preview-card.has-error{border-color:#fecaca;background:#fef2f2}
+.review-banner{background:var(--accent-bg);border:1px solid var(--accent-border);color:var(--accent-hover);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.preview-card.has-error{border-color:var(--danger-border);background:var(--danger-bg)}
 .preview-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
-.preview-card-head .fname{font-weight:700;font-size:13px;color:#6b7280}
-.preview-error-banner{background:#fef2f2;color:#dc2626;font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:10px}
+.preview-card-head .fname{font-weight:700;font-size:13px;color:var(--stone-500)}
+.preview-error-banner{background:var(--danger-bg);color:var(--danger);font-size:12px;padding:8px 10px;border-radius:var(--radius-sm);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.preview-error-banner [data-lucide]{width:14px;height:14px;flex-shrink:0}
 .preview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
-.preview-grid label{display:block;font-size:11px;font-weight:600;color:#6b7280;margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em}
-.preview-grid input,.preview-grid select,.preview-grid textarea{width:100%;padding:8px 10px;border:1px solid #d4d4d4;border-radius:6px;font-size:13px;font-family:inherit}
+.preview-grid label{display:block;font-size:11px;font-weight:600;color:var(--stone-500);margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em}
 .preview-grid .full-width{grid-column:1/-1}
 .preview-grid textarea{min-height:60px}
 .preview-card-actions{display:flex;justify-content:flex-end;margin-top:10px}
-.review-actions{display:flex;gap:10px;margin-top:16px}
-.confidence-note{font-size:11px;color:#9ca3af;margin-top:2px}
+.confidence-note{font-size:11px;color:var(--stone-400);margin-top:2px}
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="header">
-    <h1>Visitor Forms</h1>
-    <button class="btn btn-primary" onclick="openUploadModal()">
-      <i data-lucide="upload" style="width:15px;height:15px"></i> Upload Forms
-    </button>
+  <div class="page-header">
+    <div><h1 class="page-title">Visitor Forms</h1></div>
+    <div class="page-header-actions">
+      <button class="btn btn-primary" onclick="openUploadModal()">
+        <i data-lucide="upload"></i> Upload Forms
+      </button>
+    </div>
   </div>
 
   <div id="review-section" style="display:none">
@@ -145,7 +63,7 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
       <div class="review-banner">
         <span id="review-count-label"></span>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-primary" onclick="saveAllPreview()"><i data-lucide="check" style="width:14px;height:14px"></i> Save all</button>
+          <button class="btn btn-primary" onclick="saveAllPreview()"><i data-lucide="check"></i> Save all</button>
           <button class="btn btn-secondary" onclick="discardPreview()">Discard</button>
         </div>
       </div>
@@ -191,8 +109,8 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
         <input type="date" id="range-to" onchange="onRangeChange()">
       </div>
       <button class="btn btn-secondary" onclick="clearRange()">Clear range</button>
-      <button class="btn btn-accent" onclick="downloadExcel()"><i data-lucide="file-spreadsheet" style="width:15px;height:15px"></i> Excel</button>
-      <button class="btn btn-accent" onclick="downloadRegisterPdf()"><i data-lucide="file-text" style="width:15px;height:15px"></i> PDF list</button>
+      <button class="btn btn-accent" onclick="downloadExcel()"><i data-lucide="file-spreadsheet"></i> Excel</button>
+      <button class="btn btn-accent" onclick="downloadRegisterPdf()"><i data-lucide="file-text"></i> PDF list</button>
     </div>
   </div>
 
@@ -221,20 +139,20 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 <div id="upload-modal" class="modal-overlay" onclick="closeModals()">
   <div class="modal" onclick="event.stopPropagation()">
     <h3>Upload Visitor Forms</h3>
-    <p style="font-size:12px;color:#6b7280;margin-bottom:12px">
+    <p class="modal-hint">
       Photograph or scan filled paper forms and upload them here. The AI reads each form,
       extracts the name/date/issue, assigns a category and urgency — you'll review and can
       correct everything before saving.
     </p>
     <div class="file-drop" onclick="document.getElementById('file-input').click()">
-      <i data-lucide="image-plus" style="width:22px;height:22px;margin-bottom:6px"></i><br>
+      <i data-lucide="image-plus"></i><br>
       Click to choose form photos (JPEG/PNG/PDF, up to 20 at once)
     </div>
     <input type="file" id="file-input" accept="image/*,.pdf" multiple style="display:none" onchange="onFilesChosen()">
-    <div class="file-list" id="file-list"></div>
+    <div class="file-preview-list" id="file-list"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="extract-btn" onclick="submitUpload()" disabled>
-        <i data-lucide="sparkles" style="width:14px;height:14px"></i> Extract with AI
+        <i data-lucide="sparkles"></i> Extract with AI
       </button>
       <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
     </div>
@@ -245,7 +163,7 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 <div id="ttd-modal" class="modal-overlay" onclick="closeModals()">
   <div class="modal" onclick="event.stopPropagation()">
     <h3>Create TTD Reference Letter</h3>
-    <p style="font-size:12px;color:#6b7280;margin-bottom:12px">
+    <p class="modal-hint">
       Name comes from this visitor form. Darshan Type and Aadhar aren't captured on paper forms — please fill those in.
     </p>
     <div class="form-group">
@@ -316,11 +234,11 @@ function esc(s) {
 function categoryLabel(key) {
   return categories.find(c => c.key === key)?.label || key || 'Others';
 }
-function statusClass(status) {
-  return status === 'Resolved' ? 'resolved' : status === 'In Progress' ? 'progress' : 'pending';
+function urgencyBadgeClass(u) {
+  return u === 'High' ? 'danger' : u === 'Low' ? 'neutral' : 'accent';
 }
-function urgencyClass(u) {
-  return (u || 'Medium').toLowerCase();
+function statusBadgeClass(status) {
+  return status === 'Resolved' ? 'success' : status === 'In Progress' ? 'info' : 'neutral';
 }
 
 // ── Bootstrap ────────────────────────────────────────────────────────────
@@ -469,8 +387,8 @@ function renderTable() {
       <td>${esc(v.date_of_visit)}</td>
       <td>${esc(v.full_name)}</td>
       <td>${esc([v.village, v.mandal].filter(Boolean).join(', '))}</td>
-      <td><span class="badge badge-cat">${esc(categoryLabel(v.category))}</span> ${(v.ttd_letter_refs || []).map(ref => `<span class="badge badge-status-resolved">${esc(ref)}</span>`).join(' ')}</td>
-      <td><span class="badge badge-urgency-${urgencyClass(v.urgency)}" title="${esc(v.urgency_reason || '')}">${esc(v.urgency || 'Medium')}</span></td>
+      <td><span class="badge badge-neutral">${esc(categoryLabel(v.category))}</span> ${(v.ttd_letter_refs || []).map(ref => `<span class="badge badge-info">${esc(ref)}</span>`).join(' ')}</td>
+      <td><span class="badge badge-${urgencyBadgeClass(v.urgency)}" title="${esc(v.urgency_reason || '')}">${esc(v.urgency || 'Medium')}</span></td>
       <td>
         <select class="status-select" onchange="quickSetStatus('${v.id}', this.value)">
           <option value="Pending" ${v.resolution_status === 'Pending' ? 'selected' : ''}>Pending</option>
@@ -480,10 +398,10 @@ function renderTable() {
       </td>
       <td>${esc(v.assigned_officer)}</td>
       <td class="actions-cell">
-        <button class="btn-sm btn-edit" onclick="startEdit('${v.id}')" title="Edit"><i data-lucide="pencil"></i></button>
-        <button class="btn-sm btn-del" onclick="deleteItem('${v.id}')" title="Delete"><i data-lucide="trash-2"></i></button>
-        ${v.image_path ? `<button class="btn-sm btn-edit" onclick="window.open('/api/visitor-forms/${v.id}/image','_blank')" title="View original photo"><i data-lucide="image"></i></button>` : ''}
-        ${v.category === 'ttd_letter' ? `<button class="btn-sm btn-edit" onclick="openTtdModal('${v.id}')" title="Create TTD Letter"><i data-lucide="scroll"></i></button>` : ''}
+        <button class="btn btn-sm btn-ghost" onclick="startEdit('${v.id}')" title="Edit"><i data-lucide="pencil"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('${v.id}')" title="Delete"><i data-lucide="trash-2"></i></button>
+        ${v.image_path ? `<button class="btn btn-sm btn-ghost" onclick="window.open('/api/visitor-forms/${v.id}/image','_blank')" title="View original photo"><i data-lucide="image"></i></button>` : ''}
+        ${v.category === 'ttd_letter' ? `<button class="btn btn-sm btn-ghost" onclick="openTtdModal('${v.id}')" title="Create TTD Letter"><i data-lucide="scroll"></i></button>` : ''}
       </td>
     </tr>
     <tr id="edit-${v.id}" class="edit-row" style="display:none">
@@ -510,8 +428,8 @@ function renderTable() {
           <textarea id="e-issue-${v.id}" placeholder="Issue description">${esc(v.issue_description)}</textarea>
           <textarea id="e-action-${v.id}" placeholder="Action taken / to be taken">${esc(v.action_taken)}${v.action_to_be_taken ? ' | Next: ' + esc(v.action_to_be_taken) : ''}</textarea>
           <div class="edit-actions">
-            <button class="btn-sm btn-save" onclick="saveEdit('${v.id}')"><i data-lucide="check"></i> Save</button>
-            <button class="btn-sm btn-edit" onclick="cancelEdit('${v.id}')">Cancel</button>
+            <button class="btn btn-sm btn-success" onclick="saveEdit('${v.id}')"><i data-lucide="check"></i> Save</button>
+            <button class="btn btn-sm btn-ghost" onclick="cancelEdit('${v.id}')">Cancel</button>
           </div>
         </div>
       </td>
@@ -548,7 +466,8 @@ async function saveEdit(id) {
     body: JSON.stringify(body),
   });
   const data = await r.json();
-  if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+  if (!r.ok) { SaathiUI.toast(data.error || 'Failed to save.', 'danger'); return; }
+  SaathiUI.toast('Visitor form updated.', 'success');
   await loadItems();
 }
 
@@ -561,8 +480,9 @@ async function quickSetStatus(id, status) {
 }
 
 async function deleteItem(id) {
-  if (!confirm('Delete this visitor form record?')) return;
+  if (!(await SaathiUI.confirm('Delete this visitor form record? This cannot be undone.'))) return;
   await fetch('/api/visitor-forms/' + id, { method: 'DELETE' });
+  SaathiUI.toast('Visitor form deleted.', 'success');
   await loadItems();
 }
 
@@ -591,15 +511,16 @@ async function submitTtdModal() {
   const aadhar = document.getElementById('ttd-aadhar').value.trim();
   const referred_by = document.getElementById('ttd-referred-by').value.trim();
   const remarks = document.getElementById('ttd-remarks').value.trim();
-  if (!date || !darshan_type) { alert('Date and darshan type are required.'); return; }
+  if (!date || !darshan_type) { SaathiUI.toast('Date and darshan type are required.', 'danger'); return; }
 
   const r = await fetch(`/api/visitor-forms/${currentTtdSourceId}/create-ttd-letter`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ date, darshan_type, phone, aadhar, referred_by, remarks, party_size }),
   });
   const data = await r.json();
-  if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+  if (!r.ok) { SaathiUI.toast(data.error || 'Failed to save.', 'danger'); return; }
   closeModals();
+  SaathiUI.toast('TTD reference letter created.', 'success');
   await loadItems();
 }
 
@@ -616,8 +537,9 @@ function closeModals() {
 
 function onFilesChosen() {
   const files = document.getElementById('file-input').files;
-  document.getElementById('file-list').innerHTML = Array.from(files).map(f => `<div>${esc(f.name)}</div>`).join('');
+  document.getElementById('file-list').innerHTML = Array.from(files).map(f => `<div class="file-preview-item"><i data-lucide="paperclip"></i> ${esc(f.name)}</div>`).join('');
   document.getElementById('extract-btn').disabled = files.length === 0;
+  if (window.lucide) lucide.createIcons();
 }
 
 async function submitUpload() {
@@ -635,15 +557,15 @@ async function submitUpload() {
   try {
     const r = await fetch('/api/visitor-forms/upload', { method: 'POST', body: formData });
     const data = await r.json();
-    if (!r.ok) { alert(data.error || 'Upload failed.'); return; }
+    if (!r.ok) { SaathiUI.toast(data.error || 'Upload failed.', 'danger'); return; }
     previewItems = data.items || [];
     closeModals();
     renderPreview();
   } catch (e) {
-    alert('Upload failed: ' + e.message);
+    SaathiUI.toast('Upload failed: ' + e.message, 'danger');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="sparkles" style="width:14px;height:14px"></i> Extract with AI';
+    btn.innerHTML = '<i data-lucide="sparkles"></i> Extract with AI';
     if (window.lucide) lucide.createIcons();
   }
 }
@@ -663,12 +585,12 @@ function renderPreview() {
   document.getElementById('preview-cards').innerHTML = previewItems.map((p, i) => {
     const ex = p.extracted || {};
     return `
-    <div class="preview-card ${p.error ? 'has-error' : ''}">
+    <div class="preview-card card-sub ${p.error ? 'has-error' : ''}">
       <div class="preview-card-head">
         <span class="fname">${esc(p.filename)}</span>
-        ${ex.ocr_confidence ? `<span class="badge badge-cat">OCR confidence: ${esc(ex.ocr_confidence)}</span>` : ''}
+        ${ex.ocr_confidence ? `<span class="badge badge-neutral">OCR confidence: ${esc(ex.ocr_confidence)}</span>` : ''}
       </div>
-      ${p.error ? `<div class="preview-error-banner">⚠ AI extraction failed: ${esc(p.error)} — enter the details manually below.</div>` : ''}
+      ${p.error ? `<div class="preview-error-banner"><i data-lucide="triangle-alert"></i> AI extraction failed: ${esc(p.error)} — enter the details manually below.</div>` : ''}
       <div class="preview-grid">
         <div><label>Name</label><input id="p-name-${i}" value="${esc(ex.full_name)}"></div>
         <div><label>Date of visit</label><input id="p-date-${i}" value="${esc(ex.date_of_visit)}" placeholder="YYYY-MM-DD"></div>
@@ -691,7 +613,7 @@ function renderPreview() {
         <div class="full-width"><label>Issue description</label><textarea id="p-issue-${i}">${esc(ex.issue_description)}</textarea></div>
       </div>
       <div class="preview-card-actions">
-        <button class="btn-sm btn-del" onclick="removePreviewItem(${i})"><i data-lucide="x"></i> Remove this form</button>
+        <button class="btn btn-sm btn-danger" onclick="removePreviewItem(${i})"><i data-lucide="x"></i> Remove this form</button>
       </div>
     </div>`;
   }).join('');
@@ -716,8 +638,8 @@ function removePreviewItem(i) {
   renderPreview();
 }
 
-function discardPreview() {
-  if (!confirm('Discard all extracted forms without saving?')) return;
+async function discardPreview() {
+  if (!(await SaathiUI.confirm('Discard all extracted forms without saving?'))) return;
   previewItems = [];
   document.getElementById('review-section').style.display = 'none';
 }
@@ -753,10 +675,11 @@ async function saveAllPreview() {
     body: JSON.stringify({ items }),
   });
   const data = await r.json();
-  if (!r.ok) { alert(data.error || 'Failed to save.'); return; }
+  if (!r.ok) { SaathiUI.toast(data.error || 'Failed to save.', 'danger'); return; }
 
   previewItems = [];
   document.getElementById('review-section').style.display = 'none';
+  SaathiUI.toast('Visitor forms saved.', 'success');
   await loadItems();
 }
 

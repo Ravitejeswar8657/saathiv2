@@ -4,67 +4,21 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Broadcast Lists · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="/sidebar.js" defer></script>
+<script src="/js/saathi-ui.js" defer></script>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --ink: #1a1208;
-  --bg: #fafaf9;
-  --card-bg: #ffffff;
-  --border: #e5e5e5;
-  --muted: #6b7280;
-  --accent: #b45309;
-  --accent-hover: #92400e;
-  --teal: #0f766e;
-  --teal-light: #ccfbf1;
-  --red: #dc2626;
-  --red-light: #fef2f2;
-  --red-border: #fecaca;
-  --blue: #1d4ed8;
-  --shadow: 0 1px 2px rgba(0,0,0,0.05);
-  --radius: 8px;
-}
-
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: var(--bg);
-  color: var(--ink);
-  line-height: 1.5;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-}
-body::before {
-  content:'';display:block;height:3px;
-  background:linear-gradient(90deg,#b45309,#d97706,#b45309);
-  position:fixed;top:0;left:0;right:0;z-index:999;
-}
-
-.container { width: 100%; padding: 32px 32px; margin-top: 3px; }
-
-.back-link {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 13px; color: var(--accent); text-decoration: none;
-  font-weight: 500; margin-bottom: 16px; transition: color 0.15s;
-}
-.back-link:hover { color: var(--accent-hover); }
-.back-link [data-lucide] { width: 14px; height: 14px; }
-
-.header { margin-bottom: 28px; }
-.page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
-.page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
-
 .grid { display: grid; grid-template-columns: 1fr; gap: 28px; }
-@media (min-width: 900px) { .grid { grid-template-columns: 1fr 340px; } }
+@media (min-width: 900px) { .grid { grid-template-columns: 1fr 360px; } }
 
 .section-block { margin-bottom: 28px; }
 .section-block:last-child { margin-bottom: 0; }
 
 .section-header {
-  font-size: 12px; font-weight: 600; color: var(--muted);
+  font-size: 12px; font-weight: 600; color: var(--stone-500);
   text-transform: uppercase; letter-spacing: 0.05em;
   padding-bottom: 8px; margin-bottom: 12px;
   border-bottom: 1px solid var(--border);
@@ -72,37 +26,15 @@ body::before {
 }
 .section-header [data-lucide] { width: 13px; height: 13px; stroke-width: 2; }
 
-.card {
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: var(--radius); box-shadow: var(--shadow);
-}
 .sidebar-card {
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: var(--radius); box-shadow: var(--shadow);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
   padding: 18px; margin-bottom: 18px;
 }
 .sidebar-card .section-header { margin-bottom: 12px; }
 
-/* ── Buttons ── */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 6px; padding: 7px 14px; border-radius: 6px; font-weight: 500;
-  font-size: 13px; cursor: pointer; border: 1px solid transparent;
-  transition: background 0.15s, border-color 0.15s, color 0.15s; line-height: 1.4;
-  font-family: inherit;
-}
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn [data-lucide] { width: 13px; height: 13px; stroke-width: 2; }
-.btn-primary { background: var(--teal); color: #fff; border-color: var(--teal); }
-.btn-primary:hover:not(:disabled) { background: #0d6357; }
-.btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
-.btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-ghost { background: transparent; color: var(--muted); border-color: var(--border); }
-.btn-ghost:hover:not(:disabled) { background: #f5f5f4; color: var(--ink); }
-.btn-destructive { background: transparent; color: var(--red); border-color: var(--red-border); }
-.btn-destructive:hover:not(:disabled) { background: var(--red-light); }
-.btn-blue { background: var(--blue); color: #fff; border-color: var(--blue); }
-.btn-blue:hover:not(:disabled) { background: #1e40af; }
+/* ── Buttons — same compact sizing as admin.html; colors come from saathi.css ── */
+.btn { padding: 7px 14px; font-weight: 500; }
 
 /* ── Quick create chips ── */
 .quick-btns { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -110,51 +42,42 @@ body::before {
 
 /* ── Form ── */
 .form-group { margin-bottom: 12px; }
-.form-group label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; }
-.form-group input, .form-group select, .form-group textarea {
-  width: 100%; padding: 9px 12px; border: 1px solid #d4d4d4; border-radius: 6px;
-  font-size: 13px; font-family: inherit; background: #fff; color: var(--ink);
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-  border-color: var(--teal); outline: none; box-shadow: 0 0 0 2px rgba(15,118,110,0.12);
-}
 .form-group textarea { resize: vertical; min-height: 100px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
 
 /* ── List cards ── */
 .list-card {
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px;
-  box-shadow: var(--shadow); transition: border-color 0.15s;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px;
+  box-shadow: var(--shadow-sm); transition: border-color 0.15s;
 }
 .list-card:hover { border-color: #c4b5a0; }
-.list-card.selected { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(15,118,110,0.1); }
+.list-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(180,83,9,.12); }
 .list-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .list-name { font-weight: 600; font-size: 14px; }
-.list-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.list-meta { font-size: 12px; color: var(--stone-500); margin-top: 3px; }
 .list-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .list-filters { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
 .filter-chip {
-  font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 100px;
-  background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+  font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius-full);
+  background: var(--neutral-bg); color: var(--neutral); border: 1px solid var(--neutral-border);
 }
-.list-history { margin-top: 8px; font-size: 11px; color: var(--muted); padding-top: 8px; border-top: 1px solid var(--border); }
+.list-history { margin-top: 8px; font-size: 11px; color: var(--stone-500); padding-top: 8px; border-top: 1px solid var(--border); }
 
 /* ── Contact preview ── */
 .contact-preview-panel {
-  margin: 4px 0 12px; border: 1px solid var(--border); border-radius: 6px;
+  margin: 4px 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   max-height: 260px; overflow-y: auto;
 }
 .contact-preview-header {
-  font-size: 11px; font-weight: 600; color: var(--muted);
+  font-size: 11px; font-weight: 600; color: var(--stone-500);
   padding: 8px 12px; border-bottom: 1px solid var(--border);
-  background: #fafaf9; position: sticky; top: 0;
+  background: var(--bg); position: sticky; top: 0;
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
 }
 .preview-select-controls { display: flex; align-items: center; gap: 8px; font-weight: 400; flex-shrink: 0; }
-.preview-select-controls a { color: var(--teal); text-decoration: none; cursor: pointer; }
+.preview-select-controls a { color: var(--accent); text-decoration: none; cursor: pointer; }
 .preview-select-controls a:hover { text-decoration: underline; }
 .contact-preview-row {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -166,11 +89,11 @@ body::before {
 }
 .contact-preview-select input[type="checkbox"] { flex-shrink: 0; }
 .contact-preview-name { font-weight: 600; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.contact-preview-meta { color: var(--muted); font-size: 11px; text-align: right; flex-shrink: 0; }
+.contact-preview-meta { color: var(--stone-500); font-size: 11px; text-align: right; flex-shrink: 0; }
 
 /* ── WhatsApp groups picker ── */
 .wa-groups-panel {
-  margin: 4px 0 0; border: 1px solid var(--border); border-radius: 6px;
+  margin: 4px 0 0; border: 1px solid var(--border); border-radius: var(--radius-sm);
   max-height: 220px; overflow-y: auto;
 }
 .wa-group-row {
@@ -179,75 +102,64 @@ body::before {
 }
 .wa-group-row:last-child { border-bottom: none; }
 .wa-group-subject { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wa-group-size { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+.wa-group-size { color: var(--stone-500); font-size: 11px; flex-shrink: 0; }
 .send-badge {
   display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
-  font-weight: 600; padding: 2px 8px; border-radius: 100px;
+  font-weight: 600; padding: 2px 8px; border-radius: var(--radius-full);
 }
-.send-badge-ok { background: var(--teal-light); color: var(--teal); }
-.send-badge-fail { background: var(--red-light); color: var(--red); }
+.send-badge-ok { background: var(--success-bg); color: var(--success); }
+.send-badge-fail { background: var(--danger-bg); color: var(--danger); }
 
 /* ── Compose area ── */
-.compose-box { }
 .selected-list-banner {
-  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;
+  background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-sm);
   padding: 10px 14px; margin-bottom: 14px;
 }
-.selected-list-banner .list-name { color: var(--teal); }
+.selected-list-banner .list-name { color: var(--success); }
 .list-size-warning {
-  margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 12px;
-  background: #fff7ed; border: 1px solid var(--accent); color: var(--accent-hover);
+  margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-sm); font-size: 12px;
+  background: var(--accent-bg); border: 1px solid var(--accent); color: var(--accent-hover);
 }
-.char-counter { font-size: 11px; color: var(--muted); text-align: right; margin-top: 4px; }
+.char-counter { font-size: 11px; color: var(--stone-500); text-align: right; margin-top: 4px; }
 
 /* ── Progress ── */
 .progress-wrap { margin-top: 14px; }
 .progress-label {
   display: flex; justify-content: space-between; font-size: 12px;
-  color: var(--muted); margin-bottom: 6px;
+  color: var(--stone-500); margin-bottom: 6px;
 }
 .progress-bar-track {
-  background: #e5e7eb; border-radius: 100px; height: 6px; overflow: hidden;
+  background: #e5e7eb; border-radius: var(--radius-full); height: 6px; overflow: hidden;
 }
 .progress-bar-fill {
-  background: var(--teal); height: 100%; border-radius: 100px;
+  background: var(--success); height: 100%; border-radius: var(--radius-full);
   transition: width 0.4s ease; width: 0%;
 }
 .progress-stats { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; }
-.stat-sent { color: var(--teal); font-weight: 500; }
-.stat-failed { color: var(--red); font-weight: 500; }
+.stat-sent { color: var(--success); font-weight: 500; }
+.stat-failed { color: var(--danger); font-weight: 500; }
 .progress-done-banner {
-  margin-top: 12px; padding: 10px 14px; border-radius: 6px;
-  background: var(--teal-light); color: var(--teal); font-size: 13px; font-weight: 500;
+  margin-top: 12px; padding: 10px 14px; border-radius: var(--radius-sm);
+  background: var(--success-bg); color: var(--success); font-size: 13px; font-weight: 500;
 }
 
 /* ── WA status ── */
 .wa-status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
 .wa-status-badge [data-lucide] { width: 14px; height: 14px; }
-.wa-status-connected { color: var(--teal); }
+.wa-status-connected { color: var(--success); }
 .wa-status-pending { color: var(--accent); }
-.wa-status-loading { color: var(--muted); }
+.wa-status-loading { color: var(--stone-500); }
 #wa-qr-container {
   text-align: center; margin-top: 14px; padding: 14px;
-  background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md);
 }
-.qr-label { font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 10px; }
-.qr-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+.qr-label { font-size: 12px; font-weight: 500; color: var(--stone-500); margin-bottom: 10px; }
+.qr-hint { font-size: 11px; color: var(--stone-500); margin-top: 8px; }
 
 /* ── Empty states ── */
-.empty-state { color: var(--muted); font-size: 13px; padding: 20px 16px; text-align: center; }
-
-/* ── Toast ── */
-.toast {
-  position: fixed; bottom: 24px; right: 24px; z-index: 999;
-  background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px;
-  font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.2s;
-  pointer-events: none;
-}
-.toast.show { opacity: 1; }
+.empty-state { color: var(--stone-500); font-size: 13px; padding: 20px 16px; text-align: center; }
 
 @media (max-width: 600px) {
-  .container { padding: 16px; }
   .list-card-header { flex-direction: column; }
   .list-actions { flex-wrap: wrap; }
 }
@@ -256,9 +168,11 @@ body::before {
 <body>
 
 <div class="container">
-  <div class="header">
-    <h1 class="page-title">WhatsApp Broadcast Lists</h1>
-    <p class="page-sub">Send messages to lists of contacts (each person receives it individually — no group chat visible) and, optionally, into your existing WhatsApp Groups.</p>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">WhatsApp Broadcast Lists</h1>
+      <p class="page-subtitle">Send messages to lists of contacts (each person receives it individually — no group chat visible) and, optionally, into your existing WhatsApp Groups.</p>
+    </div>
   </div>
 
   <div class="grid">
@@ -364,7 +278,7 @@ body::before {
       <div class="section-block">
         <div class="section-header" style="justify-content:space-between">
           <span style="display:flex;align-items:center;gap:6px"><i data-lucide="list"></i> Your Lists</span>
-          <span id="list-count" style="font-size:11px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0"></span>
+          <span id="list-count" style="font-size:11px;color:var(--stone-500);font-weight:400;text-transform:none;letter-spacing:0"></span>
         </div>
         <div id="lists-container">
           <div class="empty-state">Loading lists...</div>
@@ -387,10 +301,10 @@ body::before {
           <canvas id="wa-qr-canvas" style="max-width:100%;height:auto"></canvas>
           <p class="qr-hint">Once scanned, session is saved. No need to scan again.</p>
         </div>
-        <div id="wa-session-note" style="margin-top:10px;font-size:12px;color:var(--muted);display:none">
-          Session saved to <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">data/wa_auth/</code> — persists across server restarts.
+        <div id="wa-session-note" style="margin-top:10px;font-size:12px;color:var(--stone-500);display:none">
+          Session saved to <code style="background:var(--neutral-bg);padding:1px 5px;border-radius:3px">data/wa_auth/</code> — persists across server restarts.
         </div>
-        <button class="btn btn-destructive" id="wa-logout-btn" onclick="waLogout()" style="width:100%;margin-top:10px;display:none">
+        <button class="btn btn-danger" id="wa-logout-btn" onclick="waLogout()" style="width:100%;margin-top:10px;display:none">
           <i data-lucide="log-out"></i> Log Out of WhatsApp
         </button>
       </div>
@@ -413,14 +327,14 @@ body::before {
           <div class="form-group">
             <label>Attachment (optional)</label>
             <input type="file" id="msg-attachment" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="onAttachmentChange()">
-            <div id="attachment-info" style="font-size:11px;color:var(--muted);margin-top:4px;display:none"></div>
+            <div id="attachment-info" style="font-size:11px;color:var(--stone-500);margin-top:4px;display:none"></div>
           </div>
           <div class="form-group" style="margin-bottom:8px">
             <label>Delay between sends (ms)</label>
             <input id="delay-ms" type="number" value="2500" min="1000" max="10000" step="500">
-            <div style="font-size:11px;color:var(--muted);margin-top:3px">Min 1000 ms recommended to avoid WhatsApp rate limits.</div>
+            <div style="font-size:11px;color:var(--stone-500);margin-top:3px">Min 1000 ms recommended to avoid WhatsApp rate limits.</div>
           </div>
-          <button class="btn btn-primary" id="send-btn" onclick="startSend()" style="width:100%;padding:10px;font-size:14px">
+          <button class="btn btn-success" id="send-btn" onclick="startSend()" style="width:100%;padding:10px;font-size:14px">
             <i data-lucide="send"></i> Send to List
           </button>
           <button class="btn btn-ghost" onclick="clearCompose()" style="width:100%;margin-top:8px;font-size:12px">
@@ -440,7 +354,7 @@ body::before {
               <span class="stat-sent" id="stat-sent">✓ 0 sent</span>
               <span class="stat-failed" id="stat-failed" style="display:none">✗ 0 failed</span>
             </div>
-            <button class="btn btn-destructive" id="cancel-btn" onclick="cancelJob()" style="margin-top:8px;font-size:12px">
+            <button class="btn btn-danger" id="cancel-btn" onclick="cancelJob()" style="margin-top:8px;font-size:12px">
               <i data-lucide="x"></i> Cancel Send
             </button>
           </div>
@@ -453,8 +367,6 @@ body::before {
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
 <script>
 let selectedListId = null;
 let activeJobId = null;
@@ -463,13 +375,9 @@ const LARGE_LIST_WARN_THRESHOLD = 300;
 let waGroupsCache = [];
 let selectedGroupIds = new Set();
 
-// ── Toast ─────────────────────────────────────────────────────────────────
-function toast(msg, duration = 2500) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), duration);
+// ── Toast (delegates to the shared SaathiUI toast component) ───────────────
+function toast(msg, duration = 4000) {
+  SaathiUI.toast(msg, 'info', duration);
 }
 
 // ── WA Status ─────────────────────────────────────────────────────────────
@@ -504,7 +412,7 @@ async function checkWAStatus() {
 }
 
 async function waLogout() {
-  if (!confirm('Log out of WhatsApp? You will need to scan a new QR code to reconnect.')) return;
+  if (!await SaathiUI.confirm('You will need to scan a new QR code to reconnect.', { title: 'Log out of WhatsApp?', confirmLabel: 'Log out' })) return;
   const btn = document.getElementById('wa-logout-btn');
   btn.disabled = true;
   btn.innerHTML = '<i data-lucide="loader"></i> Logging out...';
@@ -743,13 +651,13 @@ async function loadLists() {
             <div class="list-meta">${metaText}</div>
           </div>
           <div class="list-actions">
-            <button class="btn btn-primary" onclick="openCompose('${list.id}', '${escHtml(list.name)}', ${list.contact_count}, ${groupCount})">
+            <button class="btn btn-success" onclick="openCompose('${list.id}', '${escHtml(list.name)}', ${list.contact_count}, ${groupCount})">
               <i data-lucide="send"></i> Send
             </button>
             <button class="btn btn-ghost" title="Refresh contacts from filters" onclick="refreshList('${list.id}', this)">
               <i data-lucide="refresh-cw"></i>
             </button>
-            <button class="btn btn-destructive" onclick="deleteList('${list.id}', '${escHtml(list.name)}')">
+            <button class="btn btn-danger" onclick="deleteList('${list.id}', '${escHtml(list.name)}')">
               <i data-lucide="trash-2"></i>
             </button>
           </div>
@@ -841,7 +749,7 @@ async function refreshList(id, btn) {
 
 // ── Delete list ────────────────────────────────────────────────────────────
 async function deleteList(id, name) {
-  if (!confirm(`Delete list "${name}"?`)) return;
+  if (!await SaathiUI.confirm(`This removes "${name}" and its send history. This can't be undone.`, { title: 'Delete this list?', confirmLabel: 'Delete' })) return;
   await fetch(`/api/broadcast-lists/${id}`, { method: 'DELETE' });
   if (selectedListId === id) clearCompose();
   toast(`"${name}" deleted`);
@@ -870,7 +778,7 @@ function openCompose(id, name, count, groupCount = 0) {
     : `${count} contacts will receive this message individually`;
   document.getElementById('compose-banner').innerHTML = `
     <div class="list-name">${escHtml(name)}</div>
-    <div style="font-size:12px;color:var(--teal);margin-top:2px">${recipientText}</div>
+    <div style="font-size:12px;color:var(--success);margin-top:2px">${recipientText}</div>
     ${sizeWarning}
   `;
   clearAttachment();

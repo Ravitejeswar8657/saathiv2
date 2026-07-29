@@ -4,73 +4,13 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>MP Dashboard · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="/sidebar.js" defer></script>
+<script src="/js/saathi-ui.js" defer></script>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --ink: #1a1208;
-  --bg: #fafaf9;
-  --card-bg: #ffffff;
-  --border: #e5e5e5;
-  --muted: #6b7280;
-  --accent: #b45309;
-  --accent-hover: #92400e;
-  --teal: #0f766e;
-  --teal-light: #ccfbf1;
-  --red: #dc2626;
-  --red-light: #fef2f2;
-  --red-border: #fecaca;
-  --blue: #1d4ed8;
-  --blue-hover: #1e40af;
-  --shadow: 0 1px 2px rgba(0,0,0,0.05);
-  --radius: 8px;
-}
-
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: var(--bg);
-  color: var(--ink);
-  line-height: 1.5;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-}
-body::before {
-  content:'';display:block;height:3px;
-  background:linear-gradient(90deg,#b45309,#d97706,#b45309);
-  position:fixed;top:0;left:0;right:0;z-index:999;
-}
-
-.container {
-  width: 100%;
-  padding: 32px 32px;
-  margin-top: 3px;
-}
-
-/* ── Header ── */
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-  margin-bottom: 16px;
-  transition: color 0.15s;
-}
-.back-link:hover { color: var(--accent-hover); }
-
-.header { margin-bottom: 32px; }
-.page-title {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
 /* ── Layout ── */
 .grid {
   display: grid;
@@ -81,20 +21,15 @@ body::before {
   .grid { grid-template-columns: 1fr 360px; }
 }
 
-/* ── Cards ── */
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--accent);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
+/* This page's .card is an edge-to-edge list container (rows carry their own
+   padding/dividers), not a padded content box — override the shared padding. */
+.card { padding: 0; }
 
 /* ── Section headings ── */
 .section-header {
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--stone-500);
   padding-bottom: 10px;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--border);
@@ -136,11 +71,11 @@ body::before {
 }
 .issue-meta {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--stone-500);
 }
 .issue-desc {
   font-size: 13px;
-  color: #374151;
+  color: var(--stone-700);
   margin-top: 4px;
 }
 
@@ -169,45 +104,9 @@ body::before {
   stroke-width: 2;
 }
 
-/* Primary (teal) */
-.btn-primary {
-  background: var(--teal);
-  color: #fff;
-  border-color: var(--teal);
-}
-.btn-primary:hover:not(:disabled) { background: #0d6357; border-color: #0d6357; }
-
-/* Destructive outline */
-.btn-destructive {
-  background: transparent;
-  color: var(--red);
-  border-color: var(--red-border);
-}
-.btn-destructive:hover:not(:disabled) { background: var(--red-light); }
-
-/* Ghost */
-.btn-ghost {
-  background: transparent;
-  color: var(--muted);
-  border-color: var(--border);
-}
-.btn-ghost:hover:not(:disabled) { background: #f5f5f4; color: var(--ink); }
-
-/* Accent filled */
-.btn-accent {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-.btn-accent:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
-
-/* Blue filled */
-.btn-blue {
-  background: var(--blue);
-  color: #fff;
-  border-color: var(--blue);
-}
-.btn-blue:hover:not(:disabled) { background: var(--blue-hover); border-color: var(--blue-hover); }
+/* .btn-success (teal/Approve), .btn-danger (outline/Reject), .btn-ghost,
+   .btn-accent and .btn-secondary all now come from saathi.css — this page
+   only needs the compact sizing above and .btn-actions layout below. */
 
 .btn-actions {
   display: flex;
@@ -227,18 +126,6 @@ body::before {
 }
 .wa-response-item:last-child { border-bottom: none; }
 
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-.badge-approved { background: var(--teal-light); color: var(--teal); }
-.badge-rejected { background: var(--red-light); color: var(--red); }
-
 /* ── News list ── */
 .news-item {
   padding: 12px 16px;
@@ -246,8 +133,8 @@ body::before {
 }
 .news-item:last-child { border-bottom: none; }
 .news-headline { font-weight: 500; font-size: 14px; }
-.news-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.news-body { font-size: 13px; color: #374151; margin-top: 4px; }
+.news-meta { font-size: 12px; color: var(--stone-500); margin-top: 2px; }
+.news-body { font-size: 13px; color: var(--stone-700); margin-top: 4px; }
 
 .live-news-item {
   padding: 10px 16px;
@@ -291,7 +178,7 @@ body::before {
   font-weight: 500;
   font-family: inherit;
   background: var(--bg);
-  color: var(--muted);
+  color: var(--stone-500);
   cursor: pointer;
   transition: all .15s;
 }
@@ -299,8 +186,8 @@ body::before {
 .nd-count {
   margin-left: auto;
   font-size: 11px;
-  color: var(--muted);
-  background: #f3f4f6;
+  color: var(--stone-500);
+  background: var(--neutral-bg);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 3px 9px;
@@ -324,13 +211,14 @@ body::before {
   flex-shrink: 0;
   margin-top: 2px;
 }
-.cat-national { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-.cat-international { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
-.cat-other { background: #f3f4f6; color: var(--muted); border: 1px solid var(--border); }
+/* National=info, International=neutral — must match news.html's mapping exactly */
+.cat-national { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
+.cat-international { background: var(--neutral-bg); color: var(--neutral); border: 1px solid var(--neutral-border); }
+.cat-other { background: var(--bg); color: var(--stone-500); border: 1px solid var(--border); }
 .nd-headline { font-weight: 600; font-size: 14px; line-height: 1.4; }
-.nd-body { font-size: 13px; color: #374151; line-height: 1.5; }
+.nd-body { font-size: 13px; color: var(--stone-700); line-height: 1.5; }
 .nd-meta { display: flex; gap: 12px; flex-wrap: wrap; }
-.nd-meta span { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 3px; }
+.nd-meta span { font-size: 11px; color: var(--stone-500); display: flex; align-items: center; gap: 3px; }
 .nd-meta span [data-lucide] { width: 11px; height: 11px; }
 .nd-link {
   display: inline-flex;
@@ -346,10 +234,10 @@ body::before {
 
 /* ── Sidebar ── */
 .sidebar-card {
-  background: var(--card-bg);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   padding: 20px;
   margin-bottom: 20px;
 }
@@ -366,9 +254,9 @@ body::before {
   font-weight: 500;
 }
 .wa-status-badge [data-lucide] { width: 14px; height: 14px; }
-.wa-status-connected { color: var(--teal); }
+.wa-status-connected { color: var(--success); }
 .wa-status-pending { color: var(--accent); }
-.wa-status-loading { color: var(--muted); }
+.wa-status-loading { color: var(--stone-500); }
 
 #wa-qr-container {
   text-align: center;
@@ -376,24 +264,24 @@ body::before {
   padding: 16px;
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
 }
 #wa-qr-container p.qr-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--stone-500);
   margin-bottom: 12px;
 }
 #wa-qr-container p.qr-hint {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--stone-500);
   margin-top: 10px;
 }
 
 /* ── WA Preview (dark phone screen) ── */
 .wa-preview {
   background: #0b141a;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   padding: 16px;
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 13px;
@@ -419,16 +307,7 @@ body::before {
   font-size: 13px;
   font-weight: 500;
 }
-.brief-actions .btn-send-wa {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-  font-weight: 600;
-}
-.brief-actions .btn-send-wa:hover:not(:disabled) {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-}
+.brief-actions .btn-accent { font-weight: 600; }
 
 #send-status {
   margin-top: 10px;
@@ -439,7 +318,7 @@ body::before {
 
 /* ── Empty states ── */
 .empty-state {
-  color: var(--muted);
+  color: var(--stone-500);
   font-size: 13px;
   padding: 20px 16px;
   text-align: center;
@@ -459,8 +338,8 @@ body::before {
 </head>
 <body>
 <div class="container">
-  <div class="header">
-    <h1 class="page-title">MP Dashboard</h1>
+  <div class="page-header">
+    <div><h1 class="page-title">MP Dashboard</h1></div>
   </div>
 
   <div class="grid">
@@ -543,16 +422,16 @@ body::before {
         </div>
         <div id="brief-preview" class="wa-preview">Loading preview...</div>
         <div class="brief-actions">
-          <button class="btn btn-blue" id="generate-btn" onclick="generateBrief()">
+          <button class="btn btn-secondary" id="generate-btn" onclick="generateBrief()">
             <i data-lucide="refresh-cw"></i> Generate Brief
           </button>
           <button class="btn btn-ghost" id="copy-btn" onclick="copyBrief()" disabled>
             <i data-lucide="copy"></i> Copy Brief
           </button>
-          <button class="btn btn-primary" id="approve-btn" onclick="approveBrief()" disabled>
+          <button class="btn btn-success" id="approve-btn" onclick="approveBrief()" disabled>
             <i data-lucide="check"></i> Approve Brief
           </button>
-          <button class="btn btn-send-wa" id="send-btn" onclick="sendToWhatsApp()" disabled>
+          <button class="btn btn-accent" id="send-btn" onclick="sendToWhatsApp()" disabled>
             <i data-lucide="send"></i> Send to WhatsApp
           </button>
         </div>
@@ -583,8 +462,8 @@ async function loadData() {
         </td>
         <td class="col-actions">
           <div class="btn-actions">
-            <button class="btn btn-primary" onclick="actionIssue('${iss.contact_id}','${iss.id}','approved')">Approve</button>
-            <button class="btn btn-destructive" onclick="actionIssue('${iss.contact_id}','${iss.id}','rejected')">Reject</button>
+            <button class="btn btn-success" onclick="actionIssue('${iss.contact_id}','${iss.id}','approved')">Approve</button>
+            <button class="btn btn-danger" onclick="actionIssue('${iss.contact_id}','${iss.id}','rejected')">Reject</button>
             <button class="btn btn-ghost" onclick="sendApprovalToWA('${iss.contact_id}','${iss.id}',this)">
               <i data-lucide="send"></i> Send to MP
             </button>
@@ -607,14 +486,14 @@ async function loadData() {
       h3 += `
       <div class="wa-response-item">
         <div>
-          <span class="badge ${resp.mp_response === 'approved' ? 'badge-approved' : 'badge-rejected'}">${resp.mp_response.toUpperCase()}</span>
+          <span class="badge ${resp.mp_response === 'approved' ? 'badge-success' : 'badge-danger'}">${resp.mp_response.toUpperCase()}</span>
           <span style="font-weight:600;margin-left:8px;font-size:14px">${resp.issue_type}</span>
           <div class="issue-meta" style="margin-top:4px">${resp.contact_name} · MP replied: "${resp.mp_message}"</div>
-          <div style="font-size:11px;color:var(--muted)">${new Date(resp.responded_at).toLocaleString('en-IN')}</div>
+          <div style="font-size:11px;color:var(--stone-500)">${new Date(resp.responded_at).toLocaleString('en-IN')}</div>
         </div>
         <div class="btn-actions">
-          <button class="btn btn-primary" onclick="confirmWAResponse('${resp.issue_id}','approved')">Confirm</button>
-          <button class="btn btn-destructive" onclick="confirmWAResponse('${resp.issue_id}','rejected')">Reject</button>
+          <button class="btn btn-success" onclick="confirmWAResponse('${resp.issue_id}','approved')">Confirm</button>
+          <button class="btn btn-danger" onclick="confirmWAResponse('${resp.issue_id}','rejected')">Reject</button>
         </div>
       </div>`;
     });
@@ -682,10 +561,10 @@ async function generateBrief() {
     document.getElementById('approve-btn').disabled = false;
     document.getElementById('send-btn').disabled = true;
     status.textContent = 'Brief generated. Review and approve below.';
-    status.style.color = '#1d4ed8';
+    status.style.color = 'var(--info)';
   } catch(e) {
     status.textContent = 'Failed to generate brief.';
-    status.style.color = '#dc2626';
+    status.style.color = 'var(--danger)';
   } finally {
     btn.disabled = false; btn.innerHTML = '<i data-lucide="refresh-cw"></i> Generate Brief';
     lucide.createIcons();
@@ -699,7 +578,7 @@ function approveBrief() {
   document.getElementById('send-btn').disabled = false;
   const status = document.getElementById('send-status');
   status.textContent = 'Brief approved. Ready to send.';
-  status.style.color = 'var(--teal)';
+  status.style.color = 'var(--success)';
   lucide.createIcons();
 }
 
@@ -712,14 +591,14 @@ async function sendToWhatsApp() {
     const r = await fetch('/api/send-brief', { method: 'POST' });
     const data = await r.json();
     status.textContent = data.status === 'sent' ? 'Sent to WhatsApp.' : 'Previewed (Module in Preview Mode).';
-    status.style.color = 'var(--teal)';
+    status.style.color = 'var(--success)';
     briefGenerated = false;
     briefApproved = false;
     document.getElementById('approve-btn').disabled = true;
     document.getElementById('approve-btn').innerHTML = '<i data-lucide="check"></i> Approve Brief';
   } catch(e) {
     status.textContent = 'Failed to send.';
-    status.style.color = 'var(--red)';
+    status.style.color = 'var(--danger)';
     btn.disabled = false;
   } finally {
     btn.innerHTML = '<i data-lucide="send"></i> Send to WhatsApp';
@@ -765,8 +644,8 @@ async function sendApprovalToWA(contact_id, issue_id, btn) {
     });
     const data = await r.json();
     btn.innerHTML = data.log.status === 'sent' ? '<i data-lucide="check"></i> Sent' : '<i data-lucide="clipboard"></i> Previewed';
-    btn.style.color = 'var(--teal)';
-    btn.style.borderColor = 'var(--teal)';
+    btn.style.color = 'var(--success)';
+    btn.style.borderColor = 'var(--success)';
     lucide.createIcons();
   } catch(e) {
     btn.innerHTML = '<i data-lucide="x"></i> Failed';
@@ -800,7 +679,7 @@ async function loadLiveNews() {
         <div class="live-news-item">
           <a href="${href}" target="_blank" rel="noopener">${n.title}</a>
           <div class="news-meta">${n.source || ''}${n.source && date ? ' · ' : ''}${date}${n.mandal_tag ? ' · ' + n.mandal_tag : ''}${n.lang === 'te' ? ' · తెలుగు' : ''}
-            &nbsp;·&nbsp;<a href="#" onclick="fetchFullArticle('${itemId}','${href.replace(/'/g, "%27")}');return false;" style="color:#b45309">Fetch full text</a>
+            &nbsp;·&nbsp;<a href="#" onclick="fetchFullArticle('${itemId}','${href.replace(/'/g, "%27")}');return false;" style="color:var(--accent)">Fetch full text</a>
           </div>
           <div id="${itemId}" class="news-body" style="display:none"></div>
         </div>`;

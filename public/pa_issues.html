@@ -4,68 +4,48 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>PA Issue Tracker · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="/js/saathi-ui.js" defer></script>
 <script src="/sidebar.js" defer></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#fafaf9;color:#1a1208;min-height:100vh;padding:0}
-body::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#b45309,#d97706,#b45309);position:fixed;top:0;left:0;right:0;z-index:999}
-.container{width:100%;padding:24px 32px;margin-top:3px}
-.back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:#b45309;text-decoration:none}
-.back-link:hover{color:#92400e}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-.header h1{font-size:22px;font-weight:700;color:#1a1208}
-.btn{padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-size:13px;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-.btn-primary{background:#1a1208;color:#fff}
-.btn-primary:hover{background:#374151}
-.btn-secondary{background:#fff;border:1px solid #e5e5e5;color:#1a1208}
-.btn-secondary:hover{background:#f9fafb}
-.btn-accent{background:#b45309;color:#fff}
-.btn-accent:hover{background:#92400e}
-.card{background:#fff;border:1px solid #e5e5e5;border-top:3px solid #b45309;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.section-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:14px;padding-left:12px;border-left:3px solid #d97706}
+.back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:var(--accent);text-decoration:none}
+.back-link:hover{color:var(--accent-hover)}
+.header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.card{margin-bottom:16px}
+.section-title{margin-bottom:14px}
 .search-box{display:flex;gap:10px;margin-bottom:14px}
-.search-input{flex:1;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s}
-.search-input:focus{border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)}
-.contact-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid #e5e5e5;border-radius:6px;margin-bottom:8px;background:#fff;cursor:pointer;transition:background .1s}
-.contact-item:hover{background:#fafaf9}
+.search-input{flex:1}
+.contact-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;background:#fff;cursor:pointer;transition:background .1s}
+.contact-item:hover{background:var(--bg)}
 .contact-name{font-weight:600;font-size:14px}
-.contact-meta{font-size:12px;color:#6b7280;margin-top:2px}
-.contact-action{color:#b45309;font-weight:600;font-size:13px;white-space:nowrap}
-.tag{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block;margin-left:6px}
-.issue-item{padding:14px;border:1px solid #e5e5e5;border-radius:6px;margin-bottom:8px;background:#fff}
+.contact-meta{font-size:12px;color:var(--stone-500);margin-top:2px}
+.contact-action{color:var(--accent);font-weight:600;font-size:13px;white-space:nowrap}
+.issue-item{padding:14px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;background:#fff}
 .issue-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .issue-type{font-weight:600;font-size:14px}
-.issue-meta{font-size:12px;color:#6b7280;margin-top:2px}
-.issue-desc{font-size:13px;color:#374151;margin-top:6px;line-height:1.5}
-.tag-status{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
-.empty-state{font-size:13px;color:#6b7280;padding:8px 0}
+.issue-meta{font-size:12px;color:var(--stone-500);margin-top:2px}
+.issue-desc{font-size:13px;color:var(--stone-700);margin-top:6px;line-height:1.5}
 
-/* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
-.modal{background:#fff;border-radius:8px;width:100%;max-width:480px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,0.15)}
-.modal h3{font-size:16px;font-weight:700;color:#1a1208;margin-bottom:16px}
-.form-group{margin-bottom:14px}
-.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
-.form-group input,.form-group textarea,.form-group select{
-  width:100%;padding:10px 12px;border:1px solid #d4d4d4;border-radius:6px;
-  font-size:14px;font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s
-}
-.form-group input:focus,.form-group textarea:focus,.form-group select:focus{
-  border-color:#b45309;outline:none;box-shadow:0 0 0 2px rgba(180,83,9,0.12)
-}
-.modal-actions{display:flex;gap:10px;margin-top:20px}
+/* Local default-hidden state for toggle-based modals (shared .modal-overlay is
+   display:flex once rendered; these two persist in the DOM and toggle via JS) */
+#issue-modal, #contact-modal { display: none; }
+
 .modal-actions .btn{flex:1;justify-content:center}
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="header">
-    <h1>Issue & Grievance Tracker</h1>
-    <button class="btn btn-primary" onclick="openCreateContact()">
-      <i data-lucide="user-plus" style="width:15px;height:15px"></i> New Contact
-    </button>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Issue &amp; Grievance Tracker</h1>
+    </div>
+    <div class="page-header-actions">
+      <button class="btn btn-primary" onclick="openCreateContact()">
+        <i data-lucide="user-plus" style="width:15px;height:15px"></i> New Contact
+      </button>
+    </div>
   </div>
 
   <div class="card">
@@ -120,13 +100,6 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
       <label>Mandal *</label>
       <select id="c-mandal">
         <option value="">Select Mandal</option>
-        <option>Amaravathi</option><option>Atchampet</option><option>Bellamkonda</option><option>Krosuru</option>
-        <option>Muppalla</option><option>Nekarikallu</option><option>Pedakurapadu</option><option>Rajupalem</option>
-        <option>Sattenapalli</option><option>Bollapalle</option><option>Chilakaluripet</option><option>Edlapadu</option>
-        <option>Ipuru</option><option>Nadendla</option><option>Narasaraopet</option><option>Nuzendla</option>
-        <option>Rompicherla</option><option>Savalyapuram</option><option>Vinukonda</option><option>Dachepalle</option>
-        <option>Durgi</option><option>Gurazala</option><option>Karempudi</option><option>Machavaram</option>
-        <option>Macherla</option><option>Piduguralla</option><option>Rentachintala</option><option>Veldurthi</option>
       </select>
     </div>
     <div class="form-group">
@@ -141,7 +114,10 @@ body::before{content:'';display:block;height:3px;background:linear-gradient(90de
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  document.getElementById('c-mandal').insertAdjacentHTML('beforeend', SaathiUI.mandalOptionsHTML());
+});
 
 let searchTimeout = null;
 let selectedContactId = null;
@@ -159,8 +135,10 @@ async function loadIssues() {
   allIssues.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (allIssues.length === 0) html = '<p class="empty-state">No issues logged yet.</p>';
+  const STATUS_BADGE = { pending: 'badge-info', approved: 'badge-success', rejected: 'badge-danger' };
   allIssues.slice(0, 20).forEach(iss => {
-    const statusTag = iss.status !== 'none' ? `<span class="tag-status">${iss.status}</span>` : '';
+    const badgeClass = STATUS_BADGE[iss.status] || 'badge-neutral';
+    const statusTag = iss.status !== 'none' ? `<span class="badge ${badgeClass}">${iss.status}</span>` : '';
     html += `
     <div class="issue-item">
       <div class="issue-header">
@@ -224,7 +202,7 @@ async function submitIssue() {
     body: JSON.stringify({contact_id: selectedContactId, type, description: desc})
   });
   if (r.ok) {
-    alert('Issue logged successfully!');
+    SaathiUI.toast('Issue logged successfully!', 'success');
     closeModals();
     loadIssues();
   }
@@ -235,7 +213,7 @@ async function submitContact() {
   const phone = document.getElementById('c-phone').value;
   const mandal = document.getElementById('c-mandal').value;
   const village = document.getElementById('c-village').value;
-  if (!name || !phone || !mandal) { alert('Fill required fields.'); return; }
+  if (!name || !phone || !mandal) { SaathiUI.toast('Fill required fields.', 'danger'); return; }
 
   const r = await fetch('/api/contact', {
     method: 'POST',

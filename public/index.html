@@ -4,279 +4,98 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Saathi v2 - Palanadu Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest" defer></script>
 <script src="/sidebar.js" defer></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background: #fafaf9;
-    color: #1a1208;
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
-  }
-  body::before {
-    content:'';display:block;height:3px;
-    background:linear-gradient(90deg,#b45309,#d97706,#b45309);
-    position:fixed;top:0;left:0;right:0;z-index:999;
-  }
-
-  /* Government header bar */
-  .gov-header {
-    background: #fffbeb;
-    border-bottom: 1px solid #e5e5e5;
-    padding: 10px 24px;
-    margin-top: 3px;
-  }
-  .gov-header-inner {
-    width: 100%;
-    padding: 0 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-  }
-  .gov-header img {
-    height: 60px;
-    flex-shrink: 0;
-  }
-  .gov-header-text {
-    font-size: 28px;
-    font-weight: 900;
-    letter-spacing: 0px;
-    text-transform: uppercase;
-    color: #1a1208;
-    text-align: center;
-    line-height: 1;
-  }
-
-  /* Main content */
-  .container {
-    width: 100%;
-    padding: 40px 32px 80px;
-  }
+  .container { padding-top: 40px; }
 
   /* MP Hero */
   .mp-hero {
     background: #fff;
-    border: 1px solid #e5e5e5;
-    border-left: 4px solid #b45309;
-    border-radius: 10px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius-lg);
     padding: 32px;
     display: flex;
     align-items: center;
     gap: 32px;
     margin-bottom: 48px;
+    box-shadow: var(--shadow-sm);
   }
   .mp-photo {
     width: 160px;
     height: 200px;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     flex-shrink: 0;
     background: #f5f5f4;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    box-shadow: var(--shadow-md);
   }
-  .mp-info {
-    flex: 1;
-    min-width: 0;
-  }
+  .mp-info { flex: 1; min-width: 0; }
   .mp-name {
-    font-size: 24px;
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 600;
     line-height: 1.2;
     margin-bottom: 6px;
-    color: #1a1208;
+    color: var(--ink);
   }
-  .mp-title {
-    font-size: 15px;
-    font-weight: 500;
-    color: #b45309;
-    margin-bottom: 4px;
-  }
-  .mp-subtitle {
-    font-size: 13px;
-    color: #78716c;
-    margin-bottom: 16px;
-  }
-  .mp-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
+  .mp-title { font-size: 15px; font-weight: 500; color: var(--accent); margin-bottom: 4px; }
+  .mp-subtitle { font-size: 13px; color: var(--stone-500); margin-bottom: 16px; }
+  .mp-tags { display: flex; flex-wrap: wrap; gap: 8px; }
   .mp-tag {
-    font-size: 12px;
-    font-weight: 500;
-    padding: 4px 10px;
-    border-radius: 4px;
-    background: #f5f5f4;
-    color: #57534e;
-    border: 1px solid #e5e5e5;
+    font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: var(--radius-sm);
+    background: #f5f5f4; color: var(--stone-600); border: 1px solid var(--border);
   }
 
-  /* Section heading */
-  .section-label {
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: #a8a29e;
-    margin-bottom: 16px;
-    padding-left: 12px;
-    border-left: 3px solid #d97706;
-  }
+  .section-label { margin-bottom: 16px; }
 
   /* Dashboard widgets */
   .stat-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 32px; }
-  .stat-tile { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 18px 16px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-  .stat-value { font-size: 26px; font-weight: 700; color: #1a1208; line-height: 1.1; }
-  .stat-value.accent { color: #b45309; }
-  .stat-label { font-size: 12px; color: #78716c; margin-top: 6px; font-weight: 500; }
+  .stat-tile { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px 16px; text-align: center; box-shadow: var(--shadow-sm); }
+  .stat-value { font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value-sm { font-size: 16px; }
+  .stat-label { font-size: 12px; color: var(--stone-500); margin-top: 6px; font-weight: 500; }
 
   .dash-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; align-items: start; }
-  .card { background: #fff; border: 1px solid #e5e5e5; border-top: 3px solid #b45309; border-radius: 8px; padding: 20px; }
-  .widget-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-left: 12px; border-left: 3px solid #d97706; }
-  .widget-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #a8a29e; }
-  .widget-link { font-size: 12px; font-weight: 600; color: #b45309; text-decoration: none; }
-  .widget-link:hover { color: #92400e; }
-  .empty-state { font-size: 13px; color: #78716c; padding: 8px 0; }
-
-  /* Calendar (matches pa_schedule.html) */
-  .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
-  .cal-nav-btn{background:#fff;border:1px solid #d4d4d4;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-family:inherit}
-  .cal-nav-btn:hover{background:#f9fafb}
-  .cal-month-label{font-weight:700;font-size:15px}
-  .cal-today-btn{background:#1a1208;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px}
-  .cal-today-btn:hover{opacity:.9}
-  .cal-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:13px;color:#374151}
-  .cal-clear-btn{font-size:12px;color:#b45309;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;padding:0}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-  .cal-weekday{font-size:11px;font-weight:600;color:#6b7280;text-align:center;padding:4px 0}
-  .cal-day{position:relative;min-height:36px;border:1px solid #e5e5e5;border-radius:6px;padding:4px 6px;font-size:12px;cursor:pointer;background:#fff}
-  .cal-day:hover{border-color:#d4d4d4;background:#fafaf9}
-  .cal-day.other-month{color:#d1d5db;background:#fafaf9;cursor:default}
-  .cal-day.other-month:hover{background:#fafaf9}
-  .cal-day.today{border-color:#b45309;font-weight:700}
-  .cal-day.selected{background:#fff7ed;border-color:#b45309}
-  .cal-day .cal-dot{position:absolute;bottom:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:#b45309;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
 
   /* Compact upcoming-event cards */
-  .mini-event-card { display:block; padding:10px 12px; border:1px solid #e5e5e5; border-radius:6px; margin-bottom:8px; text-decoration:none; color:inherit; transition: border-color .15s, background .15s; }
-  .mini-event-card:hover { border-color:#d97706; background:#fffbeb; }
-  .mini-event-name { font-size:13px; font-weight:600; color:#1a1208; }
-  .mini-event-meta { font-size:12px; color:#78716c; margin-top:2px; }
+  .mini-event-card { display:block; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:8px; text-decoration:none; color:inherit; transition: border-color .15s, background .15s; }
+  .mini-event-card:hover { border-color: var(--accent-light); background: var(--accent-bg); }
+  .mini-event-name { font-size:13px; font-weight:600; color: var(--ink); }
+  .mini-event-meta { font-size:12px; color: var(--stone-500); margin-top:2px; }
 
   /* Social media calendar mini-widget */
   .social-mini-grid { display: flex; flex-direction: column; gap: 8px; }
-  .social-mini-card { display: flex; gap: 10px; padding: 8px; border: 1px solid #e5e5e5; border-radius: 6px; text-decoration: none; color: inherit; transition: border-color .15s, background .15s; }
-  .social-mini-card:hover { border-color: #d97706; background: #fffbeb; }
-  .social-mini-thumb { width: 44px; height: 44px; border-radius: 5px; overflow: hidden; background: #f3f4f6; border: 1px solid #e5e5e5; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .social-mini-card { display: flex; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: inherit; transition: border-color .15s, background .15s; }
+  .social-mini-card:hover { border-color: var(--accent-light); background: var(--accent-bg); }
+  .social-mini-thumb { width: 44px; height: 44px; border-radius: 5px; overflow: hidden; background: #f3f4f6; border: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .social-mini-thumb img, .social-mini-thumb video { width: 100%; height: 100%; object-fit: cover; }
-  .social-mini-thumb i { width: 18px; height: 18px; color: #b45309; }
+  .social-mini-thumb i { width: 18px; height: 18px; color: var(--accent); }
   .social-mini-body { min-width: 0; }
-  .social-mini-date { font-size: 11px; font-weight: 700; color: #b45309; }
-  .social-mini-caption { font-size: 12px; color: #374151; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .social-mini-date { font-size: 11px; font-weight: 700; color: var(--accent); }
+  .social-mini-caption { font-size: 12px; color: var(--stone-700); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* Live news (matches admin.html) */
+  /* Live news */
   .live-news-item { padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
   .live-news-item:last-child { border-bottom: none; }
-  .live-news-item a { color: #1a1208; text-decoration: none; font-weight: 500; font-size: 13px; }
-  .live-news-item a:hover { color: #b45309; }
-  .live-news-item .news-meta { font-size: 12px; color: #78716c; margin-top: 2px; }
-
-  /* Nav grid */
-  .nav-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-  .nav-card {
-    background: #fff;
-    border: 1px solid #e5e5e5;
-    border-radius: 10px;
-    padding: 24px;
-    text-decoration: none;
-    color: inherit;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-  }
-  .nav-card:hover {
-    border-color: #d6d3d1;
-    border-left: 3px solid #d97706;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-    transform: translateY(-2px);
-  }
-  .nav-card:active {
-    transform: translateY(0);
-  }
-  .nav-card-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: #fafaf9;
-    border: 1px solid #e5e5e5;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #78716c;
-  }
-  .nav-card-icon i {
-    width: 18px;
-    height: 18px;
-  }
-  .nav-card-title {
-    font-size: 15px;
-    font-weight: 600;
-    color: #1a1208;
-  }
-  .nav-card-desc {
-    font-size: 13px;
-    color: #78716c;
-    line-height: 1.5;
-  }
+  .live-news-item a { color: var(--ink); text-decoration: none; font-weight: 500; font-size: 13px; }
+  .live-news-item a:hover { color: var(--accent); }
+  .live-news-item .news-meta { font-size: 12px; color: var(--stone-500); margin-top: 2px; }
 
   /* Responsive */
   @media (max-width: 768px) {
-    .stat-strip {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .dash-grid {
-      grid-template-columns: 1fr;
-    }
-    .nav-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .mp-hero {
-      flex-direction: column;
-      text-align: center;
-      padding: 24px;
-      gap: 20px;
-    }
-    .mp-tags {
-      justify-content: center;
-    }
-    .container {
-      padding: 28px 16px 60px;
-    }
+    .stat-strip { grid-template-columns: repeat(2, 1fr); }
+    .dash-grid { grid-template-columns: 1fr; }
+    .mp-hero { flex-direction: column; text-align: center; padding: 24px; gap: 20px; }
+    .mp-tags { justify-content: center; }
   }
   @media (max-width: 480px) {
-    .stat-strip {
-      grid-template-columns: 1fr;
-    }
-    .nav-grid {
-      grid-template-columns: 1fr;
-    }
-    .gov-header-text {
-      font-size: 10px;
-      letter-spacing: 1px;
-    }
-    .gov-header img {
-      height: 32px;
-    }
+    .stat-strip { grid-template-columns: 1fr; }
+    .gov-header-text { font-size: 15px; letter-spacing: 0; }
   }
 </style>
 </head>
@@ -284,9 +103,9 @@
 
 <header class="gov-header">
   <div class="gov-header-inner">
-    <img src="/assets/india_emblem_new.jpg" alt="Emblem of India">
-    <span class="gov-header-text">MP's Office</span>
-    <img src="/assets/ap_emblem.png" alt="Emblem of Andhra Pradesh">
+    <img class="emblem" src="/assets/india_emblem_new.jpg" alt="Emblem of India">
+    <span class="gov-header-text">MP&rsquo;s Office &middot; Palanadu</span>
+    <img class="emblem" src="/assets/ap_emblem.png" alt="Emblem of Andhra Pradesh">
   </div>
 </header>
 
@@ -311,7 +130,7 @@
       <div class="stat-label">Total Contacts</div>
     </div>
     <div class="stat-tile">
-      <div class="stat-value" id="stat-tiers" style="font-size:16px">—</div>
+      <div class="stat-value stat-value-sm" id="stat-tiers">—</div>
       <div class="stat-label">Tier Breakdown</div>
     </div>
     <div class="stat-tile">
@@ -323,7 +142,7 @@
       <div class="stat-label">Upcoming Events</div>
     </div>
     <div class="stat-tile">
-      <div class="stat-value" id="stat-brief" style="font-size:16px">—</div>
+      <div class="stat-value stat-value-sm" id="stat-brief">—</div>
       <div class="stat-label">Last Brief Sent</div>
     </div>
   </section>
@@ -497,7 +316,7 @@ function renderUpcoming() {
 
   if (allSchedule.length === 0) {
     filterBar.style.display = 'none';
-    listEl.innerHTML = `<p class="empty-state">No events scheduled — <a href="/pa_schedule.html" style="color:#b45309;font-weight:600">Add one &rarr;</a></p>`;
+    listEl.innerHTML = `<p class="empty-state">No events scheduled — <a href="/pa_schedule.html" style="color:var(--accent);font-weight:600">Add one &rarr;</a></p>`;
     return;
   }
 
@@ -566,7 +385,7 @@ async function loadSocialPosts() {
       .slice(0, 5);
 
     if (posts.length === 0) {
-      listEl.innerHTML = `<p class="empty-state">No posts yet — <a href="/social_calendar.html" style="color:#b45309;font-weight:600">Add one &rarr;</a></p>`;
+      listEl.innerHTML = `<p class="empty-state">No posts yet — <a href="/social_calendar.html" style="color:var(--accent);font-weight:600">Add one &rarr;</a></p>`;
       return;
     }
 

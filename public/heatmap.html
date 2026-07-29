@@ -4,80 +4,38 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Coverage Heatmap · Saathi Palanadu</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="/sidebar.js" defer></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.container { padding-top: 28px; }
 
-:root {
-  --ink: #1a1208;
-  --bg: #fafaf9;
-  --card-bg: #fff;
-  --border: #e5e5e5;
-  --muted: #6b7280;
-  --accent: #b45309;
-  --teal: #0f766e;
-  --teal-light: #ccfbf1;
-  --red: #dc2626;
-  --red-light: #fef2f2;
-  --shadow: 0 1px 2px rgba(0,0,0,0.05);
-  --radius: 8px;
-}
-
-body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background: var(--bg);
-  color: var(--ink);
-  line-height: 1.5;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-}
-body::before {
-  content:'';display:block;height:3px;
-  background:linear-gradient(90deg,#b45309,#d97706,#b45309);
-  position:fixed;top:0;left:0;right:0;z-index:999;
-}
-
-.container { width: 100%; padding: 28px 32px; margin-top: 3px; }
-
-.page-header {
-  display: flex; align-items: baseline; justify-content: space-between;
-  flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
-}
-.page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-.results-info { font-size: 13px; color: var(--muted); }
+.results-info { font-size: 13px; color: var(--stone-500); }
 .results-info b { color: var(--ink); }
 
 /* ── Toggle bar ── */
 .toggle-bar {
-  background: var(--card-bg); border: 1px solid var(--border);
+  background: var(--card); border: 1px solid var(--border);
   border-top: 3px solid var(--accent);
-  border-radius: var(--radius); box-shadow: var(--shadow);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
   padding: 14px 16px; margin-bottom: 18px;
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between;
 }
 .mode-toggle { display: flex; gap: 5px; flex-wrap: wrap; }
-.chip {
-  padding: 7px 14px; border-radius: 100px; font-size: 13px; font-weight: 600;
-  border: 1px solid var(--border); background: #fff; color: var(--muted);
-  cursor: pointer; transition: all 0.12s; white-space: nowrap; font-family: inherit;
-}
-.chip:hover { border-color: #c4b5a0; color: var(--ink); }
-.chip.active { background: #fff7ed; color: var(--accent); border-color: #fdba74; }
 
 .gap-note {
-  font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--stone-500); display: flex; align-items: center; gap: 5px;
 }
-.gap-note [data-lucide] { width: 13px; height: 13px; color: #94a3b8; }
+.gap-note [data-lucide] { width: 13px; height: 13px; color: var(--stone-400); }
 
 /* ── Map ── */
 .map-card {
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: var(--radius); box-shadow: var(--shadow);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
   overflow: hidden; position: relative;
 }
 #map { width: 100%; height: 620px; background: #eef2f1; }
@@ -85,37 +43,65 @@ body::before {
 .state-msg {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  text-align: center; color: var(--muted); font-size: 14px;
+  text-align: center; color: var(--stone-500); font-size: 14px;
   background: rgba(250,250,249,0.9); z-index: 500;
 }
 .state-msg [data-lucide] { width: 36px; height: 36px; margin-bottom: 12px; opacity: 0.3; }
 .state-msg.hidden { display: none; }
 
-/* ── Legend ── */
+/* ── Legend — sequential amber ramp, validated with the dataviz skill's
+   ordinal-ramp checks (monotone L, single hue ≤40° spread, light-end ≥2:1
+   contrast on the card surface): #e2a233 → #cc7d16 → #b45309 → #96430c → #7c2d12 ── */
 .legend-card {
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-md);
   padding: 10px 12px; font-size: 12px; color: var(--ink);
   line-height: 1.4;
 }
-.legend-title { font-weight: 700; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.legend-title { font-weight: 700; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--stone-500); }
 .legend-gradient {
   width: 140px; height: 10px; border-radius: 4px; margin-bottom: 4px;
-  background: linear-gradient(90deg, #3b82f6, #22d3ee, #a3e635, #facc15, #ef4444);
+  background: linear-gradient(90deg, #e2a233, #cc7d16, #b45309, #96430c, #7c2d12);
 }
-.legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 8px; }
+.legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--stone-500); margin-bottom: 8px; }
 .legend-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.15); }
 
 /* ── Leaflet popup content ── */
-.mandal-popup { font-family: 'Inter', system-ui, sans-serif; min-width: 180px; }
-.mandal-popup h3 { font-size: 14px; margin-bottom: 6px; }
-.mandal-popup .pop-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--muted); }
+.mandal-popup { font-family: var(--font-body); min-width: 180px; }
+.mandal-popup h3 { font-family: var(--font-display); font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.mandal-popup .pop-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--stone-500); }
 .mandal-popup .pop-row b { color: var(--ink); }
-.mandal-popup .pop-empty { font-size: 12px; color: var(--muted); font-style: italic; }
+.mandal-popup .pop-empty { font-size: 12px; color: var(--stone-500); font-style: italic; }
+
+/* ── Leaflet third-party chrome, reskinned to match the app's card language ── */
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius-md); box-shadow: var(--shadow-md);
+  border: 1px solid var(--border); font-family: var(--font-body);
+}
+.leaflet-popup-tip { box-shadow: var(--shadow-sm); }
+.leaflet-container a.leaflet-popup-close-button { color: var(--stone-500); }
+.leaflet-container a.leaflet-popup-close-button:hover { color: var(--ink); }
+.leaflet-control-zoom {
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--shadow-sm) !important;
+  overflow: hidden;
+}
+.leaflet-control-zoom a.leaflet-control-zoom-in,
+.leaflet-control-zoom a.leaflet-control-zoom-out {
+  background: #fff; color: var(--ink); font-family: var(--font-body);
+  border-color: var(--border) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--bg); }
+.leaflet-control-attribution {
+  background: rgba(255,255,255,.85) !important;
+  font-family: var(--font-body); font-size: 10px; color: var(--stone-500);
+  border-radius: var(--radius-sm) 0 0 0;
+}
+.leaflet-control-attribution a { color: var(--accent); }
 
 @media (max-width: 600px) {
-  .container { padding: 16px; }
   #map { height: 460px; }
   .page-header { flex-direction: column; gap: 4px; }
 }
@@ -125,7 +111,7 @@ body::before {
 
 <div class="container">
   <div class="page-header">
-    <h1 class="page-title">Coverage Heatmap</h1>
+    <div><h1 class="page-title">Coverage Heatmap</h1></div>
     <div class="results-info" id="results-info">Loading…</div>
   </div>
 
@@ -196,12 +182,33 @@ async function loadData() {
     `<b>${Object.keys(mandalStats).length}</b> mandals · <b>${contacts.length}</b> contacts`;
 }
 
+// Tier marker colors map onto the app's shared semantic tokens
+// (--accent, --info, --neutral) rather than one-off hex.
+const TIER_COLOR_NONE = '#a8a29e';  // --stone-400 (no recorded contacts)
+const TIER_COLOR_T1 = '#b45309';   // --accent
+const TIER_COLOR_T2 = '#0369a1';   // --info
+const TIER_COLOR_T3 = '#475569';   // --neutral
+
 function tierColor(stat) {
-  if (stat.count === 0) return '#9ca3af';
-  if (stat.tiers.T1 >= stat.tiers.T2 && stat.tiers.T1 >= stat.tiers.T3) return '#b45309';
-  if (stat.tiers.T2 >= stat.tiers.T3) return '#0369a1';
-  return '#475569';
+  if (stat.count === 0) return TIER_COLOR_NONE;
+  if (stat.tiers.T1 >= stat.tiers.T2 && stat.tiers.T1 >= stat.tiers.T3) return TIER_COLOR_T1;
+  if (stat.tiers.T2 >= stat.tiers.T3) return TIER_COLOR_T2;
+  return TIER_COLOR_T3;
 }
+
+// Sequential amber heat ramp — validated with the dataviz skill's ordinal-ramp
+// checks (monotone lightness, single hue, light-end contrast ≥2:1 on the map
+// surface): node scripts/validate_palette.js "#e2a233,#cc7d16,#b45309,#96430c,#7c2d12"
+// --mode light --ordinal --surface "#fafaf9"  →  ALL CHECKS PASS.
+// Stops start at 0.35 (not 0) so sparse points still fade to transparent like
+// leaflet.heat's default, instead of flooding low-density areas with color.
+const HEAT_GRADIENT = {
+  0.35: '#e2a233',
+  0.5: '#cc7d16',
+  0.65: '#b45309',
+  0.8: '#96430c',
+  1.0: '#7c2d12',
+};
 
 function buildMarkersAndHeat() {
   const entries = Object.entries(mandalStats);
@@ -251,7 +258,7 @@ function render() {
 
   const { heatPoints, markers } = buildMarkersAndHeat();
 
-  heatLayer = L.heatLayer(heatPoints, { radius: 45, blur: 35, maxZoom: 12 }).addTo(map);
+  heatLayer = L.heatLayer(heatPoints, { radius: 45, blur: 35, maxZoom: 12, gradient: HEAT_GRADIENT }).addTo(map);
   markersLayer = L.layerGroup(markers).addTo(map);
 }
 
@@ -266,17 +273,19 @@ function initMap() {
     maxZoom: 18,
   }).addTo(map);
 
-  const legend = L.control({ position: 'bottomright' });
+  // Positioned bottomleft (not Leaflet's default bottomright) so this
+  // custom control never stacks with Leaflet's own attribution control.
+  const legend = L.control({ position: 'bottomleft' });
   legend.onAdd = function () {
     const div = L.DomUtil.create('div', 'legend-card');
     div.innerHTML = `
       <div class="legend-title">Heat intensity</div>
       <div class="legend-gradient"></div>
       <div class="legend-labels"><span>Low</span><span>High</span></div>
-      <div class="legend-row"><span class="legend-dot" style="background:#b45309"></span> T1-heavy mandal</div>
-      <div class="legend-row"><span class="legend-dot" style="background:#0369a1"></span> T2-heavy mandal</div>
-      <div class="legend-row"><span class="legend-dot" style="background:#475569"></span> T3-heavy mandal</div>
-      <div class="legend-row"><span class="legend-dot" style="background:#9ca3af"></span> No contacts</div>
+      <div class="legend-row"><span class="legend-dot" style="background:${TIER_COLOR_T1}"></span> T1-heavy mandal</div>
+      <div class="legend-row"><span class="legend-dot" style="background:${TIER_COLOR_T2}"></span> T2-heavy mandal</div>
+      <div class="legend-row"><span class="legend-dot" style="background:${TIER_COLOR_T3}"></span> T3-heavy mandal</div>
+      <div class="legend-row"><span class="legend-dot" style="background:${TIER_COLOR_NONE}"></span> No contacts</div>
     `;
     return div;
   };
