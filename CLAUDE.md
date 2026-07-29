@@ -66,7 +66,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `heatmap.html` | Mandal-level coverage heatmap (Leaflet + OpenStreetMap, no API key) — contact density and average priority score per mandal, joined against `public/assets/mandal_coords.json` (generated once via `scripts/geocode_mandals.js`) |
 | `journalist.html` | Alternate journalist form |
 | `ttd_letters.html` | TTD reference letter register — calendar view, Aadhar duplicate check, Excel/PDF exports, per-letter PDF |
-| `visitor_forms.html` | Visitor form register — office staff upload photographed paper visitor forms; Gemini AI OCR-extracts fields and assigns a category/urgency, staff review/correct in an editable preview before saving; category pills, calendar, status tracking, Excel/PDF exports |
+| `grievances.html` | Unified grievance register across intake channels. Walk-ins: staff upload photographed paper forms, Gemini OCR-extracts the fields. Phone calls / desk visits with no form: staff type a summary, or dictate it (browser mic, or an attached audio file) and Gemini transcribes it. Every route assigns a category/urgency that staff review and correct in an editable preview before saving; channel column and filter, category pills, calendar, status tracking, Excel/PDF exports |
 | `social_calendar.html` | Social media content calendar — calendar view where each date can hold multiple posts, each post carrying one or more media files (images/video/PDF) plus a caption |
 
 ### Key API endpoints
@@ -100,15 +100,18 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | GET | `/api/ttd-letters/export.xlsx` | Export TTD letters as Excel |
 | GET | `/api/ttd-letters/export-pdf` | Export TTD letters register as PDF |
 | GET | `/api/ttd-letters/:id/letter-pdf` | Generate a single formal TTD letter PDF |
-| GET | `/api/visitor-forms/categories` | List the visitor-form issue category taxonomy |
-| POST | `/api/visitor-forms/upload` | Upload photographed form images (multipart, field `images`, up to 20); Gemini OCR-extracts + categorizes each, returns results for review — does not write to DB |
-| POST | `/api/visitor-forms` | Commit the (staff-reviewed/edited) extracted items to the register |
-| GET | `/api/visitor-forms` | List visitor forms (filterable by `from`/`to`/`category`/`status`) |
-| PATCH | `/api/visitor-forms/:id` | Edit a visitor form record (partial update) |
-| DELETE | `/api/visitor-forms/:id` | Remove a visitor form record (and its stored photo) |
-| GET | `/api/visitor-forms/:id/image` | Retrieve the original uploaded photo for a record |
-| GET | `/api/visitor-forms/export.xlsx` | Export visitor forms as Excel |
-| GET | `/api/visitor-forms/export-pdf` | Export visitor forms register as PDF |
+| GET | `/api/grievances/categories` | List the grievance issue category taxonomy |
+| POST | `/api/grievances/upload` | Upload photographed form images (multipart, field `images`, up to 20); Gemini OCR-extracts + categorizes each, returns results for review — does not write to DB |
+| POST | `/api/grievances/log-text` | Extract + categorize a typed grievance summary (phone call / walk-in); returns the same review envelope as `/upload` |
+| POST | `/api/grievances/log-audio` | Transcribe + categorize a dictated grievance (multipart, field `audio`); parks the recording server-side and returns its filename as `pending_media` |
+| DELETE | `/api/grievances/pending-media/:filename` | Drop a parked recording when staff discard the review (a startup sweep also clears `tmp_*` files older than 24h) |
+| POST | `/api/grievances` | Commit the (staff-reviewed/edited) items to the register; claims any `pending_media` |
+| GET | `/api/grievances` | List grievances (filterable by `from`/`to`/`category`/`status`/`channel`) |
+| PATCH | `/api/grievances/:id` | Edit a grievance record (partial update) |
+| DELETE | `/api/grievances/:id` | Remove a grievance record (and its stored media) |
+| GET | `/api/grievances/:id/media` | Retrieve the record's source media — form photo, PDF or audio |
+| GET | `/api/grievances/export.xlsx` | Export grievances as Excel |
+| GET | `/api/grievances/export-pdf` | Export the grievances register as PDF |
 | GET | `/api/social-calendar` | List social media posts (filterable by `from`/`to`) |
 | POST | `/api/social-calendar` | Create a post (multipart: `date`, `caption`, up to 10 files under `media`) |
 | PATCH | `/api/social-calendar/:id` | Edit a post's `date`/`caption` |
@@ -123,7 +126,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `PORT` | `3000` | Server listen port |
 | `RAILWAY_VOLUME_MOUNT_PATH` | `./data` | Path for `db.json` and `wa_auth/` |
 | `EXCEL_PATH` | `./combined_clean.xlsx` | Input file for `setup_db.js` |
-| `GEMINI_API_KEY` | (none) | Google Gemini API key for OCR + categorization of uploaded visitor form photos (`server/gemini.js`). If unset, the visitor-forms upload endpoint fails fast with a clear error rather than crashing — staff can still use the register manually. |
+| `GEMINI_API_KEY` | (none) | Google Gemini API key for the grievance extraction paths — form-photo OCR, typed-summary triage and audio transcription (`server/gemini.js`). If unset, those endpoints fail fast with a clear error rather than crashing — staff can still use the register manually. |
 
 ### Grievance extraction (`server/gemini.js`)
 

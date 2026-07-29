@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Visitor Forms · Saathi Palanadu</title>
+<title>Grievances · Saathi Palanadu</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest" defer></script>
@@ -45,13 +45,33 @@
 .preview-grid textarea{min-height:60px}
 .preview-card-actions{display:flex;justify-content:flex-end;margin-top:10px}
 .confidence-note{font-size:11px;color:var(--stone-400);margin-top:2px}
+
+/* Channel column */
+.channel-cell{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px;color:var(--stone-600)}
+.channel-cell [data-lucide]{width:14px;height:14px;flex-shrink:0;color:var(--stone-400)}
+
+/* Log Grievance modal — type / record / attach */
+.log-tabs{display:flex;gap:6px;margin-bottom:12px}
+.log-tab{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--radius-full);font-size:13px;font-weight:600;border:1px solid var(--border);background:#fff;color:var(--stone-600);cursor:pointer}
+.log-tab.active{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-border)}
+.log-tab [data-lucide]{width:14px;height:14px}
+.recorder{display:flex;align-items:center;gap:12px}
+.rec-timer{font-variant-numeric:tabular-nums;font-weight:600;font-size:15px;color:var(--stone-600)}
+.rec-dot{width:10px;height:10px;border-radius:50%;background:var(--danger);animation:rec-pulse 1.2s ease-in-out infinite}
+@keyframes rec-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rec-dot{animation:none}}
+.transcript-box{grid-column:1/-1}
+.transcript-box audio{width:100%;margin-bottom:6px}
 </style>
 </head>
 <body>
 <div class="container">
   <div class="page-header">
-    <div><h1 class="page-title">Visitor Forms</h1></div>
+    <div><h1 class="page-title">Grievances</h1></div>
     <div class="page-header-actions">
+      <button class="btn btn-secondary" onclick="openLogModal()">
+        <i data-lucide="phone"></i> Log Grievance
+      </button>
       <button class="btn btn-primary" onclick="openUploadModal()">
         <i data-lucide="upload"></i> Upload Forms
       </button>
@@ -95,6 +115,14 @@
       <button class="status-chip" data-status="In Progress" onclick="setStatusFilter('In Progress')">In Progress</button>
       <button class="status-chip" data-status="Resolved" onclick="setStatusFilter('Resolved')">Resolved</button>
     </div>
+    <div class="section-title" style="margin-top:14px">Channel</div>
+    <div class="status-chips" id="channel-chips">
+      <button class="status-chip" data-channel="" onclick="setChannelFilter('')">All</button>
+      <button class="status-chip" data-channel="walk_in" onclick="setChannelFilter('walk_in')">Walk-in</button>
+      <button class="status-chip" data-channel="phone_call" onclick="setChannelFilter('phone_call')">Phone call</button>
+      <button class="status-chip" data-channel="whatsapp_text" onclick="setChannelFilter('whatsapp_text')">WhatsApp</button>
+      <button class="status-chip" data-channel="whatsapp_voice" onclick="setChannelFilter('whatsapp_voice')">WhatsApp voice</button>
+    </div>
   </div>
 
   <div class="card">
@@ -115,7 +143,7 @@
   </div>
 
   <div class="card">
-    <div class="section-title" id="list-title">All visitor forms</div>
+    <div class="section-title" id="list-title">All grievances</div>
     <div class="cal-filter-bar" id="cal-filter-bar" style="display:none">
       <span id="cal-filter-label"></span>
       <button class="cal-clear-btn" onclick="clearDateFilter()">Show all</button>
@@ -124,14 +152,14 @@
       <table class="vf-table">
         <thead>
           <tr>
-            <th>Date</th><th>Name</th><th>Village/Mandal</th><th>Category</th>
+            <th>Date</th><th>Channel</th><th>Name</th><th>Village/Mandal</th><th>Category</th>
             <th>Urgency</th><th>Status</th><th>Officer</th><th></th>
           </tr>
         </thead>
         <tbody id="forms-tbody"></tbody>
       </table>
     </div>
-    <div id="empty-state" class="empty-state" style="display:none">No visitor forms found.</div>
+    <div id="empty-state" class="empty-state" style="display:none">No grievances found.</div>
   </div>
 </div>
 
@@ -152,6 +180,76 @@
     <div class="file-preview-list" id="file-list"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="extract-btn" onclick="submitUpload()" disabled>
+        <i data-lucide="sparkles"></i> Extract with AI
+      </button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOG GRIEVANCE MODAL (phone call / walk-in, typed or dictated) -->
+<div id="log-modal" class="modal-overlay" onclick="closeModals()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>Log Grievance</h3>
+    <p class="modal-hint">
+      For grievances that arrive by phone or at the desk with no paper form. Type the summary,
+      or record it and let the AI transcribe — Telugu, English or a mix. You'll review and can
+      correct everything before saving.
+    </p>
+
+    <div class="form-group">
+      <label>Channel</label>
+      <select id="log-channel">
+        <option value="phone_call">Phone call</option>
+        <option value="walk_in">Walk-in (no form)</option>
+      </select>
+    </div>
+
+    <div class="log-tabs">
+      <button class="log-tab active" data-tab="type" onclick="setLogTab('type')"><i data-lucide="keyboard"></i> Type</button>
+      <button class="log-tab" data-tab="record" onclick="setLogTab('record')"><i data-lucide="mic"></i> Record</button>
+      <button class="log-tab" data-tab="file" onclick="setLogTab('file')"><i data-lucide="paperclip"></i> Attach audio</button>
+    </div>
+
+    <div id="log-pane-type" class="log-pane">
+      <div class="form-group">
+        <label>What is the grievance?</label>
+        <textarea id="log-text" rows="5" placeholder="e.g. Ramesh from Karempudi called — his widow pension has not come for three months, he has visited the MRO office twice already."></textarea>
+      </div>
+    </div>
+
+    <div id="log-pane-record" class="log-pane" style="display:none">
+      <div class="recorder">
+        <button class="btn btn-primary" id="rec-btn" onclick="toggleRecording()">
+          <i data-lucide="mic"></i> Start recording
+        </button>
+        <span class="rec-timer" id="rec-timer">0:00</span>
+        <span class="rec-dot" id="rec-dot" style="display:none"></span>
+      </div>
+      <div class="modal-hint" id="rec-hint">Up to 5 minutes. Speak naturally — mention the name, village and the problem.</div>
+      <audio id="rec-playback" controls style="display:none;width:100%;margin-top:10px"></audio>
+    </div>
+
+    <div id="log-pane-file" class="log-pane" style="display:none">
+      <div class="file-drop" onclick="document.getElementById('audio-input').click()">
+        <i data-lucide="file-audio"></i><br>
+        Click to choose an audio file (WAV, MP3, M4A, AAC, OGG, FLAC)
+      </div>
+      <input type="file" id="audio-input" accept="audio/*" style="display:none" onchange="onAudioChosen()">
+      <div class="file-preview-list" id="audio-file-list"></div>
+    </div>
+
+    <div class="section-title" style="margin-top:16px">Known details (optional)</div>
+    <p class="modal-hint">Anything you fill in here overrides what the AI picks up.</p>
+    <div class="preview-grid">
+      <div><label>Name</label><input id="log-name"></div>
+      <div><label>Contact number</label><input id="log-contact"></div>
+      <div><label>Village</label><input id="log-village"></div>
+      <div><label>Logged by</label><input id="log-by" placeholder="Your name"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="log-extract-btn" onclick="submitLog()">
         <i data-lucide="sparkles"></i> Extract with AI
       </button>
       <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
@@ -215,7 +313,20 @@ let rangeFrom = '';
 let rangeTo = '';
 let categoryFilter = '';
 let statusFilter = '';
-let previewItems = []; // { tmp_id, filename, extracted, priority_score, image_base64, image_mime, error }
+let channelFilter = '';
+// { tmp_id, filename, channel, intake_mode, extracted, priority_score,
+//   image_base64, image_mime, transcript, pending_media, audio_url, error }
+let previewItems = [];
+
+const CHANNEL_META = {
+  walk_in:        { label: 'Walk-in',        icon: 'user' },
+  phone_call:     { label: 'Phone call',     icon: 'phone' },
+  whatsapp_text:  { label: 'WhatsApp',       icon: 'message-circle' },
+  whatsapp_voice: { label: 'WhatsApp voice', icon: 'mic' },
+};
+function channelMeta(key) {
+  return CHANNEL_META[key] || CHANNEL_META.walk_in;
+}
 
 function getTodayIST() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -243,7 +354,7 @@ function statusBadgeClass(status) {
 
 // ── Bootstrap ────────────────────────────────────────────────────────────
 async function loadCategories() {
-  const r = await fetch('/api/visitor-forms/categories');
+  const r = await fetch('/api/grievances/categories');
   const data = await r.json();
   categories = data.categories || [];
   renderCategoryPills();
@@ -267,11 +378,19 @@ function setCategoryFilter(key) {
 }
 function setStatusFilter(status) {
   statusFilter = status;
-  document.querySelectorAll('.status-chip').forEach(el => {
+  // Scoped to #status-chips — the channel chips reuse the same class.
+  document.querySelectorAll('#status-chips .status-chip').forEach(el => {
     const active = el.dataset.status === status;
     el.classList.toggle('active-pending', active && status === 'Pending');
     el.classList.toggle('active-progress', active && status === 'In Progress');
     el.classList.toggle('active-resolved', active && status === 'Resolved');
+  });
+  loadItems();
+}
+function setChannelFilter(channel) {
+  channelFilter = channel;
+  document.querySelectorAll('#channel-chips .status-chip').forEach(el => {
+    el.classList.toggle('active-progress', el.dataset.channel === channel && channel !== '');
   });
   loadItems();
 }
@@ -282,7 +401,8 @@ async function loadItems() {
   if (rangeTo) params.set('to', rangeTo);
   if (categoryFilter) params.set('category', categoryFilter);
   if (statusFilter) params.set('status', statusFilter);
-  const r = await fetch('/api/visitor-forms' + (params.toString() ? '?' + params.toString() : ''));
+  if (channelFilter) params.set('channel', channelFilter);
+  const r = await fetch('/api/grievances' + (params.toString() ? '?' + params.toString() : ''));
   const data = await r.json();
   allItems = data.items || [];
   renderCategoryPills();
@@ -363,12 +483,12 @@ function renderTable() {
   if (selectedDateFilter) {
     list = list.filter(v => v.date_of_visit === selectedDateFilter);
     const label = selectedDateFilter === getTodayIST() ? 'Today' : new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-    filterLabel.textContent = `Showing forms on ${label}`;
+    filterLabel.textContent = `Showing grievances on ${label}`;
     filterBar.style.display = 'flex';
-    titleEl.textContent = `Visitor forms on ${label}`;
+    titleEl.textContent = `Grievances on ${label}`;
   } else {
     filterBar.style.display = 'none';
-    titleEl.textContent = 'All visitor forms';
+    titleEl.textContent = 'All grievances';
   }
 
   const tbody = document.getElementById('forms-tbody');
@@ -385,6 +505,7 @@ function renderTable() {
   tbody.innerHTML = list.map(v => `
     <tr id="row-${v.id}">
       <td>${esc(v.date_of_visit)}</td>
+      <td><span class="channel-cell"><i data-lucide="${channelMeta(v.channel).icon}"></i>${esc(channelMeta(v.channel).label)}</span></td>
       <td>${esc(v.full_name)}</td>
       <td>${esc([v.village, v.mandal].filter(Boolean).join(', '))}</td>
       <td><span class="badge badge-neutral">${esc(categoryLabel(v.category))}</span> ${(v.ttd_letter_refs || []).map(ref => `<span class="badge badge-info">${esc(ref)}</span>`).join(' ')}</td>
@@ -400,12 +521,12 @@ function renderTable() {
       <td class="actions-cell">
         <button class="btn btn-sm btn-ghost" onclick="startEdit('${v.id}')" title="Edit"><i data-lucide="pencil"></i></button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('${v.id}')" title="Delete"><i data-lucide="trash-2"></i></button>
-        ${v.image_path ? `<button class="btn btn-sm btn-ghost" onclick="window.open('/api/visitor-forms/${v.id}/image','_blank')" title="View original photo"><i data-lucide="image"></i></button>` : ''}
+        ${v.image_path ? `<button class="btn btn-sm btn-ghost" onclick="window.open('/api/grievances/${v.id}/media','_blank')" title="${v.media_type === 'audio' ? 'Play the recording' : 'View original photo'}"><i data-lucide="${v.media_type === 'audio' ? 'volume-2' : 'image'}"></i></button>` : ''}
         ${v.category === 'ttd_letter' ? `<button class="btn btn-sm btn-ghost" onclick="openTtdModal('${v.id}')" title="Create TTD Letter"><i data-lucide="scroll"></i></button>` : ''}
       </td>
     </tr>
     <tr id="edit-${v.id}" class="edit-row" style="display:none">
-      <td colspan="8">
+      <td colspan="9">
         <div class="edit-grid">
           <input type="date" id="e-date-${v.id}" value="${esc(v.date_of_visit)}">
           <input id="e-name-${v.id}" value="${esc(v.full_name)}" placeholder="Name">
@@ -461,7 +582,7 @@ async function saveEdit(id) {
     deadline: document.getElementById(`e-deadline-${id}`).value.trim(),
     issue_description: document.getElementById(`e-issue-${id}`).value.trim(),
   };
-  const r = await fetch('/api/visitor-forms/' + id, {
+  const r = await fetch('/api/grievances/' + id, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
@@ -472,7 +593,7 @@ async function saveEdit(id) {
 }
 
 async function quickSetStatus(id, status) {
-  await fetch('/api/visitor-forms/' + id, {
+  await fetch('/api/grievances/' + id, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ resolution_status: status }),
   });
@@ -481,7 +602,7 @@ async function quickSetStatus(id, status) {
 
 async function deleteItem(id) {
   if (!(await SaathiUI.confirm('Delete this visitor form record? This cannot be undone.'))) return;
-  await fetch('/api/visitor-forms/' + id, { method: 'DELETE' });
+  await fetch('/api/grievances/' + id, { method: 'DELETE' });
   SaathiUI.toast('Visitor form deleted.', 'success');
   await loadItems();
 }
@@ -513,7 +634,7 @@ async function submitTtdModal() {
   const remarks = document.getElementById('ttd-remarks').value.trim();
   if (!date || !darshan_type) { SaathiUI.toast('Date and darshan type are required.', 'danger'); return; }
 
-  const r = await fetch(`/api/visitor-forms/${currentTtdSourceId}/create-ttd-letter`, {
+  const r = await fetch(`/api/grievances/${currentTtdSourceId}/create-ttd-letter`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ date, darshan_type, phone, aadhar, referred_by, remarks, party_size }),
   });
@@ -532,7 +653,265 @@ function openUploadModal() {
   document.getElementById('upload-modal').style.display = 'flex';
 }
 function closeModals() {
+  if (isRecording) stopRecording();
   document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+}
+
+// ── Log Grievance (phone/walk-in, typed or dictated) ────────────────────
+let logTab = 'type';
+let recordedBlob = null;      // WAV blob ready to upload
+let recordedUrl = null;       // object URL for the in-modal player
+let mediaRecorder = null;
+let recordedChunks = [];
+let recStream = null;
+let isRecording = false;
+let recTimerId = null;
+let recStartedAt = 0;
+const REC_MAX_MS = 5 * 60 * 1000;
+
+function openLogModal() {
+  ['log-text', 'log-name', 'log-contact', 'log-village', 'log-by'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('audio-input').value = '';
+  document.getElementById('audio-file-list').innerHTML = '';
+  discardRecording();
+  setLogTab('type');
+  document.getElementById('log-modal').style.display = 'flex';
+  if (window.lucide) lucide.createIcons();
+}
+
+function setLogTab(tab) {
+  logTab = tab;
+  document.querySelectorAll('.log-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+  ['type', 'record', 'file'].forEach(t => {
+    document.getElementById(`log-pane-${t}`).style.display = t === tab ? 'block' : 'none';
+  });
+}
+
+function onAudioChosen() {
+  const files = document.getElementById('audio-input').files;
+  document.getElementById('audio-file-list').innerHTML = Array.from(files)
+    .map(f => `<div class="file-preview-item"><i data-lucide="file-audio"></i> ${esc(f.name)}</div>`).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function discardRecording() {
+  if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+  recordedUrl = null;
+  recordedBlob = null;
+  const player = document.getElementById('rec-playback');
+  player.removeAttribute('src');
+  player.style.display = 'none';
+  document.getElementById('rec-timer').textContent = '0:00';
+}
+
+function fmtDuration(ms) {
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+async function toggleRecording() {
+  if (isRecording) { stopRecording(); return; }
+
+  // Needs a secure context; on plain http:// the API simply isn't there.
+  if (!navigator.mediaDevices?.getUserMedia) {
+    SaathiUI.toast('Recording needs a secure (https) connection — type the summary instead.', 'danger');
+    setLogTab('type');
+    return;
+  }
+
+  try {
+    recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    SaathiUI.toast(
+      e.name === 'NotAllowedError'
+        ? 'Microphone permission was denied — type the summary instead.'
+        : 'Could not start the microphone: ' + e.message,
+      'danger');
+    setLogTab('type');
+    return;
+  }
+
+  discardRecording();
+  recordedChunks = [];
+  mediaRecorder = new MediaRecorder(recStream);
+  mediaRecorder.ondataavailable = e => { if (e.data.size) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = onRecordingStopped;
+  mediaRecorder.start();
+
+  isRecording = true;
+  recStartedAt = Date.now();
+  document.getElementById('rec-dot').style.display = 'inline-block';
+  document.getElementById('rec-btn').innerHTML = '<i data-lucide="square"></i> Stop recording';
+  document.getElementById('rec-hint').textContent = 'Recording… press stop when finished.';
+  if (window.lucide) lucide.createIcons();
+
+  recTimerId = setInterval(() => {
+    const elapsed = Date.now() - recStartedAt;
+    document.getElementById('rec-timer').textContent = fmtDuration(elapsed);
+    if (elapsed >= REC_MAX_MS) {
+      SaathiUI.toast('Reached the 5 minute limit — recording stopped.', 'info');
+      stopRecording();
+    }
+  }, 250);
+}
+
+function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+  clearInterval(recTimerId);
+  try { mediaRecorder?.stop(); } catch { /* already stopped */ }
+  recStream?.getTracks().forEach(t => t.stop());
+  recStream = null;
+  document.getElementById('rec-dot').style.display = 'none';
+  document.getElementById('rec-btn').innerHTML = '<i data-lucide="mic"></i> Start recording';
+  if (window.lucide) lucide.createIcons();
+}
+
+async function onRecordingStopped() {
+  const raw = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+  recordedChunks = [];
+  document.getElementById('rec-hint').textContent = 'Preparing the recording…';
+  try {
+    // MediaRecorder gives WebM/Opus on Chrome and MP4 on Safari; Gemini accepts
+    // neither inline. Decode and re-encode as 16kHz mono WAV, which it does accept.
+    recordedBlob = await blobToWav(raw);
+    recordedUrl = URL.createObjectURL(recordedBlob);
+    const player = document.getElementById('rec-playback');
+    player.src = recordedUrl;
+    player.style.display = 'block';
+    document.getElementById('rec-hint').textContent =
+      `Recorded ${fmtDuration(Date.now() - recStartedAt)} — play it back, or extract with AI below.`;
+  } catch (e) {
+    SaathiUI.toast('Could not process the recording: ' + e.message, 'danger');
+    document.getElementById('rec-hint').textContent = 'Recording failed — try again, or type the summary.';
+  }
+}
+
+// Decode whatever the browser recorded, downmix to mono at 16kHz (plenty for
+// speech, and keeps the upload small) and wrap it in a 16-bit PCM WAV header.
+async function blobToWav(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const targetRate = 16000;
+    const frames = Math.ceil(decoded.duration * targetRate);
+    const offline = new OfflineAudioContext(1, frames, targetRate);
+    const src = offline.createBufferSource();
+    src.buffer = decoded;
+    src.connect(offline.destination);
+    src.start();
+    const rendered = await offline.startRendering();
+    return encodeWav(rendered.getChannelData(0), targetRate);
+  } finally {
+    ctx.close();
+  }
+}
+
+function encodeWav(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeStr = (offset, s) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);        // PCM chunk size
+  view.setUint16(20, 1, true);         // format: PCM
+  view.setUint16(22, 1, true);         // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true);         // block align
+  view.setUint16(34, 16, true);        // bits per sample
+  writeStr(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const clamped = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+async function submitLog() {
+  const channel = document.getElementById('log-channel').value;
+  const known = {
+    full_name: document.getElementById('log-name').value.trim(),
+    contact_number: document.getElementById('log-contact').value.trim(),
+    village: document.getElementById('log-village').value.trim(),
+    logged_by: document.getElementById('log-by').value.trim(),
+  };
+
+  const btn = document.getElementById('log-extract-btn');
+  const restore = () => {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="sparkles"></i> Extract with AI';
+    if (window.lucide) lucide.createIcons();
+  };
+
+  let request;
+  if (logTab === 'type') {
+    const text = document.getElementById('log-text').value.trim();
+    if (!text) { SaathiUI.toast('Write the grievance first.', 'danger'); return; }
+    request = fetch('/api/grievances/log-text', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, channel, ...known }),
+    });
+  } else {
+    const audio = logTab === 'record' ? recordedBlob : document.getElementById('audio-input').files[0];
+    if (!audio) {
+      SaathiUI.toast(logTab === 'record' ? 'Record something first.' : 'Choose an audio file first.', 'danger');
+      return;
+    }
+    const fd = new FormData();
+    fd.append('audio', audio, logTab === 'record' ? 'dictation.wav' : audio.name);
+    fd.append('channel', channel);
+    Object.entries(known).forEach(([k, v]) => fd.append(k, v));
+    request = fetch('/api/grievances/log-audio', { method: 'POST', body: fd });
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = logTab === 'type'
+    ? '<i data-lucide="loader-circle"></i> Extracting…'
+    : '<i data-lucide="loader-circle"></i> Transcribing… this takes a moment';
+  if (window.lucide) lucide.createIcons();
+
+  try {
+    const r = await request;
+    const data = await r.json();
+    if (!r.ok) {
+      SaathiUI.toast(data.error || 'Extraction failed.', 'danger');
+      // Transcription can fail with the recording still stored server-side, so
+      // staff can write it up by hand rather than losing the audio.
+      if (data.items?.length) {
+        previewItems = attachLocalAudio(data.items);
+        closeModals();
+        renderPreview();
+      }
+      return;
+    }
+    previewItems = attachLocalAudio(data.items || []);
+    closeModals();
+    renderPreview();
+  } catch (e) {
+    SaathiUI.toast('Extraction failed: ' + e.message, 'danger');
+  } finally {
+    restore();
+  }
+}
+
+// Keep the local object URL alive on the preview card so staff can replay what
+// they just recorded without a round trip to the server.
+function attachLocalAudio(items) {
+  if (logTab === 'record' && recordedUrl) {
+    items.forEach(it => { if (it.pending_media) it.audio_url = recordedUrl; });
+    recordedUrl = null; // ownership moves to the preview card
+    recordedBlob = null;
+  }
+  return items;
 }
 
 function onFilesChosen() {
@@ -555,7 +934,7 @@ async function submitUpload() {
   Array.from(files).forEach(f => formData.append('images', f));
 
   try {
-    const r = await fetch('/api/visitor-forms/upload', { method: 'POST', body: formData });
+    const r = await fetch('/api/grievances/upload', { method: 'POST', body: formData });
     const data = await r.json();
     if (!r.ok) { SaathiUI.toast(data.error || 'Upload failed.', 'danger'); return; }
     previewItems = data.items || [];
@@ -577,23 +956,36 @@ function renderPreview() {
 
   const okCount = previewItems.filter(p => !p.error).length;
   const failCount = previewItems.length - okCount;
+  const noun = previewItems.every(p => p.intake_mode && p.intake_mode !== 'ocr') ? 'grievance' : 'form';
   document.getElementById('review-count-label').textContent =
-    `${previewItems.length} form(s) uploaded — ${okCount} extracted` + (failCount ? `, ${failCount} need manual entry` : '') + '. Review before saving.';
+    `${previewItems.length} ${noun}(s) — ${okCount} extracted` + (failCount ? `, ${failCount} need manual entry` : '') + '. Review before saving.';
 
   const catOptions = categories.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join('');
 
   document.getElementById('preview-cards').innerHTML = previewItems.map((p, i) => {
     const ex = p.extracted || {};
+    const meta = channelMeta(p.channel);
     return `
     <div class="preview-card card-sub ${p.error ? 'has-error' : ''}">
       <div class="preview-card-head">
-        <span class="fname">${esc(p.filename)}</span>
-        ${ex.ocr_confidence ? `<span class="badge badge-neutral">OCR confidence: ${esc(ex.ocr_confidence)}</span>` : ''}
+        <span class="fname">${p.filename ? esc(p.filename) : esc(meta.label)}</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span class="badge badge-neutral"><i data-lucide="${meta.icon}"></i> ${esc(meta.label)}</span>
+          ${ex.ocr_confidence ? `<span class="badge badge-neutral">OCR confidence: ${esc(ex.ocr_confidence)}</span>` : ''}
+          ${ex.confidence && p.intake_mode !== 'ocr' ? `<span class="badge badge-neutral">AI confidence: ${esc(ex.confidence)}</span>` : ''}
+        </span>
       </div>
       ${p.error ? `<div class="preview-error-banner"><i data-lucide="triangle-alert"></i> AI extraction failed: ${esc(p.error)} — enter the details manually below.</div>` : ''}
+      ${ex.is_grievance === false ? `<div class="preview-error-banner"><i data-lucide="triangle-alert"></i> The AI didn't read this as a grievance. Check it before saving.</div>` : ''}
       <div class="preview-grid">
+        ${p.intake_mode === 'dictated' ? `
+        <div class="transcript-box">
+          ${p.audio_url ? `<audio controls src="${p.audio_url}"></audio>` : ''}
+          <label>Transcript — correct any mistakes before saving</label>
+          <textarea id="p-transcript-${i}" rows="3">${esc(p.transcript || '')}</textarea>
+        </div>` : ''}
         <div><label>Name</label><input id="p-name-${i}" value="${esc(ex.full_name)}"></div>
-        <div><label>Date of visit</label><input id="p-date-${i}" value="${esc(ex.date_of_visit)}" placeholder="YYYY-MM-DD"></div>
+        <div><label>Date reported</label><input id="p-date-${i}" value="${esc(ex.date_of_visit)}" placeholder="YYYY-MM-DD"></div>
         <div><label>Village</label><input id="p-village-${i}" value="${esc(ex.village)}"></div>
         <div><label>Mandal</label><input id="p-mandal-${i}" value="${esc(ex.mandal)}"></div>
         <div><label>Contact number</label><input id="p-contact-${i}" value="${esc(ex.contact_number)}"></div>
@@ -613,7 +1005,7 @@ function renderPreview() {
         <div class="full-width"><label>Issue description</label><textarea id="p-issue-${i}">${esc(ex.issue_description)}</textarea></div>
       </div>
       <div class="preview-card-actions">
-        <button class="btn btn-sm btn-danger" onclick="removePreviewItem(${i})"><i data-lucide="x"></i> Remove this form</button>
+        <button class="btn btn-sm btn-danger" onclick="removePreviewItem(${i})"><i data-lucide="x"></i> Remove this ${p.intake_mode === 'ocr' ? 'form' : 'entry'}</button>
       </div>
     </div>`;
   }).join('');
@@ -633,13 +1025,24 @@ function renderPreview() {
   section.scrollIntoView({ behavior: 'smooth' });
 }
 
+// Audio parked server-side by /log-audio is only claimed when a record is saved, so
+// anything dropped from the preview has to be cleaned up explicitly.
+function releasePendingMedia(item) {
+  if (item?.audio_url) URL.revokeObjectURL(item.audio_url);
+  if (!item?.pending_media) return;
+  fetch('/api/grievances/pending-media/' + encodeURIComponent(item.pending_media), { method: 'DELETE' })
+    .catch(() => { /* the 24h server-side sweep will get it */ });
+}
+
 function removePreviewItem(i) {
+  releasePendingMedia(previewItems[i]);
   previewItems.splice(i, 1);
   renderPreview();
 }
 
 async function discardPreview() {
-  if (!(await SaathiUI.confirm('Discard all extracted forms without saving?'))) return;
+  if (!(await SaathiUI.confirm('Discard everything in this review without saving?'))) return;
+  previewItems.forEach(releasePendingMedia);
   previewItems = [];
   document.getElementById('review-section').style.display = 'none';
 }
@@ -668,18 +1071,25 @@ async function saveAllPreview() {
     ocr_confidence: p.extracted?.ocr_confidence || '',
     image_base64: p.image_base64 || '',
     image_mime: p.image_mime || '',
+    channel: p.channel || 'walk_in',
+    intake_mode: p.intake_mode || 'ocr',
+    logged_by: p.logged_by || '',
+    transcript: document.getElementById(`p-transcript-${i}`)?.value.trim() || p.transcript || '',
+    pending_media: p.pending_media || '',
+    media_type: p.media_type || '',
   }));
 
-  const r = await fetch('/api/visitor-forms', {
+  const r = await fetch('/api/grievances', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items }),
   });
   const data = await r.json();
   if (!r.ok) { SaathiUI.toast(data.error || 'Failed to save.', 'danger'); return; }
 
+  previewItems.forEach(p => { if (p.audio_url) URL.revokeObjectURL(p.audio_url); });
   previewItems = [];
   document.getElementById('review-section').style.display = 'none';
-  SaathiUI.toast('Visitor forms saved.', 'success');
+  SaathiUI.toast(`${data.count} grievance(s) saved.`, 'success');
   await loadItems();
 }
 
@@ -690,15 +1100,16 @@ function exportParams() {
   if (rangeTo) params.set('to', rangeTo);
   if (categoryFilter) params.set('category', categoryFilter);
   if (statusFilter) params.set('status', statusFilter);
+  if (channelFilter) params.set('channel', channelFilter);
   return params.toString();
 }
 function downloadExcel() {
   const q = exportParams();
-  window.open('/api/visitor-forms/export.xlsx' + (q ? '?' + q : ''), '_blank');
+  window.open('/api/grievances/export.xlsx' + (q ? '?' + q : ''), '_blank');
 }
 function downloadRegisterPdf() {
   const q = exportParams();
-  window.open('/api/visitor-forms/export-pdf' + (q ? '?' + q : ''), '_blank');
+  window.open('/api/grievances/export-pdf' + (q ? '?' + q : ''), '_blank');
 }
 
 (async function init() {

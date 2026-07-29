@@ -36,6 +36,21 @@ fs.mkdirSync(WA_AUTH_PATH, { recursive: true });
 fs.mkdirSync(GRIEVANCE_MEDIA_PATH, { recursive: true });
 fs.mkdirSync(SOCIAL_MEDIA_PATH, { recursive: true });
 
+// Sweep pending grievance recordings abandoned mid-review (browser closed before the
+// preview was saved or discarded). Anything still named tmp_* after a day is orphaned.
+(function sweepPendingGrievanceMedia() {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  try {
+    for (const name of fs.readdirSync(GRIEVANCE_MEDIA_PATH)) {
+      if (!name.startsWith('tmp_')) continue;
+      const p = path.join(GRIEVANCE_MEDIA_PATH, name);
+      if (fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p);
+    }
+  } catch (e) {
+    console.error('Pending media sweep skipped:', e.message);
+  }
+})();
+
 // Seed db.json from bundled snapshot if volume is empty
 const SEED_PATH = path.join(ROOT, 'data', 'db.json');
 if (!fs.existsSync(DB_PATH) && fs.existsSync(SEED_PATH)) {
@@ -1290,14 +1305,29 @@ function computePriorityScore(category, urgency) {
   return Math.round(cw * 0.4 + uw * 0.6);
 }
 
-app.get('/api/visitor-forms/categories', (req, res) => {
+// How a grievance reached the office. Walk-ins are photographed paper forms; phone
+// calls are typed or dictated by staff; the WhatsApp channels arrive on their own.
+const GRIEVANCE_CHANNELS = new Set(['walk_in', 'phone_call', 'whatsapp_text', 'whatsapp_voice']);
+// Gemini's supported inline-audio types. Rejecting here gives staff a clear message
+// instead of an opaque 400 from the API.
+const GRIEVANCE_AUDIO_MIMES = {
+  'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a',
+  'audio/aac': 'aac', 'audio/ogg': 'ogg', 'audio/flac': 'flac',
+};
+const AI_UNCONFIGURED_ERROR =
+  'AI extraction is not configured (GEMINI_API_KEY missing) — contact admin, or enter forms manually.';
+
+// NOTE ON ROUTE ORDER: every fixed-segment route below (/categories, /upload,
+// /log-text, /log-audio, /export.xlsx, /export-pdf) must stay registered ahead of the
+// /:id routes, or Express will match the literal segment as an id.
+
+app.get('/api/grievances/categories', (req, res) => {
   res.json({ categories: ISSUE_CATEGORIES });
 });
 
-app.post('/api/visitor-forms/upload', uploadGrievanceMedia.array('images', 20), async (req, res) => {
+app.post('/api/grievances/upload', uploadGrievanceMedia.array('images', 20), async (req, res) => {
   if (!req.files || !req.files.length) return res.status(400).json({ error: 'At least one form image required' });
-  if (!process.env.GEMINI_API_KEY)
-    return res.status(500).json({ error: 'AI extraction is not configured (GEMINI_API_KEY missing) — contact admin, or enter forms manually.' });
+  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
 
   const allowedMimes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
   const gemini = await import('./gemini.js');
@@ -1314,115 +1344,292 @@ app.post('/api/visitor-forms/upload', uploadGrievanceMedia.array('images', 20), 
       return {
         tmp_id,
         filename: file.originalname,
+        channel: 'walk_in',
+        intake_mode: 'ocr',
         extracted: { ...extracted, category, urgency },
         priority_score: computePriorityScore(category, urgency),
         image_base64: file.buffer.toString('base64'),
         image_mime: file.mimetype,
       };
     } catch (e) {
-      return { tmp_id, filename: file.originalname, error: e.message };
+      return { tmp_id, filename: file.originalname, channel: 'walk_in', intake_mode: 'ocr', error: e.message };
     }
   }));
 
   res.json({ ok: true, items: results, count: results.length });
 });
 
-app.post('/api/visitor-forms', (req, res) => {
+// Shared shaping for the text/audio intake paths so both return the exact envelope
+// /upload does — the frontend renders all three through one preview-card path.
+function buildExtractionPreview(tmp_id, extracted, overrides, extra) {
+  const category = ISSUE_CATEGORY_KEYS.has(extracted.category) ? extracted.category : 'others';
+  const urgency = URGENCY_WEIGHTS[extracted.urgency] !== undefined ? extracted.urgency : 'Medium';
+  // Anything staff typed in the form beats what the AI inferred from the narration.
+  const stated = Object.fromEntries(Object.entries(overrides).filter(([, v]) => v));
+  return {
+    tmp_id,
+    extracted: { ...extracted, ...stated, category, urgency },
+    priority_score: computePriorityScore(category, urgency),
+    ...extra,
+  };
+}
+
+app.post('/api/grievances/log-text', async (req, res) => {
+  const { text, channel, logged_by, full_name, contact_number, village } = req.body;
+  if (!text || !String(text).trim()) return res.status(400).json({ error: 'text is required' });
+  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
+
+  const ch = GRIEVANCE_CHANNELS.has(channel) ? channel : 'phone_call';
+  const gemini = await import('./gemini.js');
+  const tmp_id = `tmp${Date.now()}_0`;
+
+  try {
+    const extracted = await gemini.extractGrievanceFromText(String(text), ISSUE_CATEGORIES);
+    const item = buildExtractionPreview(
+      tmp_id, extracted,
+      { full_name, contact_number, village },
+      { channel: ch, intake_mode: 'typed', logged_by: logged_by || '', source_text: String(text) },
+    );
+    res.json({ ok: true, items: [item], count: 1 });
+  } catch (e) {
+    res.status(502).json({ error: `AI extraction failed: ${e.message}` });
+  }
+});
+
+app.post('/api/grievances/log-audio', uploadGrievanceMedia.single('audio'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'An audio file is required' });
+  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
+
+  const ext = GRIEVANCE_AUDIO_MIMES[req.file.mimetype];
+  if (!ext) {
+    return res.status(400).json({
+      error: `Unsupported audio type: ${req.file.mimetype}. Use WAV, MP3, M4A, AAC, OGG or FLAC.`,
+    });
+  }
+
+  const { channel, logged_by, full_name, contact_number, village } = req.body;
+  const ch = GRIEVANCE_CHANNELS.has(channel) ? channel : 'phone_call';
+  const gemini = await import('./gemini.js');
+  const tmp_id = `tmp${Date.now()}_0`;
+
+  // Park the audio on disk and hand back a filename. Round-tripping it as base64
+  // through the JSON commit body would blow express.json's 10mb cap.
+  const pending_media = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  try {
+    fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, pending_media), req.file.buffer);
+  } catch (e) {
+    return res.status(500).json({ error: `Could not store the recording: ${e.message}` });
+  }
+
+  try {
+    const extracted = await gemini.extractGrievanceFromAudio(req.file.buffer, req.file.mimetype, ISSUE_CATEGORIES);
+    const item = buildExtractionPreview(
+      tmp_id, extracted,
+      { full_name, contact_number, village },
+      {
+        channel: ch, intake_mode: 'dictated', logged_by: logged_by || '',
+        transcript: extracted.transcript || '', pending_media, media_type: 'audio',
+      },
+    );
+    res.json({ ok: true, items: [item], count: 1 });
+  } catch (e) {
+    // Keep the recording — staff can still write the grievance up by hand from it.
+    res.status(502).json({
+      error: `AI transcription failed: ${e.message}`,
+      items: [{ tmp_id, channel: ch, intake_mode: 'dictated', pending_media, media_type: 'audio', error: e.message }],
+    });
+  }
+});
+
+// Called when staff discard a preview, so abandoned recordings don't pile up.
+app.delete('/api/grievances/pending-media/:filename', (req, res) => {
+  const safeName = path.basename(req.params.filename);
+  if (!safeName.startsWith('tmp_')) return res.status(400).json({ error: 'Not a pending upload' });
+  const p = path.join(GRIEVANCE_MEDIA_PATH, safeName);
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+  res.json({ ok: true });
+});
+
+// The single write path into db.grievances. Every channel goes through this — the
+// staff-reviewed commit below, and (from Phase 2) the WhatsApp inbox promote path —
+// so id format, media handling and TTD auto-linking can't drift between them.
+// Mutates db.ttd_letters when a record is categorised as a TTD request; the caller
+// is responsible for writeDB().
+function buildGrievanceRecord(db, it, id) {
+  const category = ISSUE_CATEGORY_KEYS.has(it.category) ? it.category : 'others';
+  const resolution_status = RESOLUTION_STATUSES.has(it.resolution_status) ? it.resolution_status : 'Pending';
+  const urgency = URGENCY_WEIGHTS[it.urgency] !== undefined ? it.urgency : 'Medium';
+  const channel = GRIEVANCE_CHANNELS.has(it.channel) ? it.channel : 'walk_in';
+
+  // Two ways media arrives: inline base64 (form photos, unchanged) or a filename
+  // already parked on disk by /log-audio, which we adopt by renaming it to the record.
+  let image_path = '';
+  let media_type = '';
+  if (it.pending_media) {
+    const safeName = path.basename(String(it.pending_media));
+    const src = path.join(GRIEVANCE_MEDIA_PATH, safeName);
+    if (safeName.startsWith('tmp_') && fs.existsSync(src)) {
+      try {
+        const filename = `${id}${path.extname(safeName)}`;
+        fs.renameSync(src, path.join(GRIEVANCE_MEDIA_PATH, filename));
+        image_path = filename;
+        media_type = it.media_type === 'audio' ? 'audio' : 'image';
+      } catch (e) {
+        console.error('Failed to adopt pending grievance media:', e.message);
+      }
+    }
+  } else if (it.image_base64) {
+    try {
+      const mime = it.image_mime || '';
+      const ext = mime.includes('png') ? 'png' : mime.includes('pdf') ? 'pdf' : 'jpg';
+      const filename = `${id}.${ext}`;
+      fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), Buffer.from(it.image_base64, 'base64'));
+      image_path = filename;
+      media_type = ext === 'pdf' ? 'pdf' : 'image';
+    } catch (e) {
+      console.error('Failed to persist grievance image:', e.message);
+    }
+  }
+
+  const record = {
+    id,
+    channel,
+    intake_mode: ['typed', 'ocr', 'dictated'].includes(it.intake_mode) ? it.intake_mode : 'typed',
+    logged_by: it.logged_by || '',
+    full_name: it.full_name || '',
+    address: it.address || '',
+    village: it.village || '',
+    mandal: it.mandal || '',
+    assembly_constituency: it.assembly_constituency || '',
+    reference_name: it.reference_name || '',
+    reference_number: it.reference_number || '',
+    contact_number: it.contact_number || '',
+    email: it.email || '',
+    date_of_visit: it.date_of_visit || getISTDateStr(),
+    issue_description: it.issue_description || '',
+    action_taken: it.action_taken || '',
+    action_to_be_taken: it.action_to_be_taken || '',
+    assigned_officer: it.assigned_officer || '',
+    resolution_status,
+    deadline: it.deadline || '',
+    category,
+    urgency,
+    urgency_reason: it.urgency_reason || '',
+    ocr_confidence: it.ocr_confidence || '',
+    transcript: it.transcript || '',
+    priority_score: computePriorityScore(category, urgency),
+    image_path,
+    media_type,
+    ttd_letter_refs: [],
+    created_at: new Date().toISOString(),
+  };
+
+  // A TTD request logged as a grievance opens the letter record straight away,
+  // whatever channel it came in on.
+  if (record.category === 'ttd_letter') {
+    const ttdItem = buildTtdLetterItem(db, {
+      date: record.date_of_visit,
+      name: record.full_name,
+      phone: record.contact_number,
+      referred_by: record.reference_name,
+      remarks: record.issue_description,
+      review_status: 'Pending Review',
+      source_visitor_form_id: record.id,
+    });
+    db.ttd_letters = [ttdItem, ...(db.ttd_letters || [])];
+    record.ttd_letter_refs.push(ttdItem.reference);
+  }
+
+  return record;
+}
+
+app.post('/api/grievances', (req, res) => {
   const { items } = req.body;
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
 
   const db = readDB();
   const ts = Date.now();
-  const saved = items.map((it, idx) => {
-    const category = ISSUE_CATEGORY_KEYS.has(it.category) ? it.category : 'others';
-    const resolution_status = RESOLUTION_STATUSES.has(it.resolution_status) ? it.resolution_status : 'Pending';
-    const urgency = URGENCY_WEIGHTS[it.urgency] !== undefined ? it.urgency : 'Medium';
-    const id = `VF${ts}_${idx}`;
+  const saved = items.map((it, idx) => buildGrievanceRecord(db, it, `VF${ts}_${idx}`));
 
-    let image_path = '';
-    if (it.image_base64) {
-      try {
-        const ext = (it.image_mime || '').includes('png') ? 'png' : (it.image_mime || '').includes('pdf') ? 'pdf' : 'jpg';
-        const filename = `${id}.${ext}`;
-        fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), Buffer.from(it.image_base64, 'base64'));
-        image_path = filename;
-      } catch (e) {
-        console.error('Failed to persist visitor form image:', e.message);
-      }
-    }
-
-    return {
-      id,
-      full_name: it.full_name || '',
-      address: it.address || '',
-      village: it.village || '',
-      mandal: it.mandal || '',
-      assembly_constituency: it.assembly_constituency || '',
-      reference_name: it.reference_name || '',
-      reference_number: it.reference_number || '',
-      contact_number: it.contact_number || '',
-      email: it.email || '',
-      date_of_visit: it.date_of_visit || getISTDateStr(),
-      issue_description: it.issue_description || '',
-      action_taken: it.action_taken || '',
-      action_to_be_taken: it.action_to_be_taken || '',
-      assigned_officer: it.assigned_officer || '',
-      resolution_status,
-      deadline: it.deadline || '',
-      category,
-      urgency,
-      urgency_reason: it.urgency_reason || '',
-      ocr_confidence: it.ocr_confidence || '',
-      priority_score: computePriorityScore(category, urgency),
-      image_path,
-      ttd_letter_refs: [],
-      created_at: new Date().toISOString(),
-    };
-  });
-
-  db.ttd_letters = db.ttd_letters || [];
-  for (const vf of saved) {
-    if (vf.category !== 'ttd_letter') continue;
-    const ttdItem = buildTtdLetterItem(db, {
-      date: vf.date_of_visit,
-      name: vf.full_name,
-      phone: vf.contact_number,
-      referred_by: vf.reference_name,
-      remarks: vf.issue_description,
-      review_status: 'Pending Review',
-      source_visitor_form_id: vf.id,
-    });
-    db.ttd_letters = [ttdItem, ...db.ttd_letters];
-    vf.ttd_letter_refs.push(ttdItem.reference);
-  }
-
-  db.visitor_forms = [...saved, ...(db.visitor_forms || [])];
+  db.grievances = [...saved, ...(db.grievances || [])];
   writeDB(db);
   res.json({ ok: true, count: saved.length, items: saved });
 });
 
-app.get('/api/visitor-forms', (req, res) => {
-  const db = readDB();
-  let items = db.visitor_forms || [];
-  const { from, to, category, status } = req.query;
+// Shared by the list view and both exports so a filter can't apply in one and not
+// the other. Records predating the channel field are walk-ins.
+function filterGrievances(db, { from, to, category, status, channel }) {
+  let items = db.grievances || [];
   if (from) items = items.filter(v => v.date_of_visit >= from);
   if (to) items = items.filter(v => v.date_of_visit <= to);
   if (category) items = items.filter(v => v.category === category);
   if (status) items = items.filter(v => v.resolution_status === status);
-  items = [...items].sort((a, b) => (b.date_of_visit || '').localeCompare(a.date_of_visit || ''));
+  if (channel) items = items.filter(v => (v.channel || 'walk_in') === channel);
+  return items;
+}
+
+app.get('/api/grievances', (req, res) => {
+  const items = filterGrievances(readDB(), req.query)
+    .slice()
+    .sort((a, b) => (b.date_of_visit || '').localeCompare(a.date_of_visit || ''));
   res.json({ items });
 });
 
-app.patch('/api/visitor-forms/:id', (req, res) => {
+app.get('/api/grievances/export.xlsx', (req, res) => {
+  const { from, to } = req.query;
+  const items = filterGrievances(readDB(), req.query)
+    .slice()
+    .sort((a, b) => (a.date_of_visit || '').localeCompare(b.date_of_visit || ''));
+
+  const rows = items.map(v => ({
+    'Date Reported': v.date_of_visit, Channel: channelLabel(v.channel), Name: v.full_name,
+    Village: v.village, Mandal: v.mandal,
+    'Assembly Constituency': v.assembly_constituency, Contact: v.contact_number, Email: v.email,
+    'Reference Name': v.reference_name, 'Reference Number': v.reference_number,
+    Category: categoryLabel(v.category), Urgency: v.urgency, 'Priority Score': v.priority_score,
+    'Issue Description': v.issue_description, 'Action Taken': v.action_taken,
+    'Action To Be Taken': v.action_to_be_taken, 'Assigned Officer': v.assigned_officer,
+    Status: v.resolution_status, Deadline: v.deadline, 'Logged By': v.logged_by || '',
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Grievances');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="grievances-${from || 'all'}-to-${to || 'now'}.xlsx"`);
+  res.send(buf);
+});
+
+app.get('/api/grievances/export-pdf', (req, res) => {
+  const { from, to } = req.query;
+  const items = filterGrievances(readDB(), req.query)
+    .slice()
+    .sort((a, b) => (a.date_of_visit || '').localeCompare(b.date_of_visit || ''));
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="grievances-${from || 'all'}-to-${to || 'now'}.pdf"`);
+
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  doc.pipe(res);
+  try {
+    buildGrievancesRegisterPDF(doc, items, from, to);
+  } catch (e) {
+    console.error('Grievances register PDF generation error:', e);
+  }
+  doc.end();
+});
+
+app.patch('/api/grievances/:id', (req, res) => {
   const db = readDB();
-  const item = (db.visitor_forms || []).find(v => v.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'Visitor form not found' });
+  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Grievance not found' });
 
   const fields = [
     'full_name', 'address', 'village', 'mandal', 'assembly_constituency',
     'reference_name', 'reference_number', 'contact_number', 'email',
     'date_of_visit', 'issue_description', 'action_taken', 'action_to_be_taken',
-    'assigned_officer', 'deadline',
+    'assigned_officer', 'deadline', 'transcript',
   ];
   for (const f of fields) if (req.body[f] !== undefined) item[f] = req.body[f];
 
@@ -1438,10 +1645,10 @@ app.patch('/api/visitor-forms/:id', (req, res) => {
   res.json({ ok: true, item });
 });
 
-app.post('/api/visitor-forms/:id/create-ttd-letter', (req, res) => {
+app.post('/api/grievances/:id/create-ttd-letter', (req, res) => {
   const db = readDB();
-  const visitorForm = (db.visitor_forms || []).find(v => v.id === req.params.id);
-  if (!visitorForm) return res.status(404).json({ error: 'Visitor form not found' });
+  const visitorForm = (db.grievances || []).find(v => v.id === req.params.id);
+  if (!visitorForm) return res.status(404).json({ error: 'Grievance not found' });
 
   const { date, darshan_type, phone, aadhar, referred_by, remarks, party_size } = req.body;
   if (!date || !darshan_type || !TTD_DARSHAN_TYPES.includes(darshan_type))
@@ -1460,24 +1667,34 @@ app.post('/api/visitor-forms/:id/create-ttd-letter', (req, res) => {
   res.json({ ok: true, item, duplicate_warning, visitor_form: visitorForm });
 });
 
-app.delete('/api/visitor-forms/:id', (req, res) => {
+app.delete('/api/grievances/:id', (req, res) => {
   const db = readDB();
-  const item = (db.visitor_forms || []).find(v => v.id === req.params.id);
+  const item = (db.grievances || []).find(v => v.id === req.params.id);
   if (item?.image_path) {
     const p = path.join(GRIEVANCE_MEDIA_PATH, item.image_path);
     fs.existsSync(p) && fs.unlinkSync(p);
   }
-  db.visitor_forms = (db.visitor_forms || []).filter(v => v.id !== req.params.id);
+  db.grievances = (db.grievances || []).filter(v => v.id !== req.params.id);
   writeDB(db);
   res.json({ ok: true });
 });
 
-app.get('/api/visitor-forms/:id/image', (req, res) => {
+// Serves whatever media the record carries — a form photo, a PDF, or dictated audio.
+// Records saved before media_type existed are all images.
+const GRIEVANCE_MEDIA_CONTENT_TYPES = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
+  '.pdf': 'application/pdf', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.flac': 'audio/flac',
+};
+
+app.get('/api/grievances/:id/media', (req, res) => {
   const db = readDB();
-  const item = (db.visitor_forms || []).find(v => v.id === req.params.id);
-  if (!item || !item.image_path) return res.status(404).json({ error: 'No image on file' });
-  const p = path.join(GRIEVANCE_MEDIA_PATH, item.image_path);
-  if (!fs.existsSync(p)) return res.status(404).json({ error: 'Image file missing' });
+  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  if (!item || !item.image_path) return res.status(404).json({ error: 'No media on file' });
+  const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(item.image_path));
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'Media file missing' });
+  const contentType = GRIEVANCE_MEDIA_CONTENT_TYPES[path.extname(p).toLowerCase()];
+  if (contentType) res.setHeader('Content-Type', contentType);
   res.sendFile(p);
 });
 
@@ -2695,7 +2912,17 @@ function categoryLabel(key) {
   return ISSUE_CATEGORIES.find(c => c.key === key)?.label || key;
 }
 
-function buildVisitorFormsRegisterPDF(doc, items, from, to) {
+const GRIEVANCE_CHANNEL_LABELS = {
+  walk_in: 'Walk-in',
+  phone_call: 'Phone call',
+  whatsapp_text: 'WhatsApp',
+  whatsapp_voice: 'WhatsApp voice',
+};
+function channelLabel(key) {
+  return GRIEVANCE_CHANNEL_LABELS[key] || GRIEVANCE_CHANNEL_LABELS.walk_in;
+}
+
+function buildGrievancesRegisterPDF(doc, items, from, to) {
   let teluguFontOk = false;
   try {
     doc.registerFont('Body', TELUGU_FONT_PATH);
@@ -2706,28 +2933,39 @@ function buildVisitorFormsRegisterPDF(doc, items, from, to) {
   const boldFont = teluguFontOk ? 'Body-Bold' : 'Helvetica-Bold';
   const C = PDF_COLORS;
 
+  // Widths total 515pt — the A4 text column at the 40pt margins used below.
   const cols = [
-    { label: 'Date', width: 60 },
-    { label: 'Name', width: 95 },
-    { label: 'Village/Mandal', width: 100 },
-    { label: 'Category', width: 110 },
-    { label: 'Urgency', width: 50 },
-    { label: 'Status', width: 100 },
+    { label: 'Date', width: 58 },
+    { label: 'Channel', width: 62 },
+    { label: 'Name', width: 85 },
+    { label: 'Village/Mandal', width: 95 },
+    { label: 'Category', width: 105 },
+    { label: 'Urgency', width: 45 },
+    { label: 'Status', width: 65 },
   ];
+
+  // pdfkit's lineBreak:false still wraps long values, and rows advance by a fixed
+  // step — a wrapped cell overlaps the row below. Hard-truncate to the column width.
+  function fitToWidth(text, width) {
+    let s = String(text ?? '');
+    if (doc.widthOfString(s) <= width) return s;
+    while (s.length && doc.widthOfString(s + '…') > width) s = s.slice(0, -1);
+    return s + '…';
+  }
 
   function drawRow(values, font, size, color) {
     doc.font(font).fontSize(size).fillColor(color);
     const y = doc.y;
     let x = PDF_LEFT;
     cols.forEach((c, i) => {
-      doc.text(String(values[i] ?? ''), x, y, { width: c.width - 6, lineBreak: false, ellipsis: true });
+      doc.text(fitToWidth(values[i], c.width - 6), x, y, { width: c.width - 6, lineBreak: false });
       x += c.width;
     });
     doc.y = y + size + 8;
   }
 
   doc.rect(0, 0, doc.page.width, 70).fill(C.slate);
-  doc.fillColor(C.white).font(boldFont).fontSize(17).text('Visitor Forms — Register', PDF_LEFT, 22);
+  doc.fillColor(C.white).font(boldFont).fontSize(17).text('Grievances — Register', PDF_LEFT, 22);
   doc.font(bodyFont).fontSize(10).fillColor('#FFF7ED').text(
     (from || to) ? `${from || 'start'} to ${to || 'today'}` : 'All records', PDF_LEFT, 46
   );
@@ -2745,67 +2983,16 @@ function buildVisitorFormsRegisterPDF(doc, items, from, to) {
     }
     const villageMandal = [v.village, v.mandal].filter(Boolean).join(', ');
     drawRow(
-      [v.date_of_visit, v.full_name, villageMandal, categoryLabel(v.category), v.urgency, v.resolution_status],
+      [v.date_of_visit, channelLabel(v.channel), v.full_name, villageMandal,
+        categoryLabel(v.category), v.urgency, v.resolution_status],
       bodyFont, 8.5, C.ink
     );
   });
 
   if (!items.length) {
-    doc.font(bodyFont).fontSize(10).fillColor(C.ink).text('No visitor forms in this range.', PDF_LEFT, doc.y + 6);
+    doc.font(bodyFont).fontSize(10).fillColor(C.ink).text('No grievances in this range.', PDF_LEFT, doc.y + 6);
   }
 }
-
-app.get('/api/visitor-forms/export.xlsx', (req, res) => {
-  const db = readDB();
-  let items = db.visitor_forms || [];
-  const { from, to, category, status } = req.query;
-  if (from) items = items.filter(v => v.date_of_visit >= from);
-  if (to) items = items.filter(v => v.date_of_visit <= to);
-  if (category) items = items.filter(v => v.category === category);
-  if (status) items = items.filter(v => v.resolution_status === status);
-  items = [...items].sort((a, b) => (a.date_of_visit || '').localeCompare(b.date_of_visit || ''));
-
-  const rows = items.map(v => ({
-    'Date of Visit': v.date_of_visit, Name: v.full_name, Village: v.village, Mandal: v.mandal,
-    'Assembly Constituency': v.assembly_constituency, Contact: v.contact_number, Email: v.email,
-    'Reference Name': v.reference_name, 'Reference Number': v.reference_number,
-    Category: categoryLabel(v.category), Urgency: v.urgency, 'Priority Score': v.priority_score,
-    'Issue Description': v.issue_description, 'Action Taken': v.action_taken,
-    'Action To Be Taken': v.action_to_be_taken, 'Assigned Officer': v.assigned_officer,
-    Status: v.resolution_status, Deadline: v.deadline,
-  }));
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, 'Visitor Forms');
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="visitor-forms-${from || 'all'}-to-${to || 'now'}.xlsx"`);
-  res.send(buf);
-});
-
-app.get('/api/visitor-forms/export-pdf', (req, res) => {
-  const db = readDB();
-  let items = db.visitor_forms || [];
-  const { from, to, category, status } = req.query;
-  if (from) items = items.filter(v => v.date_of_visit >= from);
-  if (to) items = items.filter(v => v.date_of_visit <= to);
-  if (category) items = items.filter(v => v.category === category);
-  if (status) items = items.filter(v => v.resolution_status === status);
-  items = [...items].sort((a, b) => (a.date_of_visit || '').localeCompare(b.date_of_visit || ''));
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="visitor-forms-${from || 'all'}-to-${to || 'now'}.pdf"`);
-
-  const doc = new PDFDocument({ margin: 40, size: 'A4' });
-  doc.pipe(res);
-  try {
-    buildVisitorFormsRegisterPDF(doc, items, from, to);
-  } catch (e) {
-    console.error('Visitor forms register PDF generation error:', e);
-  }
-  doc.end();
-});
 
 // Health check for Railway
 app.get('/health', (req, res) => {
