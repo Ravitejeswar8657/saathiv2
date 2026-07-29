@@ -190,3 +190,28 @@ export async function extractGrievanceFromAudio(buffer, mimeType, categories) {
     AUDIO_TIMEOUT_MS,
   );
 }
+
+const SUGGESTION_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    suggested_response: { type: 'STRING' },
+    suggested_next_action: { type: 'STRING' },
+  },
+  required: ['suggested_response', 'suggested_next_action'],
+};
+
+// Advisory only — this drafts text for staff to review and edit, never something
+// sent or acted on automatically.
+export async function suggestGrievanceResponse(grievance) {
+  const prompt = `You are drafting a response for an Indian MP's constituency office to a citizen's grievance. Be concise, respectful, and specific — no generic platitudes.
+
+Category: ${grievance.category || 'others'}
+Urgency: ${grievance.urgency || 'Medium'}
+Issue: ${grievance.issue_description || '(no description)'}
+
+Write two things:
+1. "suggested_response" — a short, warm 2-3 sentence reply to read or send back to the citizen, acknowledging the issue and what happens next. Do not invent a specific date or officer name unless one was given.
+2. "suggested_next_action" — a short internal next step for office staff (e.g. which department to forward it to, what to verify, a follow-up window).`;
+
+  return callGemini([{ text: prompt }], SUGGESTION_SCHEMA);
+}

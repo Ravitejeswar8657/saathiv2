@@ -46,6 +46,16 @@
 .preview-card-actions{display:flex;justify-content:flex-end;margin-top:10px}
 .confidence-note{font-size:11px;color:var(--stone-400);margin-top:2px}
 
+/* AI suggested response panel */
+.suggestion-panel{border-top:1px dashed var(--border);padding-top:8px;margin-top:4px}
+.suggestion-panel label{display:block;font-size:11px;font-weight:600;color:var(--stone-500);margin:6px 0 3px;text-transform:uppercase;letter-spacing:.03em}
+.suggestion-panel textarea{width:100%}
+
+/* Duplicate warnings */
+.dup-hint{background:var(--accent-bg);border:1px solid var(--accent-border);color:var(--accent-hover);padding:8px 10px;border-radius:var(--radius-sm);font-size:12px;margin-top:6px}
+.dup-hint ul{margin:4px 0 0 18px;padding:0}
+.linked-badge{cursor:default}
+
 /* Channel column */
 .channel-cell{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px;color:var(--stone-600)}
 .channel-cell [data-lucide]{width:14px;height:14px;flex-shrink:0;color:var(--stone-400)}
@@ -243,10 +253,11 @@
     <p class="modal-hint">Anything you fill in here overrides what the AI picks up.</p>
     <div class="preview-grid">
       <div><label>Name</label><input id="log-name"></div>
-      <div><label>Contact number</label><input id="log-contact"></div>
+      <div><label>Contact number</label><input id="log-contact" oninput="onLogContactInput()"></div>
       <div><label>Village</label><input id="log-village"></div>
       <div><label>Logged by</label><input id="log-by" placeholder="Your name"></div>
     </div>
+    <div id="log-duplicate-hint" class="modal-hint" style="display:none"></div>
 
     <div class="modal-actions">
       <button class="btn btn-primary" id="log-extract-btn" onclick="submitLog()">
@@ -327,6 +338,44 @@ const CHANNEL_META = {
 function channelMeta(key) {
   return CHANNEL_META[key] || CHANNEL_META.walk_in;
 }
+
+// ── Duplicate detection hints ───────────────────────────────────────────────
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+function renderDupHintHTML(matches) {
+  if (!matches.length) return '';
+  const labelFor = m => m.match_type === 'phone' ? 'Same phone number' : m.match_type === 'text' ? 'Similar description' : 'Same name + village';
+  return `<div class="dup-hint"><i data-lucide="copy-warning"></i> Possible duplicate — this may already be reported:
+    <ul>${matches.slice(0, 4).map(m => `<li>${esc(labelFor(m))}: ${esc(m.date_of_visit)} · ${esc(categoryLabel(m.category))} · ${esc((m.issue_description || '').slice(0, 60))}</li>`).join('')}</ul>
+  </div>`;
+}
+
+async function checkDuplicates(phone, targetEl) {
+  if (!phone || phone.trim().length < 6) { targetEl.style.display = 'none'; return; }
+  try {
+    const r = await fetch('/api/grievances/duplicate-check?phone=' + encodeURIComponent(phone.trim()));
+    const data = await r.json();
+    const matches = data.matches || [];
+    if (!matches.length) { targetEl.style.display = 'none'; return; }
+    targetEl.innerHTML = renderDupHintHTML(matches);
+    targetEl.style.display = 'block';
+    if (window.lucide) lucide.createIcons();
+  } catch { /* best-effort only */ }
+}
+
+const debouncedLogDupCheck = debounce(() => {
+  checkDuplicates(document.getElementById('log-contact').value, document.getElementById('log-duplicate-hint'));
+}, 400);
+function onLogContactInput() { debouncedLogDupCheck(); }
+
+const debouncedPreviewDupCheck = debounce((i) => {
+  const el = document.getElementById(`p-dup-${i}`);
+  if (el) checkDuplicates(document.getElementById(`p-contact-${i}`).value, el);
+}, 400);
+function onPreviewContactInput(i) { debouncedPreviewDupCheck(i); }
 
 function getTodayIST() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -508,7 +557,7 @@ function renderTable() {
       <td><span class="channel-cell"><i data-lucide="${channelMeta(v.channel).icon}"></i>${esc(channelMeta(v.channel).label)}</span></td>
       <td>${esc(v.full_name)}</td>
       <td>${esc([v.village, v.mandal].filter(Boolean).join(', '))}</td>
-      <td><span class="badge badge-neutral">${esc(categoryLabel(v.category))}</span> ${(v.ttd_letter_refs || []).map(ref => `<span class="badge badge-info">${esc(ref)}</span>`).join(' ')}</td>
+      <td><span class="badge badge-neutral">${esc(categoryLabel(v.category))}</span> ${(v.ttd_letter_refs || []).map(ref => `<span class="badge badge-info">${esc(ref)}</span>`).join(' ')} ${(v.linked_grievance_ids || []).length ? `<span class="badge badge-accent linked-badge" title="Same phone number as: ${esc((v.linked_grievance_ids || []).join(', '))}"><i data-lucide="link"></i> ${v.linked_grievance_ids.length}</span>` : ''}</td>
       <td><span class="badge badge-${urgencyBadgeClass(v.urgency)}" title="${esc(v.urgency_reason || '')}">${esc(v.urgency || 'Medium')}</span></td>
       <td>
         <select class="status-select" onchange="quickSetStatus('${v.id}', this.value)">
@@ -547,7 +596,20 @@ function renderTable() {
           <input id="e-officer-${v.id}" value="${esc(v.assigned_officer)}" placeholder="Assigned officer">
           <input id="e-deadline-${v.id}" value="${esc(v.deadline)}" placeholder="Deadline">
           <textarea id="e-issue-${v.id}" placeholder="Issue description">${esc(v.issue_description)}</textarea>
-          <textarea id="e-action-${v.id}" placeholder="Action taken / to be taken">${esc(v.action_taken)}${v.action_to_be_taken ? ' | Next: ' + esc(v.action_to_be_taken) : ''}</textarea>
+          <div class="full-width">
+            ${v.action_taken ? `<div class="modal-hint">Action taken so far: ${esc(v.action_taken)}</div>` : ''}
+            <textarea id="e-action-${v.id}" placeholder="Action to be taken">${esc(v.action_to_be_taken)}</textarea>
+          </div>
+          <div class="full-width suggestion-panel">
+            <button class="btn btn-sm btn-secondary" id="sugg-btn-${v.id}" onclick="suggestResponse('${v.id}')"><i data-lucide="sparkles"></i> Suggest response</button>
+            <div id="sugg-body-${v.id}" style="${v.suggested_response || v.suggested_next_action ? '' : 'display:none'}">
+              <label>AI suggested response to the citizen (advisory — review before using)</label>
+              <textarea id="sugg-response-${v.id}" rows="2">${esc(v.suggested_response)}</textarea>
+              <label>AI suggested next action for staff</label>
+              <textarea id="sugg-action-${v.id}" rows="2">${esc(v.suggested_next_action)}</textarea>
+              <button class="btn btn-sm btn-ghost" onclick="copySuggestedAction('${v.id}')"><i data-lucide="copy"></i> Copy into Action To Be Taken</button>
+            </div>
+          </div>
           <div class="edit-actions">
             <button class="btn btn-sm btn-success" onclick="saveEdit('${v.id}')"><i data-lucide="check"></i> Save</button>
             <button class="btn btn-sm btn-ghost" onclick="cancelEdit('${v.id}')">Cancel</button>
@@ -568,6 +630,37 @@ function cancelEdit(id) {
   document.getElementById('edit-' + id).style.display = 'none';
 }
 
+// Advisory only — fills the suggestion textareas for staff to read/edit; nothing is
+// sent or acted on until they explicitly copy it into Action To Be Taken and Save.
+async function suggestResponse(id) {
+  const btn = document.getElementById(`sugg-btn-${id}`);
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-circle"></i> Thinking…';
+  if (window.lucide) lucide.createIcons();
+  try {
+    const r = await fetch(`/api/grievances/${id}/suggest-response`, { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok) { SaathiUI.toast(data.error || 'Suggestion failed.', 'danger'); return; }
+    document.getElementById(`sugg-response-${id}`).value = data.item.suggested_response || '';
+    document.getElementById(`sugg-action-${id}`).value = data.item.suggested_next_action || '';
+    document.getElementById(`sugg-body-${id}`).style.display = 'block';
+  } catch (e) {
+    SaathiUI.toast('Suggestion failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="sparkles"></i> Suggest response';
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+function copySuggestedAction(id) {
+  const suggested = document.getElementById(`sugg-action-${id}`).value.trim();
+  if (!suggested) return;
+  const actionEl = document.getElementById(`e-action-${id}`);
+  actionEl.value = actionEl.value.trim() ? actionEl.value.trim() + '\n' + suggested : suggested;
+  SaathiUI.toast('Copied — remember to Save.', 'info');
+}
+
 async function saveEdit(id) {
   const body = {
     date_of_visit: document.getElementById(`e-date-${id}`).value,
@@ -581,6 +674,7 @@ async function saveEdit(id) {
     assigned_officer: document.getElementById(`e-officer-${id}`).value.trim(),
     deadline: document.getElementById(`e-deadline-${id}`).value.trim(),
     issue_description: document.getElementById(`e-issue-${id}`).value.trim(),
+    action_to_be_taken: document.getElementById(`e-action-${id}`).value.trim(),
   };
   const r = await fetch('/api/grievances/' + id, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -675,6 +769,7 @@ function openLogModal() {
   });
   document.getElementById('audio-input').value = '';
   document.getElementById('audio-file-list').innerHTML = '';
+  document.getElementById('log-duplicate-hint').style.display = 'none';
   discardRecording();
   setLogTab('type');
   document.getElementById('log-modal').style.display = 'flex';
@@ -988,7 +1083,8 @@ function renderPreview() {
         <div><label>Date reported</label><input id="p-date-${i}" value="${esc(ex.date_of_visit)}" placeholder="YYYY-MM-DD"></div>
         <div><label>Village</label><input id="p-village-${i}" value="${esc(ex.village)}"></div>
         <div><label>Mandal</label><input id="p-mandal-${i}" value="${esc(ex.mandal)}"></div>
-        <div><label>Contact number</label><input id="p-contact-${i}" value="${esc(ex.contact_number)}"></div>
+        <div><label>Contact number</label><input id="p-contact-${i}" value="${esc(ex.contact_number)}" oninput="onPreviewContactInput(${i})"></div>
+        <div class="full-width" id="p-dup-${i}" style="display:none"></div>
         <div><label>Category</label><select id="p-category-${i}">${catOptions}</select></div>
         <div><label>Urgency ${ex.urgency_reason ? '(' + esc(ex.urgency_reason) + ')' : ''}</label>
           <select id="p-urgency-${i}">
@@ -1019,6 +1115,7 @@ function renderPreview() {
     if (urgEl) urgEl.value = ex.urgency || 'Medium';
     const statEl = document.getElementById(`p-status-${i}`);
     if (statEl) statEl.value = ex.resolution_status || 'Pending';
+    if (ex.contact_number) onPreviewContactInput(i);
   });
 
   if (window.lucide) lucide.createIcons();
@@ -1089,7 +1186,12 @@ async function saveAllPreview() {
   previewItems.forEach(p => { if (p.audio_url) URL.revokeObjectURL(p.audio_url); });
   previewItems = [];
   document.getElementById('review-section').style.display = 'none';
-  SaathiUI.toast(`${data.count} grievance(s) saved.`, 'success');
+
+  const dupCount = (data.duplicate_warnings || []).filter(w => w.length).length;
+  SaathiUI.toast(
+    `${data.count} grievance(s) saved.` + (dupCount ? ` ${dupCount} may be duplicates — check the Linked column.` : ''),
+    dupCount ? 'info' : 'success',
+  );
   await loadItems();
 }
 

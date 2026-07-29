@@ -53,7 +53,7 @@
   .section-label { margin-bottom: 16px; }
 
   /* Dashboard widgets */
-  .stat-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 32px; }
+  .stat-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 32px; }
   .stat-tile { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px 16px; text-align: center; box-shadow: var(--shadow-sm); }
   .stat-value { font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1.1; }
   .stat-value.accent { color: var(--accent); }
@@ -145,6 +145,10 @@
       <div class="stat-value stat-value-sm" id="stat-brief">—</div>
       <div class="stat-label">Last Brief Sent</div>
     </div>
+    <div class="stat-tile">
+      <div class="stat-value accent" id="stat-grievances-register">—</div>
+      <div class="stat-label">Grievance Register (Open)</div>
+    </div>
   </section>
 
   <div class="dash-grid">
@@ -199,6 +203,7 @@ async function loadStats() {
     document.getElementById('stat-total').textContent = s.total.toLocaleString('en-IN');
     document.getElementById('stat-tiers').textContent = `T1 ${s.t1} · T2 ${s.t2} · T3 ${s.t3}`;
     document.getElementById('stat-grievances').textContent = s.with_grievances;
+    document.getElementById('stat-grievances-register').textContent = s.open_grievances_register;
     document.getElementById('stat-events').textContent = s.schedule_count;
     document.getElementById('stat-brief').textContent = s.last_brief_sent
       ? new Date(s.last_brief_sent).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })

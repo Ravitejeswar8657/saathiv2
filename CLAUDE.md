@@ -37,6 +37,7 @@ Wraps `@whiskeysockets/baileys`. On module load it immediately calls `init()`, w
 - `default` (= `sendMessage(text, phone)`) — sends a message; throws if not connected.
 - `getStatus()` / `getQR()` — used by `/api/wa-status`.
 - `setOnIncomingMessage(cb)` — registered by `index.js` to handle MP replies of the form `approve <ISS…>` or `reject <ISS…>`.
+- `setOnPublicMessage(cb)` — registered by `index.js` to handle open grievance intake: any 1:1 sender other than the MP's own number, text or a voice note (`ptt` audio). Group messages are always ignored. A per-sender in-memory rate guard (5 messages / 10 min) tags floods as `rateLimited` so the caller can skip the Gemini call rather than drop the message.
 
 WhatsApp reconnects automatically on non-logout disconnects. On logout it wipes `wa_auth/` and resets for a new QR scan.
 
@@ -63,10 +64,11 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `pa_schedule.html` | PA schedule upload |
 | `pa_issues.html` | Issue/grievance logging |
 | `admin.html` | Pending approval confirmations |
-| `heatmap.html` | Mandal-level coverage heatmap (Leaflet + OpenStreetMap, no API key) — contact density and average priority score per mandal, joined against `public/assets/mandal_coords.json` (generated once via `scripts/geocode_mandals.js`) |
+| `heatmap.html` | Mandal-level coverage heatmap (Leaflet + OpenStreetMap, no API key) — contact density, average priority score, and grievance-register hotspots (count/top category/avg priority per mandal, from `/api/grievances`, additive to the legacy `contact.open_grievance` count) per mandal, joined against `public/assets/mandal_coords.json` (generated once via `scripts/geocode_mandals.js`) |
 | `journalist.html` | Alternate journalist form |
 | `ttd_letters.html` | TTD reference letter register — calendar view, Aadhar duplicate check, Excel/PDF exports, per-letter PDF |
-| `grievances.html` | Unified grievance register across intake channels. Walk-ins: staff upload photographed paper forms, Gemini OCR-extracts the fields. Phone calls / desk visits with no form: staff type a summary, or dictate it (browser mic, or an attached audio file) and Gemini transcribes it. Every route assigns a category/urgency that staff review and correct in an editable preview before saving; channel column and filter, category pills, calendar, status tracking, Excel/PDF exports |
+| `grievances.html` | Unified grievance register across intake channels. Walk-ins: staff upload photographed paper forms, Gemini OCR-extracts the fields. Phone calls / desk visits with no form: staff type a summary, or dictate it (browser mic, or an attached audio file) and Gemini transcribes it. Every route assigns a category/urgency that staff review and correct in an editable preview before saving; channel column and filter, category pills, calendar, status tracking, Excel/PDF exports, live duplicate-check banner, linked-grievance badges, and an on-demand AI-suggested-response panel (advisory only — never auto-populates the action fields) |
+| `grievance_inbox.html` | WhatsApp Inbox — staff triage queue for open public WhatsApp intake (`server/whatsapp.js`'s `setOnPublicMessage`). Every 1:1 message/voice note from a number other than the MP's own lands here first with its AI classification; nothing reaches `grievances.html` until staff Promote (which also sends the sender a WhatsApp acknowledgement with the new grievance's id) or Dismiss it. History toggle shows past promoted/dismissed entries |
 | `social_calendar.html` | Social media content calendar — calendar view where each date can hold multiple posts, each post carrying one or more media files (images/video/PDF) plus a caption |
 
 ### Key API endpoints
@@ -112,6 +114,13 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | GET | `/api/grievances/:id/media` | Retrieve the record's source media — form photo, PDF or audio |
 | GET | `/api/grievances/export.xlsx` | Export grievances as Excel |
 | GET | `/api/grievances/export-pdf` | Export the grievances register as PDF |
+| GET | `/api/grievances/duplicate-check` | Live duplicate check by `phone`/`text`/`name`/`village` — phone is an exact-match signal, the rest are fuzzy "possible match" hints |
+| POST | `/api/grievances/:id/suggest-response` | On-demand AI draft of a citizen reply + internal next action (advisory — writes only `suggested_response`/`suggested_next_action`, never `action_taken`/`action_to_be_taken`) |
+| GET | `/api/grievance-inbox` | List WhatsApp Inbox entries (filterable by `?status=pending_review\|promoted\|dismissed`) |
+| POST | `/api/grievance-inbox/:id/promote` | Save a reviewed inbox entry into `db.grievances` (channel `whatsapp_text`/`whatsapp_voice`) and send the sender a WhatsApp acknowledgement |
+| POST | `/api/grievance-inbox/:id/dismiss` | Mark an inbox entry as not a grievance; no reply sent |
+| DELETE | `/api/grievance-inbox/:id` | Remove an inbox entry (and its voice-note file, if unpromoted) |
+| GET | `/api/grievance-inbox/:id/audio` | Stream a queued voice-note entry's audio |
 | GET | `/api/social-calendar` | List social media posts (filterable by `from`/`to`) |
 | POST | `/api/social-calendar` | Create a post (multipart: `date`, `caption`, up to 10 files under `media`) |
 | PATCH | `/api/social-calendar/:id` | Edit a post's `date`/`caption` |
@@ -135,8 +144,15 @@ Lazy-imported on first use (same pattern as `whatsapp.js`) so a missing `GEMINI_
 - `extractGrievanceFromImage(buffer, mimeType, categories)` — OCRs a photographed walk-in form; adds `ocr_confidence`.
 - `extractGrievanceFromText(text, categories)` — triages a typed phone-call summary or WhatsApp message; adds `is_grievance` + `confidence` so non-grievances (greetings, spam) can be gated out of the register.
 - `extractGrievanceFromAudio(buffer, mimeType, categories)` — transcribes dictated audio or a WhatsApp voice note (Telugu/English/mixed, original script) and extracts from the transcript; adds `transcript`, and runs on a 45s timeout instead of the 30s default.
+- `suggestGrievanceResponse(grievance)` — on-demand, text-only draft of a citizen-facing reply plus an internal next-action note; advisory only, never wired into the save/commit path.
 
-Each constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Source media is persisted to `VOLUME/grievance_media/` for later manual re-verification of low-confidence reads.
+Each extraction path constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Source media is persisted to `VOLUME/grievance_media/` for later manual re-verification of low-confidence reads.
+
+### Duplicate detection and MP escalation (`server/index.js`)
+
+`findGrievanceDuplicates` runs on every `buildGrievanceRecord` call (walk-in/phone commit and WhatsApp inbox promote alike): an exact `normalizePhone` match auto-links both records' `linked_grievance_ids` bidirectionally; a Fuse.js match on `issue_description` or a matching name+village are returned as unlinked "possible" warnings for staff to check.
+
+`generateBriefText` includes a "🚨 High-Priority Grievances" section for unresolved records that are `urgency: High` or `priority_score >= 80`, re-surfacing after 3 days if still unresolved. `escalated_at` is stamped only by an actual WhatsApp send (`sendWhatsAppBrief`), never by the preview/generate-only path.
 
 ## WhatsApp reset
 

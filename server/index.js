@@ -361,6 +361,56 @@ async function fetchGoogleNews() {
       writeDB(db);
       console.log(`WhatsApp: MP ${action} ${issueId} — stored for admin confirmation`);
     });
+
+    // Open public grievance intake: any other 1:1 sender. Nothing here ever writes
+    // straight to db.grievances — every message is classified and queued for a
+    // human to promote or dismiss from the WhatsApp Inbox page.
+    wa.setOnPublicMessage(async ({ sender, text, jid, rateLimited, audio }) => {
+      const db = readDB();
+      if (!db.grievance_inbox) db.grievance_inbox = [];
+
+      const entry = {
+        id: `INB${Date.now()}`,
+        wa_jid: jid,
+        sender_phone: normalizePhone(sender),
+        text: text || '',
+        audio_path: '',
+        received_at: new Date().toISOString(),
+        classification: null,
+        status: 'pending_review',
+        grievance_id: null,
+        ack_sent: false,
+      };
+
+      // Voice notes are written to disk before classification, so the recording
+      // survives even if Gemini fails or the message got rate-limited.
+      if (audio) {
+        const filename = `${entry.id}.ogg`;
+        try {
+          fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), audio.buffer);
+          entry.audio_path = filename;
+        } catch (e) {
+          console.error('Failed to store inbound voice note:', e.message);
+        }
+      }
+
+      if (!rateLimited) {
+        try {
+          const gemini = await import('./gemini.js');
+          entry.classification = audio
+            ? await gemini.extractGrievanceFromAudio(audio.buffer, audio.mimeType, ISSUE_CATEGORIES)
+            : await gemini.extractGrievanceFromText(text, ISSUE_CATEGORIES);
+          if (!entry.text && entry.classification.transcript) entry.text = entry.classification.transcript;
+        } catch (e) {
+          entry.classification = { error: e.message };
+        }
+      }
+
+      db.grievance_inbox = [entry, ...db.grievance_inbox];
+      writeDB(db);
+      console.log(`WhatsApp: public ${audio ? 'voice note' : 'message'} from ${sender} queued for triage (${entry.id})`);
+    });
+
     console.log('✓ WhatsApp incoming message handler registered');
   } catch (e) {
     console.log('WhatsApp incoming handler setup deferred:', e.message);
@@ -368,7 +418,23 @@ async function fetchGoogleNews() {
 })();
 
 // ── WhatsApp ────────────────────────────────────────────────────────────────
-function generateBriefText(brief, news, schedule, liveNews) {
+// A grievance earns a spot in the brief on urgency or on category weight (a Medium-
+// urgency CMRF/medical case still deserves the MP's attention), and re-earns it after
+// a few days unresolved rather than being mentioned once and forgotten.
+function isGrievanceEscalationWorthy(g) {
+  if (!g || g.resolution_status === 'Resolved') return false;
+  if (g.urgency !== 'High' && (g.priority_score || 0) < 80) return false;
+  if (!g.escalated_at) return true;
+  return (Date.now() - new Date(g.escalated_at).getTime()) / 86400000 > 3;
+}
+function selectEscalationGrievances(grievances) {
+  return (grievances || [])
+    .filter(isGrievanceEscalationWorthy)
+    .sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0))
+    .slice(0, 5);
+}
+
+function generateBriefText(brief, news, schedule, liveNews, grievances) {
   const istOpts = { timeZone: 'Asia/Kolkata' };
   const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', ...istOpts });
   const timeStr = new Date().toLocaleTimeString('en-IN', istOpts);
@@ -403,6 +469,17 @@ function generateBriefText(brief, news, schedule, liveNews) {
     });
   } else {
     lines.push(`_No engagements scheduled for today._\n`);
+  }
+
+  const escalations = selectEscalationGrievances(grievances);
+  if (escalations.length) {
+    lines.push(`*🚨 High-Priority Grievances:*`);
+    escalations.forEach(g => {
+      const daysOpen = Math.max(0, Math.floor((Date.now() - new Date(g.created_at).getTime()) / 86400000));
+      const place = [g.village, g.mandal].filter(Boolean).join(', ');
+      lines.push(`• *${g.id}* — ${categoryLabel(g.category)}${place ? ' · ' + place : ''} · score ${g.priority_score} · ${daysOpen}d open`);
+    });
+    lines.push('');
   }
 
   // News submitted today (IST)
@@ -474,8 +551,8 @@ function generateBriefText(brief, news, schedule, liveNews) {
   return lines.join('\n');
 }
 
-async function sendWhatsAppBrief(brief, news, schedule, liveNews) {
-  const message = generateBriefText(brief, news, schedule, liveNews);
+async function sendWhatsAppBrief(brief, news, schedule, liveNews, grievances) {
+  const message = generateBriefText(brief, news, schedule, liveNews, grievances);
 
   const logEntry = {
     sent_at: new Date().toISOString(),
@@ -498,6 +575,14 @@ async function sendWhatsAppBrief(brief, news, schedule, liveNews) {
   const db = readDB();
   db.whatsapp_log = [logEntry, ...(db.whatsapp_log || [])].slice(0, 20);
   db.last_brief_message = message;
+  // Stamp escalated_at only on an actual send, so a preview never marks a grievance
+  // as "already told the MP about it" — only sendWhatsAppBrief's real send does that.
+  if (logEntry.status === 'sent') {
+    const escalatedIds = new Set(selectEscalationGrievances(grievances).map(g => g.id));
+    (db.grievances || []).forEach(g => {
+      if (escalatedIds.has(g.id)) g.escalated_at = new Date().toISOString();
+    });
+  }
   writeDB(db);
   return logEntry;
 }
@@ -507,7 +592,7 @@ async function sendWhatsAppBrief(brief, news, schedule, liveNews) {
 app.get('/api/generate-brief', async (req, res) => {
   const db = recomputeBrief(readDB());
   const liveNews = await fetchGoogleNews(db).catch(() => []);
-  const message = generateBriefText(db.todays_brief, db.news || [], db.todays_schedule || [], liveNews);
+  const message = generateBriefText(db.todays_brief, db.news || [], db.todays_schedule || [], liveNews, db.grievances || []);
   db.last_brief_message = message;
   writeDB(db);
   res.json({ message });
@@ -1325,6 +1410,19 @@ app.get('/api/grievances/categories', (req, res) => {
   res.json({ categories: ISSUE_CATEGORIES });
 });
 
+// Live duplicate check for the Log Grievance / edit UI — same phone+text+name/village
+// signals buildGrievanceRecord uses on save, so what staff see while typing matches
+// what actually gets linked when they save.
+app.get('/api/grievances/duplicate-check', (req, res) => {
+  const { phone, text, name, village, exclude } = req.query;
+  const db = readDB();
+  const matches = findGrievanceDuplicates(db, {
+    contact_number: phone || '', issue_description: text || '',
+    full_name: name || '', village: village || '',
+  }, exclude);
+  res.json({ matches });
+});
+
 app.post('/api/grievances/upload', uploadGrievanceMedia.array('images', 20), async (req, res) => {
   if (!req.files || !req.files.length) return res.status(400).json({ error: 'At least one form image required' });
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
@@ -1450,11 +1548,64 @@ app.delete('/api/grievances/pending-media/:filename', (req, res) => {
   res.json({ ok: true });
 });
 
+function normalizeNameVillage(s) {
+  return String(s || '').trim().toLowerCase();
+}
+
+// Three duplicate signals, in decreasing order of reliability. Only an exact phone
+// match is trustworthy enough to auto-link both records; a similar description or a
+// matching name+village is surfaced to staff as a "possible" match, never linked
+// automatically — merging on those alone would be too easy to get wrong.
+function findGrievanceDuplicates(db, { contact_number, full_name, village, issue_description }, excludeId) {
+  const all = (db.grievances || []).filter(g => g.id !== excludeId);
+  const results = [];
+  const seen = new Set();
+  const summarize = (g, match_type) => ({
+    id: g.id, date_of_visit: g.date_of_visit, channel: g.channel,
+    category: g.category, issue_description: g.issue_description, match_type,
+  });
+
+  const phone = contact_number ? normalizePhone(contact_number) : '';
+  if (phone) {
+    for (const g of all) {
+      if (g.contact_number && normalizePhone(g.contact_number) === phone) {
+        results.push(summarize(g, 'phone'));
+        seen.add(g.id);
+      }
+    }
+  }
+
+  if (issue_description && issue_description.trim().length >= 8) {
+    const pool = all.filter(g => !seen.has(g.id) && g.issue_description);
+    const fuse = new Fuse(pool, { keys: ['issue_description'], threshold: 0.35 });
+    fuse.search(issue_description).slice(0, 5).forEach(r => {
+      results.push(summarize(r.item, 'text'));
+      seen.add(r.item.id);
+    });
+  }
+
+  const nameKey = normalizeNameVillage(full_name);
+  const villageKey = normalizeNameVillage(village);
+  if (nameKey && villageKey) {
+    for (const g of all) {
+      if (seen.has(g.id)) continue;
+      if (normalizeNameVillage(g.full_name) === nameKey && normalizeNameVillage(g.village) === villageKey) {
+        results.push(summarize(g, 'name_village'));
+        seen.add(g.id);
+      }
+    }
+  }
+
+  return results;
+}
+
 // The single write path into db.grievances. Every channel goes through this — the
-// staff-reviewed commit below, and (from Phase 2) the WhatsApp inbox promote path —
-// so id format, media handling and TTD auto-linking can't drift between them.
-// Mutates db.ttd_letters when a record is categorised as a TTD request; the caller
-// is responsible for writeDB().
+// staff-reviewed commit below, and the WhatsApp inbox promote path — so id format,
+// media handling, TTD auto-linking and duplicate detection can't drift between them.
+// Mutates db.ttd_letters/other grievances' linked_grievance_ids; the caller is
+// responsible for writeDB(). Returns { record, duplicate_warnings } — warnings are
+// the non-phone matches, for the caller to show staff; phone matches are already
+// linked into the record and don't need a warning.
 function buildGrievanceRecord(db, it, id) {
   const category = ISSUE_CATEGORY_KEYS.has(it.category) ? it.category : 'others';
   const resolution_status = RESOLUTION_STATUSES.has(it.resolution_status) ? it.resolution_status : 'Pending';
@@ -1462,13 +1613,14 @@ function buildGrievanceRecord(db, it, id) {
   const channel = GRIEVANCE_CHANNELS.has(it.channel) ? it.channel : 'walk_in';
 
   // Two ways media arrives: inline base64 (form photos, unchanged) or a filename
-  // already parked on disk by /log-audio, which we adopt by renaming it to the record.
+  // already parked on disk — by /log-audio (tmp_*) or a promoted WhatsApp voice-note
+  // inbox entry (INB*) — which we adopt by renaming it to the record either way.
   let image_path = '';
   let media_type = '';
   if (it.pending_media) {
     const safeName = path.basename(String(it.pending_media));
     const src = path.join(GRIEVANCE_MEDIA_PATH, safeName);
-    if (safeName.startsWith('tmp_') && fs.existsSync(src)) {
+    if (fs.existsSync(src)) {
       try {
         const filename = `${id}${path.extname(safeName)}`;
         fs.renameSync(src, path.join(GRIEVANCE_MEDIA_PATH, filename));
@@ -1521,6 +1673,10 @@ function buildGrievanceRecord(db, it, id) {
     image_path,
     media_type,
     ttd_letter_refs: [],
+    linked_grievance_ids: [],
+    escalated_at: '',
+    suggested_response: '',
+    suggested_next_action: '',
     created_at: new Date().toISOString(),
   };
 
@@ -1540,7 +1696,21 @@ function buildGrievanceRecord(db, it, id) {
     record.ttd_letter_refs.push(ttdItem.reference);
   }
 
-  return record;
+  const duplicates = findGrievanceDuplicates(db, {
+    contact_number: record.contact_number, full_name: record.full_name,
+    village: record.village, issue_description: record.issue_description,
+  }, record.id);
+  const duplicate_warnings = [];
+  for (const dup of duplicates) {
+    if (dup.match_type !== 'phone') { duplicate_warnings.push(dup); continue; }
+    record.linked_grievance_ids.push(dup.id);
+    const existing = (db.grievances || []).find(g => g.id === dup.id);
+    if (existing) {
+      existing.linked_grievance_ids = [...new Set([...(existing.linked_grievance_ids || []), record.id])];
+    }
+  }
+
+  return { record, duplicate_warnings };
 }
 
 app.post('/api/grievances', (req, res) => {
@@ -1549,11 +1719,15 @@ app.post('/api/grievances', (req, res) => {
 
   const db = readDB();
   const ts = Date.now();
-  const saved = items.map((it, idx) => buildGrievanceRecord(db, it, `VF${ts}_${idx}`));
+  const built = items.map((it, idx) => buildGrievanceRecord(db, it, `VF${ts}_${idx}`));
+  const saved = built.map(b => b.record);
 
   db.grievances = [...saved, ...(db.grievances || [])];
   writeDB(db);
-  res.json({ ok: true, count: saved.length, items: saved });
+  res.json({
+    ok: true, count: saved.length, items: saved,
+    duplicate_warnings: built.map(b => b.duplicate_warnings),
+  });
 });
 
 // Shared by the list view and both exports so a filter can't apply in one and not
@@ -1645,6 +1819,27 @@ app.patch('/api/grievances/:id', (req, res) => {
   res.json({ ok: true, item });
 });
 
+// On-demand only — never called automatically on save. Writes only the two
+// suggestion fields; action_taken/action_to_be_taken (the audit-trail fields) are
+// untouched here, so nothing "acted on" changes until staff explicitly copy it over.
+app.post('/api/grievances/:id/suggest-response', async (req, res) => {
+  const db = readDB();
+  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Grievance not found' });
+  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
+
+  try {
+    const gemini = await import('./gemini.js');
+    const suggestion = await gemini.suggestGrievanceResponse(item);
+    item.suggested_response = suggestion.suggested_response || '';
+    item.suggested_next_action = suggestion.suggested_next_action || '';
+    writeDB(db);
+    res.json({ ok: true, item });
+  } catch (e) {
+    res.status(502).json({ error: `AI suggestion failed: ${e.message}` });
+  }
+});
+
 app.post('/api/grievances/:id/create-ttd-letter', (req, res) => {
   const db = readDB();
   const visitorForm = (db.grievances || []).find(v => v.id === req.params.id);
@@ -1696,6 +1891,93 @@ app.get('/api/grievances/:id/media', (req, res) => {
   const contentType = GRIEVANCE_MEDIA_CONTENT_TYPES[path.extname(p).toLowerCase()];
   if (contentType) res.setHeader('Content-Type', contentType);
   res.sendFile(p);
+});
+
+// ── WhatsApp grievance inbox ────────────────────────────────────────────────
+// Open public WhatsApp intake never writes straight to db.grievances (see the
+// setOnPublicMessage registration above) — every inbound message lands here first,
+// carrying whatever AI classification it got, and a staff member promotes or
+// dismisses it. This is what keeps chit-chat/spam from flooding the register.
+
+app.get('/api/grievance-inbox', (req, res) => {
+  const db = readDB();
+  let items = db.grievance_inbox || [];
+  if (req.query.status) items = items.filter(e => e.status === req.query.status);
+  items = items.slice().sort((a, b) => (b.received_at || '').localeCompare(a.received_at || ''));
+  res.json({ items });
+});
+
+app.post('/api/grievance-inbox/:id/promote', async (req, res) => {
+  const db = readDB();
+  const entry = (db.grievance_inbox || []).find(e => e.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Inbox entry not found' });
+  if (entry.status !== 'pending_review') return res.status(400).json({ error: `Entry is already ${entry.status}` });
+
+  // Voice-note entries carry audio_path; text entries don't.
+  const channel = entry.audio_path ? 'whatsapp_voice' : 'whatsapp_text';
+  const id = `VF${Date.now()}_0`;
+  const { record, duplicate_warnings } = buildGrievanceRecord(db, {
+    ...req.body,
+    channel,
+    contact_number: req.body.contact_number || entry.sender_phone,
+    pending_media: entry.audio_path || undefined,
+    media_type: entry.audio_path ? 'audio' : undefined,
+    transcript: req.body.transcript ?? entry.classification?.transcript ?? '',
+  }, id);
+
+  db.grievances = [record, ...(db.grievances || [])];
+  entry.status = 'promoted';
+  entry.grievance_id = record.id;
+
+  // Best-effort acknowledgement — a WhatsApp send failure must never fail the promote.
+  let ack_sent = false;
+  try {
+    const wa = await import('./whatsapp.js');
+    await wa.default(
+      `Your grievance has been recorded with the MP's office. Reference: ${record.id}. We will follow up.`,
+      entry.sender_phone,
+    );
+    ack_sent = true;
+  } catch (e) {
+    console.error('Grievance ack send failed:', e.message);
+  }
+  entry.ack_sent = ack_sent;
+
+  writeDB(db);
+  res.json({ ok: true, item: record, ack_sent, duplicate_warnings });
+});
+
+app.get('/api/grievance-inbox/:id/audio', (req, res) => {
+  const db = readDB();
+  const entry = (db.grievance_inbox || []).find(e => e.id === req.params.id);
+  if (!entry || !entry.audio_path) return res.status(404).json({ error: 'No audio on file' });
+  const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(entry.audio_path));
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'Audio file missing' });
+  res.setHeader('Content-Type', 'audio/ogg');
+  res.sendFile(p);
+});
+
+app.post('/api/grievance-inbox/:id/dismiss', (req, res) => {
+  const db = readDB();
+  const entry = (db.grievance_inbox || []).find(e => e.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Inbox entry not found' });
+  entry.status = 'dismissed';
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.delete('/api/grievance-inbox/:id', (req, res) => {
+  const db = readDB();
+  const entry = (db.grievance_inbox || []).find(e => e.id === req.params.id);
+  // Only clean up the audio file if it was never promoted into a grievance record —
+  // a promoted record's media is owned by db.grievances and served from there.
+  if (entry?.audio_path && entry.status !== 'promoted') {
+    const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(entry.audio_path));
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
+  db.grievance_inbox = (db.grievance_inbox || []).filter(e => e.id !== req.params.id);
+  writeDB(db);
+  res.json({ ok: true });
 });
 
 // ── Social Media Calendar ───────────────────────────────────────────────────
@@ -1776,7 +2058,7 @@ app.get('/api/social-calendar/media/:filename', (req, res) => {
 app.post('/api/send-brief', async (req, res) => {
   const db = recomputeBrief(readDB());
   const liveNews = await fetchGoogleNews(db).catch(() => []);
-  const result = await sendWhatsAppBrief(db.todays_brief, db.news || [], db.todays_schedule || [], liveNews);
+  const result = await sendWhatsAppBrief(db.todays_brief, db.news || [], db.todays_schedule || [], liveNews, db.grievances || []);
   res.json(result);
 });
 
@@ -1795,6 +2077,7 @@ app.get('/api/stats', (req, res) => {
     tdp: c.filter(x => x.party === 'TDP').length,
     ysrcp: c.filter(x => x.party === 'YSRCP').length,
     with_grievances: c.filter(x => x.open_grievance).length,
+    open_grievances_register: (db.grievances || []).filter(g => g.resolution_status !== 'Resolved').length,
     news_count: (db.news || []).length,
     schedule_count: (db.schedule || []).length,
     last_brief_sent: db.whatsapp_log?.[0]?.sent_at || null,

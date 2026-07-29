@@ -1,5 +1,5 @@
 // server/whatsapp.js — Baileys WhatsApp with persistent auth
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, downloadMediaMessage } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import fs from 'fs';
 import path from 'path';
@@ -21,37 +21,88 @@ let initPromise = null;
 // ── Incoming message handler ───────────────────────────────────────────────
 const MP_NUMBER = '919652345570';
 let _onIncomingMessage = null;
+let _onPublicMessage = null;
 
 export function setOnIncomingMessage(callback) {
   _onIncomingMessage = callback;
+}
+
+// Registered separately from the MP handler above so the approve/reject contract
+// (and its callback signature) never has to change to accommodate public intake.
+export function setOnPublicMessage(callback) {
+  _onPublicMessage = callback;
+}
+
+// Simple flood guard on open public intake: a sender who sends more than
+// RATE_LIMIT_MAX messages within RATE_LIMIT_WINDOW_MS still gets forwarded (nothing
+// is silently dropped) but tagged rateLimited so the caller can skip the Gemini call.
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX = 5;
+const recentSenderTimestamps = new Map(); // sender -> timestamps[]
+
+function isRateLimited(sender) {
+  const now = Date.now();
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+  const timestamps = (recentSenderTimestamps.get(sender) || []).filter(t => t > cutoff);
+  timestamps.push(now);
+  recentSenderTimestamps.set(sender, timestamps);
+  return timestamps.length > RATE_LIMIT_MAX;
 }
 
 function setupIncomingHandler(socket) {
   socket.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (!msg.message || msg.key.fromMe) continue;
+      // Public intake is 1:1 only — a group the linked number happens to be in is
+      // never treated as a constituent reporting their own grievance.
+      if (msg.key.remoteJid?.endsWith('@g.us')) continue;
       const sender = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || '';
-      if (sender !== MP_NUMBER) continue;
 
       const text = msg.message.conversation
         || msg.message.extendedTextMessage?.text
         || '';
-      if (!text) continue;
 
-      // Check for approve/reject patterns
-      const approveMatch = text.match(/^approve\s+(.+)/i);
-      const rejectMatch = text.match(/^reject\s+(.+)/i);
-      if (!approveMatch && !rejectMatch) continue;
+      if (sender === MP_NUMBER) {
+        if (!text) continue;
+        // Check for approve/reject patterns
+        const approveMatch = text.match(/^approve\s+(.+)/i);
+        const rejectMatch = text.match(/^reject\s+(.+)/i);
+        if (!approveMatch && !rejectMatch) continue;
 
-      const action = approveMatch ? 'approved' : 'rejected';
-      const identifier = (approveMatch || rejectMatch)[1].trim();
+        const action = approveMatch ? 'approved' : 'rejected';
+        const identifier = (approveMatch || rejectMatch)[1].trim();
 
-      if (_onIncomingMessage) {
-        try {
-          await _onIncomingMessage({ action, identifier, rawText: text, sender });
-        } catch (e) {
-          console.error('Error in incoming message handler:', e.message);
+        if (_onIncomingMessage) {
+          try {
+            await _onIncomingMessage({ action, identifier, rawText: text, sender });
+          } catch (e) {
+            console.error('Error in incoming message handler:', e.message);
+          }
         }
+        continue;
+      }
+
+      // Any other 1:1 sender is open public grievance intake — typed text, or a
+      // voice note (ptt — a shared/forwarded audio file is not treated as dictation).
+      if (!_onPublicMessage) continue;
+      const voiceNote = msg.message.audioMessage?.ptt ? msg.message.audioMessage : null;
+      if (!text && !voiceNote) continue;
+
+      const rateLimited = isRateLimited(sender);
+      try {
+        if (voiceNote) {
+          const buffer = await downloadMediaMessage(
+            msg, 'buffer', {}, { logger: silent, reuploadRequest: socket.updateMediaMessage },
+          );
+          await _onPublicMessage({
+            sender, jid: msg.key.remoteJid, messageId: msg.key.id, rateLimited,
+            audio: { buffer, mimeType: voiceNote.mimetype || 'audio/ogg; codecs=opus' },
+          });
+        } else {
+          await _onPublicMessage({ sender, text, jid: msg.key.remoteJid, messageId: msg.key.id, rateLimited });
+        }
+      } catch (e) {
+        console.error('Error in public message handler:', e.message);
       }
     }
   });
