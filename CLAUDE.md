@@ -125,9 +125,15 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `EXCEL_PATH` | `./combined_clean.xlsx` | Input file for `setup_db.js` |
 | `GEMINI_API_KEY` | (none) | Google Gemini API key for OCR + categorization of uploaded visitor form photos (`server/gemini.js`). If unset, the visitor-forms upload endpoint fails fast with a clear error rather than crashing — staff can still use the register manually. |
 
-### Visitor Forms (`server/gemini.js`)
+### Grievance extraction (`server/gemini.js`)
 
-Lazy-imported on first use (same pattern as `whatsapp.js`) so a missing `GEMINI_API_KEY` doesn't crash the server. `extractVisitorForm(buffer, mimeType, categories)` sends a photographed form image to Gemini (`gemini-2.5-flash`) with a JSON `responseSchema` constrained to the visitor-form fields plus a `category` enum (from `ISSUE_CATEGORIES` in `server/index.js`) and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Original photos are persisted to `VOLUME/visitor_form_images/` for later manual re-verification of low-confidence OCR reads.
+Lazy-imported on first use (same pattern as `whatsapp.js`) so a missing `GEMINI_API_KEY` doesn't crash the server. All calls share one `callGemini(parts, responseSchema, timeoutMs)` helper and a common field schema; three entry points wrap it:
+
+- `extractGrievanceFromImage(buffer, mimeType, categories)` — OCRs a photographed walk-in form; adds `ocr_confidence`.
+- `extractGrievanceFromText(text, categories)` — triages a typed phone-call summary or WhatsApp message; adds `is_grievance` + `confidence` so non-grievances (greetings, spam) can be gated out of the register.
+- `extractGrievanceFromAudio(buffer, mimeType, categories)` — transcribes dictated audio or a WhatsApp voice note (Telugu/English/mixed, original script) and extracts from the transcript; adds `transcript`, and runs on a 45s timeout instead of the 30s default.
+
+Each constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Source media is persisted to `VOLUME/grievance_media/` for later manual re-verification of low-confidence reads.
 
 ## WhatsApp reset
 

@@ -24,7 +24,7 @@ const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH
   || path.join(ROOT, 'data');
 const DB_PATH = path.join(VOLUME, 'db.json');
 const WA_AUTH_PATH = path.join(VOLUME, 'wa_auth');
-const VISITOR_IMAGES_PATH = path.join(VOLUME, 'visitor_form_images');
+const GRIEVANCE_MEDIA_PATH = path.join(VOLUME, 'grievance_media');
 const SOCIAL_MEDIA_PATH = path.join(VOLUME, 'social_calendar_media');
 const BASE_URL = process.env.BASE_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
@@ -33,7 +33,7 @@ const TELUGU_FONT_PATH = path.join(ROOT, 'public', 'fonts', 'NotoSansTelugu.ttf'
 // Ensure dirs exist
 fs.mkdirSync(VOLUME, { recursive: true });
 fs.mkdirSync(WA_AUTH_PATH, { recursive: true });
-fs.mkdirSync(VISITOR_IMAGES_PATH, { recursive: true });
+fs.mkdirSync(GRIEVANCE_MEDIA_PATH, { recursive: true });
 fs.mkdirSync(SOCIAL_MEDIA_PATH, { recursive: true });
 
 // Seed db.json from bundled snapshot if volume is empty
@@ -49,9 +49,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(ROOT, 'public')));
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-// Separate instance for visitor-form photo batches — phone camera photos run larger than
-// the 10MB cap above, and a day's forms are uploaded together (up to 20 files at once).
-const uploadVisitorForms = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 20 } });
+// Separate instance for grievance media — walk-in form photos run larger than the 10MB
+// cap above (a day's forms are uploaded together, up to 20 files at once), and dictated
+// audio is bulkier still.
+const uploadGrievanceMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 20 } });
 // Social media calendar posts can include video, which runs much larger than photos.
 const uploadSocialMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 10 } });
 
@@ -1293,7 +1294,7 @@ app.get('/api/visitor-forms/categories', (req, res) => {
   res.json({ categories: ISSUE_CATEGORIES });
 });
 
-app.post('/api/visitor-forms/upload', uploadVisitorForms.array('images', 20), async (req, res) => {
+app.post('/api/visitor-forms/upload', uploadGrievanceMedia.array('images', 20), async (req, res) => {
   if (!req.files || !req.files.length) return res.status(400).json({ error: 'At least one form image required' });
   if (!process.env.GEMINI_API_KEY)
     return res.status(500).json({ error: 'AI extraction is not configured (GEMINI_API_KEY missing) — contact admin, or enter forms manually.' });
@@ -1307,7 +1308,7 @@ app.post('/api/visitor-forms/upload', uploadVisitorForms.array('images', 20), as
       return { tmp_id, filename: file.originalname, error: `Unsupported file type: ${file.mimetype}` };
     }
     try {
-      const extracted = await gemini.extractVisitorForm(file.buffer, file.mimetype, ISSUE_CATEGORIES);
+      const extracted = await gemini.extractGrievanceFromImage(file.buffer, file.mimetype, ISSUE_CATEGORIES);
       const category = ISSUE_CATEGORY_KEYS.has(extracted.category) ? extracted.category : 'others';
       const urgency = URGENCY_WEIGHTS[extracted.urgency] !== undefined ? extracted.urgency : 'Medium';
       return {
@@ -1343,7 +1344,7 @@ app.post('/api/visitor-forms', (req, res) => {
       try {
         const ext = (it.image_mime || '').includes('png') ? 'png' : (it.image_mime || '').includes('pdf') ? 'pdf' : 'jpg';
         const filename = `${id}.${ext}`;
-        fs.writeFileSync(path.join(VISITOR_IMAGES_PATH, filename), Buffer.from(it.image_base64, 'base64'));
+        fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), Buffer.from(it.image_base64, 'base64'));
         image_path = filename;
       } catch (e) {
         console.error('Failed to persist visitor form image:', e.message);
@@ -1463,7 +1464,7 @@ app.delete('/api/visitor-forms/:id', (req, res) => {
   const db = readDB();
   const item = (db.visitor_forms || []).find(v => v.id === req.params.id);
   if (item?.image_path) {
-    const p = path.join(VISITOR_IMAGES_PATH, item.image_path);
+    const p = path.join(GRIEVANCE_MEDIA_PATH, item.image_path);
     fs.existsSync(p) && fs.unlinkSync(p);
   }
   db.visitor_forms = (db.visitor_forms || []).filter(v => v.id !== req.params.id);
@@ -1475,7 +1476,7 @@ app.get('/api/visitor-forms/:id/image', (req, res) => {
   const db = readDB();
   const item = (db.visitor_forms || []).find(v => v.id === req.params.id);
   if (!item || !item.image_path) return res.status(404).json({ error: 'No image on file' });
-  const p = path.join(VISITOR_IMAGES_PATH, item.image_path);
+  const p = path.join(GRIEVANCE_MEDIA_PATH, item.image_path);
   if (!fs.existsSync(p)) return res.status(404).json({ error: 'Image file missing' });
   res.sendFile(p);
 });
