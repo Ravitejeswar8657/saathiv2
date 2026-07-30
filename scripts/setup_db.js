@@ -230,18 +230,15 @@ const db = {
     source: 'Excel import - combined_clean.xlsx',
   },
   contacts,
-  todays_brief: contacts.slice(0, 15),
   issue_radar: issueRadar,
   coverage,
   news: [],
   schedule: [],
-  whatsapp_log: [],
 };
 
 const OUTPUT_PATH = path.join(process.cwd(), 'data', 'db.json');
 fs.writeFileSync(OUTPUT_PATH, JSON.stringify(db, null, 2));
 console.log(`✓ DB created: ${contacts.length} contacts`);
-console.log(`✓ Today's brief: ${db.todays_brief.length} contacts`);
 console.log(`✓ Coverage: ${db.coverage.length} mandals`);
 console.log('\nTop 5 by PPS:');
 contacts.slice(0, 5).forEach((c, idx) => {

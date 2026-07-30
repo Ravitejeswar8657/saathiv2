@@ -142,10 +142,6 @@
       <div class="stat-label">Upcoming Events</div>
     </div>
     <div class="stat-tile">
-      <div class="stat-value stat-value-sm" id="stat-brief">—</div>
-      <div class="stat-label">Last Brief Sent</div>
-    </div>
-    <div class="stat-tile">
       <div class="stat-value accent" id="stat-grievances-register">—</div>
       <div class="stat-label">Grievance Register (Open)</div>
     </div>
@@ -205,9 +201,6 @@ async function loadStats() {
     document.getElementById('stat-grievances').textContent = s.with_grievances;
     document.getElementById('stat-grievances-register').textContent = s.open_grievances_register;
     document.getElementById('stat-events').textContent = s.schedule_count;
-    document.getElementById('stat-brief').textContent = s.last_brief_sent
-      ? new Date(s.last_brief_sent).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })
-      : 'Never';
   } catch (e) {
     console.error('Failed to load stats', e);
   }

@@ -4,11 +4,9 @@
     { href: '/contacts.html',    label: 'Contacts',       icon: 'book-user' },
     { href: '/heatmap.html',     label: 'Heatmap',        icon: 'flame' },
     { href: '/admin.html',       label: 'Admin',          icon: 'layout-dashboard' },
-    { href: '/broadcast.html',   label: 'Broadcast',      icon: 'radio' },
     { href: '/news.html',        label: 'News Submission',icon: 'file-text' },
-    { href: '/ttd_letters.html', label: 'TTD Letters',    icon: 'landmark' },
     { href: '/grievances.html', label: 'Grievances',     icon: 'clipboard-list' },
-    { href: '/grievance_inbox.html', label: 'WhatsApp Inbox', icon: 'inbox' },
+    { href: '/campaign_reports.html', label: 'Campaign & Scheme Reports', icon: 'trending-up' },
     { href: '/social_calendar.html', label: 'Social Media Calendar', icon: 'image' },
   ];
 
@@ -57,11 +55,6 @@
       .saathi-link:hover { background: var(--bg, #fafaf9); }
       .saathi-link.active { background: var(--accent-bg, #fff7ed); color: var(--accent, #b45309); border-left-color: var(--accent, #b45309); font-weight: 600; }
       .saathi-link [data-lucide] { width: 16px; height: 16px; flex-shrink: 0; }
-      .saathi-link-badge {
-        margin-left: auto; background: var(--danger, #b91c1c); color: #fff;
-        font-size: 11px; font-weight: 700; line-height: 1; border-radius: 999px;
-        padding: 3px 6px; min-width: 16px; text-align: center;
-      }
       .saathi-link:focus-visible, .saathi-dashboard-btn:focus-visible, .saathi-toggle:focus-visible {
         outline: 2px solid var(--accent, #b45309); outline-offset: 2px;
       }
@@ -92,7 +85,6 @@
     const linksHTML = LINKS.map(l => `
       <a class="saathi-link${isActive(l.href) ? ' active' : ''}" href="${l.href}">
         <i data-lucide="${l.icon}"></i> ${l.label}
-        ${l.href === '/grievance_inbox.html' ? '<span class="saathi-link-badge" id="saathi-inbox-badge" style="display:none"></span>' : ''}
       </a>
     `).join('');
 
@@ -135,16 +127,6 @@
       else openDrawer();
     });
     backdrop.addEventListener('click', closeDrawer);
-
-    // Best-effort — a slow/failed fetch just leaves the badge hidden.
-    fetch('/api/grievance-inbox?status=pending_review')
-      .then(r => r.json())
-      .then(data => {
-        const count = (data.items || []).length;
-        const badge = document.getElementById('saathi-inbox-badge');
-        if (badge && count > 0) { badge.textContent = count; badge.style.display = 'inline-block'; }
-      })
-      .catch(() => {});
   }
 
   document.addEventListener('DOMContentLoaded', init);

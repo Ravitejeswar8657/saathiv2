@@ -23,18 +23,18 @@ const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH
   || (fs.existsSync(RAILWAY_VOLUME) ? RAILWAY_VOLUME : null)
   || path.join(ROOT, 'data');
 const DB_PATH = path.join(VOLUME, 'db.json');
-const WA_AUTH_PATH = path.join(VOLUME, 'wa_auth');
 const GRIEVANCE_MEDIA_PATH = path.join(VOLUME, 'grievance_media');
 const SOCIAL_MEDIA_PATH = path.join(VOLUME, 'social_calendar_media');
+const CAMPAIGN_MEDIA_PATH = path.join(VOLUME, 'campaign_media');
 const BASE_URL = process.env.BASE_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
 const TELUGU_FONT_PATH = path.join(ROOT, 'public', 'fonts', 'NotoSansTelugu.ttf');
 
 // Ensure dirs exist
 fs.mkdirSync(VOLUME, { recursive: true });
-fs.mkdirSync(WA_AUTH_PATH, { recursive: true });
 fs.mkdirSync(GRIEVANCE_MEDIA_PATH, { recursive: true });
 fs.mkdirSync(SOCIAL_MEDIA_PATH, { recursive: true });
+fs.mkdirSync(CAMPAIGN_MEDIA_PATH, { recursive: true });
 
 // Sweep pending grievance recordings abandoned mid-review (browser closed before the
 // preview was saved or discarded). Anything still named tmp_* after a day is orphaned.
@@ -122,33 +122,6 @@ function formatTime12h(t) {
   const ampm = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${h}:${m} ${ampm}`;
-}
-
-// ── Scoring helpers ─────────────────────────────────────────────────────────
-function recomputeBrief(db) {
-  const todayIST = getISTDateStr();
-  const todaysEvents = (db.schedule || [])
-    .filter(s => s.date === todayIST)
-    .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
-
-  db.todays_schedule = todaysEvents;
-
-  if (todaysEvents.length === 0) {
-    db.todays_brief = [];
-    return db;
-  }
-
-  const briefMap = new Map();
-  todaysEvents.forEach(event => {
-    (event.nearby_contacts || []).forEach(c => {
-      if (!briefMap.has(c.id)) {
-        briefMap.set(c.id, { ...c, schedule_event: event });
-      }
-    });
-  });
-
-  db.todays_brief = Array.from(briefMap.values()).sort((a, b) => b.pps_score - a.pps_score);
-  return db;
 }
 
 // ── News cache ──────────────────────────────────────────────────────────────
@@ -314,326 +287,18 @@ async function fetchGoogleNews() {
   return items;
 }
 
-// ── WhatsApp incoming message handler registration ─────────────────────────
-(async () => {
-  try {
-    const wa = await import('./whatsapp.js');
-    wa.setOnIncomingMessage(async ({ action, identifier, rawText, sender }) => {
-      const db = readDB();
-      if (!db.wa_responses) db.wa_responses = [];
-
-      // Resolve identifier: could be "ISS..." or a number (index in pending list)
-      let issueId = null;
-      let contactId = null;
-      let contactName = '';
-      let issueType = '';
-
-      if (identifier.toUpperCase().startsWith('ISS')) {
-        issueId = identifier.toUpperCase();
-      } else {
-        // Try as a 1-based index into pending list
-        const num = parseInt(identifier, 10);
-        if (!isNaN(num) && num > 0) {
-          const pending = [];
-          db.contacts.forEach(c => {
-            (c.issues || []).forEach(iss => {
-              if (iss.status === 'pending') {
-                pending.push({ issue_id: iss.id, contact_id: c.id, contact_name: c.name, issue_type: iss.type });
-              }
-            });
-          });
-          if (num <= pending.length) {
-            const p = pending[num - 1];
-            issueId = p.issue_id;
-            contactId = p.contact_id;
-            contactName = p.contact_name;
-            issueType = p.issue_type;
-          }
-        }
-      }
-
-      // If we have an issue ID but no contact info yet, look it up
-      if (issueId && !contactId) {
-        for (const c of db.contacts) {
-          const iss = (c.issues || []).find(i => i.id === issueId);
-          if (iss) {
-            contactId = c.id;
-            contactName = c.name;
-            issueType = iss.type;
-            break;
-          }
-        }
-      }
-
-      if (!issueId) {
-        console.log(`WhatsApp: Could not resolve identifier "${identifier}" from MP message`);
-        return;
-      }
-
-      const responseEntry = {
-        issue_id: issueId,
-        contact_id: contactId || 'unknown',
-        contact_name: contactName || 'unknown',
-        issue_type: issueType || 'unknown',
-        mp_response: action,
-        mp_message: rawText,
-        responded_at: new Date().toISOString(),
-        confirmed: false,
-      };
-
-      db.wa_responses.push(responseEntry);
-      writeDB(db);
-      console.log(`WhatsApp: MP ${action} ${issueId} — stored for admin confirmation`);
-    });
-
-    // Open public grievance intake: any other 1:1 sender. Nothing here ever writes
-    // straight to db.grievances — every message is classified and queued for a
-    // human to promote or dismiss from the WhatsApp Inbox page.
-    wa.setOnPublicMessage(async ({ sender, text, jid, rateLimited, audio }) => {
-      const db = readDB();
-      if (!db.grievance_inbox) db.grievance_inbox = [];
-
-      const entry = {
-        id: `INB${Date.now()}`,
-        wa_jid: jid,
-        sender_phone: normalizePhone(sender),
-        text: text || '',
-        audio_path: '',
-        received_at: new Date().toISOString(),
-        classification: null,
-        status: 'pending_review',
-        grievance_id: null,
-        ack_sent: false,
-      };
-
-      // Voice notes are written to disk before classification, so the recording
-      // survives even if Gemini fails or the message got rate-limited.
-      if (audio) {
-        const filename = `${entry.id}.ogg`;
-        try {
-          fs.writeFileSync(path.join(GRIEVANCE_MEDIA_PATH, filename), audio.buffer);
-          entry.audio_path = filename;
-        } catch (e) {
-          console.error('Failed to store inbound voice note:', e.message);
-        }
-      }
-
-      if (!rateLimited) {
-        try {
-          const gemini = await import('./gemini.js');
-          entry.classification = audio
-            ? await gemini.extractGrievanceFromAudio(audio.buffer, audio.mimeType, ISSUE_CATEGORIES)
-            : await gemini.extractGrievanceFromText(text, ISSUE_CATEGORIES);
-          if (!entry.text && entry.classification.transcript) entry.text = entry.classification.transcript;
-        } catch (e) {
-          entry.classification = { error: e.message };
-        }
-      }
-
-      db.grievance_inbox = [entry, ...db.grievance_inbox];
-      writeDB(db);
-      console.log(`WhatsApp: public ${audio ? 'voice note' : 'message'} from ${sender} queued for triage (${entry.id})`);
-    });
-
-    console.log('✓ WhatsApp incoming message handler registered');
-  } catch (e) {
-    console.log('WhatsApp incoming handler setup deferred:', e.message);
-  }
-})();
-
-// ── WhatsApp ────────────────────────────────────────────────────────────────
-// A grievance earns a spot in the brief on urgency or on category weight (a Medium-
-// urgency CMRF/medical case still deserves the MP's attention), and re-earns it after
-// a few days unresolved rather than being mentioned once and forgotten.
-function isGrievanceEscalationWorthy(g) {
-  if (!g || g.resolution_status === 'Resolved') return false;
-  if (g.urgency !== 'High' && (g.priority_score || 0) < 80) return false;
-  if (!g.escalated_at) return true;
-  return (Date.now() - new Date(g.escalated_at).getTime()) / 86400000 > 3;
-}
-function selectEscalationGrievances(grievances) {
-  return (grievances || [])
-    .filter(isGrievanceEscalationWorthy)
-    .sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0))
-    .slice(0, 5);
-}
-
-function generateBriefText(brief, news, schedule, liveNews, grievances) {
-  const istOpts = { timeZone: 'Asia/Kolkata' };
-  const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', ...istOpts });
-  const timeStr = new Date().toLocaleTimeString('en-IN', istOpts);
-
-  const lines = [
-    `*The morning brief — ${dateStr}*`,
-    `good morning sir\n`,
-  ];
-
-  // Today's schedule with event-specific contacts
-  const todaySchedule = schedule || [];
-  if (todaySchedule.length) {
-    lines.push(`*📅 Today's Engagements:*`);
-    todaySchedule.forEach((ev, i) => {
-      const time12 = formatTime12h(ev.time);
-      const timeLabel = time12 ? ` · ${time12}` : '';
-      const venue = [ev.village, ev.mandal].filter(Boolean).join(', ');
-      lines.push(`${i + 1}. *${ev.event_name}*${timeLabel}`);
-      if (venue) lines.push(`   📍 ${venue}`);
-      if (ev.description) lines.push(`   ${ev.description}`);
-      const contacts = (ev.nearby_contacts || []).slice(0, 3);
-      if (contacts.length) {
-        lines.push(`   👥 Key contacts:`);
-        contacts.forEach(c => {
-          const detail = [c.role, c.village].filter(Boolean).join(', ');
-          lines.push(`   • *${c.name}*${detail ? ' — ' + detail : ''}`);
-          if (c.phone) lines.push(`     📞 ${c.phone}`);
-          if (c.open_grievance) lines.push(`     ⚠️ ${c.open_grievance.slice(0, 60)}`);
-        });
-      }
-      lines.push('');
-    });
-  } else {
-    lines.push(`_No engagements scheduled for today._\n`);
-  }
-
-  const escalations = selectEscalationGrievances(grievances);
-  if (escalations.length) {
-    lines.push(`*🚨 High-Priority Grievances:*`);
-    escalations.forEach(g => {
-      const daysOpen = Math.max(0, Math.floor((Date.now() - new Date(g.created_at).getTime()) / 86400000));
-      const place = [g.village, g.mandal].filter(Boolean).join(', ');
-      lines.push(`• *${g.id}* — ${categoryLabel(g.category)}${place ? ' · ' + place : ''} · score ${g.priority_score} · ${daysOpen}d open`);
-    });
-    lines.push('');
-  }
-
-  // News submitted today (IST)
-  const todayIST = getISTDateStr();
-  const todaysNews = (news || []).filter(n => {
-    if (!n.submitted_at) return false;
-    return new Date(n.submitted_at).toLocaleDateString('en-CA', istOpts) === todayIST;
-  });
-
-  // Priority news selected in workflow for today's events
-  const selectedNews = [];
-  const seenNewsLinks = new Set();
-  todaySchedule.forEach(ev => {
-    (ev.news_selected || []).forEach(n => {
-      if (n.link && !seenNewsLinks.has(n.link)) {
-        seenNewsLinks.add(n.link);
-        selectedNews.push(n);
-      } else if (!n.link) {
-        selectedNews.push(n);
-      }
-    });
-  });
-
-  const mergedNews = [...selectedNews];
-  const seenMergedLinks = new Set(selectedNews.map(n => n.link).filter(Boolean));
-  todaysNews.forEach(n => {
-    if (n.link && !seenMergedLinks.has(n.link)) {
-      seenMergedLinks.add(n.link);
-      mergedNews.push(n);
-    } else if (!n.link) {
-      mergedNews.push(n);
-    }
-  });
-
-  if (mergedNews.length) {
-    lines.push(`*📰 Submitted Reports:*`);
-    mergedNews.slice(0, 10).forEach((n, i) => {
-      const headline = n.headline || n.title || 'News item';
-      if (n.link) {
-        lines.push(`${i + 1}. ${headline} — ${n.link}${n.source ? ' (' + n.source + ')' : ''}`);
-      } else {
-        lines.push(`${i + 1}. ${headline}${n.source ? ' (' + n.source + ')' : ''}`);
-      }
-    });
-    lines.push('');
-  }
-
-  // Auto-scraped local news — display-only suggestions, not a replacement for field reports.
-  // Skip anything that's already a submitted headline so the same story isn't listed twice.
-  const submittedTitles = new Set(mergedNews.map(n => (n.headline || '').toLowerCase().trim()));
-  const autoItems = (liveNews || [])
-    .filter(n => !submittedTitles.has((n.title || '').toLowerCase().trim()) && (!n.link || !seenMergedLinks.has(n.link)))
-    .slice(0, 5);
-  if (autoItems.length) {
-    lines.push(`*📡 In the News (auto-scraped):*`);
-    autoItems.forEach((n, i) => {
-      const title = n.title || 'News item';
-      if (n.link) {
-        lines.push(`${i + 1}. ${title} — ${n.link}${n.source ? ' (' + n.source + ')' : ''}`);
-      } else {
-        lines.push(`${i + 1}. ${title}${n.source ? ' (' + n.source + ')' : ''}`);
-      }
-    });
-    lines.push('');
-  }
-
-  lines.push(`📊 *News Dashboard:* ${BASE_URL}/admin.html#news-dashboard\n`);
-  lines.push(`_Prepared by Saathi · ${timeStr}_`);
-  return lines.join('\n');
-}
-
-async function sendWhatsAppBrief(brief, news, schedule, liveNews, grievances) {
-  const message = generateBriefText(brief, news, schedule, liveNews, grievances);
-
-  const logEntry = {
-    sent_at: new Date().toISOString(),
-    to: '9652345570',
-    message,
-    status: 'pending',
-  };
-
-  try {
-    const wa = await import('./whatsapp.js');
-    // Add the Indian country code '91' to the beginning of the number
-    await wa.default(message, '919652345570');
-    logEntry.status = 'sent';
-  } catch (e) {
-    logEntry.status = e.message.includes('QR') || e.message.includes('not connected')
-      ? 'preview_only' : 'error';
-    logEntry.note = e.message;
-  }
-
-  const db = readDB();
-  db.whatsapp_log = [logEntry, ...(db.whatsapp_log || [])].slice(0, 20);
-  db.last_brief_message = message;
-  // Stamp escalated_at only on an actual send, so a preview never marks a grievance
-  // as "already told the MP about it" — only sendWhatsAppBrief's real send does that.
-  if (logEntry.status === 'sent') {
-    const escalatedIds = new Set(selectEscalationGrievances(grievances).map(g => g.id));
-    (db.grievances || []).forEach(g => {
-      if (escalatedIds.has(g.id)) g.escalated_at = new Date().toISOString();
-    });
-  }
-  writeDB(db);
-  return logEntry;
-}
 
 // ── ROUTES ──────────────────────────────────────────────────────────────────
 
-app.get('/api/generate-brief', async (req, res) => {
-  const db = recomputeBrief(readDB());
-  const liveNews = await fetchGoogleNews(db).catch(() => []);
-  const message = generateBriefText(db.todays_brief, db.news || [], db.todays_schedule || [], liveNews, db.grievances || []);
-  db.last_brief_message = message;
-  writeDB(db);
-  res.json({ message });
-});
-
 app.get('/api/dashboard', (req, res) => {
-  const db = recomputeBrief(readDB());
+  const db = readDB();
   res.json({
     metadata: db.metadata,
-    todays_brief: db.todays_brief,
     all_contacts: db.contacts,
     issue_radar: db.issue_radar,
     coverage: db.coverage,
     news: (db.news || []).slice(0, 20),
     schedule: db.schedule || [],
-    whatsapp_log: (db.whatsapp_log || []).slice(0, 10),
-    last_brief_message: db.last_brief_message || null,
   });
 });
 
@@ -2059,93 +1724,6 @@ app.get('/api/grievances/:id/media/:index?', (req, res) => {
   res.sendFile(p);
 });
 
-// ── WhatsApp grievance inbox ────────────────────────────────────────────────
-// Open public WhatsApp intake never writes straight to db.grievances (see the
-// setOnPublicMessage registration above) — every inbound message lands here first,
-// carrying whatever AI classification it got, and a staff member promotes or
-// dismisses it. This is what keeps chit-chat/spam from flooding the register.
-
-app.get('/api/grievance-inbox', (req, res) => {
-  const db = readDB();
-  let items = db.grievance_inbox || [];
-  if (req.query.status) items = items.filter(e => e.status === req.query.status);
-  items = items.slice().sort((a, b) => (b.received_at || '').localeCompare(a.received_at || ''));
-  res.json({ items });
-});
-
-app.post('/api/grievance-inbox/:id/promote', async (req, res) => {
-  const db = readDB();
-  const entry = (db.grievance_inbox || []).find(e => e.id === req.params.id);
-  if (!entry) return res.status(404).json({ error: 'Inbox entry not found' });
-  if (entry.status !== 'pending_review') return res.status(400).json({ error: `Entry is already ${entry.status}` });
-
-  // Voice-note entries carry audio_path; text entries don't.
-  const channel = entry.audio_path ? 'whatsapp_voice' : 'whatsapp_text';
-  const id = `VF${Date.now()}_0`;
-  const { record, duplicate_warnings } = buildGrievanceRecord(db, {
-    ...req.body,
-    channel,
-    contact_number: req.body.contact_number || entry.sender_phone,
-    pending_media: entry.audio_path || undefined,
-    media_type: entry.audio_path ? 'audio' : undefined,
-    transcript: req.body.transcript ?? entry.classification?.transcript ?? '',
-  }, id);
-
-  db.grievances = [record, ...(db.grievances || [])];
-  entry.status = 'promoted';
-  entry.grievance_id = record.id;
-
-  // Best-effort acknowledgement — a WhatsApp send failure must never fail the promote.
-  let ack_sent = false;
-  try {
-    const wa = await import('./whatsapp.js');
-    await wa.default(
-      `Your grievance has been recorded with the MP's office. Reference: ${record.id}. We will follow up.`,
-      entry.sender_phone,
-    );
-    ack_sent = true;
-  } catch (e) {
-    console.error('Grievance ack send failed:', e.message);
-  }
-  entry.ack_sent = ack_sent;
-
-  writeDB(db);
-  res.json({ ok: true, item: record, ack_sent, duplicate_warnings });
-});
-
-app.get('/api/grievance-inbox/:id/audio', (req, res) => {
-  const db = readDB();
-  const entry = (db.grievance_inbox || []).find(e => e.id === req.params.id);
-  if (!entry || !entry.audio_path) return res.status(404).json({ error: 'No audio on file' });
-  const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(entry.audio_path));
-  if (!fs.existsSync(p)) return res.status(404).json({ error: 'Audio file missing' });
-  res.setHeader('Content-Type', 'audio/ogg');
-  res.sendFile(p);
-});
-
-app.post('/api/grievance-inbox/:id/dismiss', (req, res) => {
-  const db = readDB();
-  const entry = (db.grievance_inbox || []).find(e => e.id === req.params.id);
-  if (!entry) return res.status(404).json({ error: 'Inbox entry not found' });
-  entry.status = 'dismissed';
-  writeDB(db);
-  res.json({ ok: true });
-});
-
-app.delete('/api/grievance-inbox/:id', (req, res) => {
-  const db = readDB();
-  const entry = (db.grievance_inbox || []).find(e => e.id === req.params.id);
-  // Only clean up the audio file if it was never promoted into a grievance record —
-  // a promoted record's media is owned by db.grievances and served from there.
-  if (entry?.audio_path && entry.status !== 'promoted') {
-    const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(entry.audio_path));
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-  }
-  db.grievance_inbox = (db.grievance_inbox || []).filter(e => e.id !== req.params.id);
-  writeDB(db);
-  res.json({ ok: true });
-});
-
 // ── Social Media Calendar ───────────────────────────────────────────────────
 const SOCIAL_MEDIA_MIMES = {
   'image/jpeg': { type: 'image', ext: 'jpg' },
@@ -2221,15 +1799,89 @@ app.get('/api/social-calendar/media/:filename', (req, res) => {
   res.sendFile(p);
 });
 
-app.post('/api/send-brief', async (req, res) => {
-  const db = recomputeBrief(readDB());
-  const liveNews = await fetchGoogleNews(db).catch(() => []);
-  const result = await sendWhatsAppBrief(db.todays_brief, db.news || [], db.todays_schedule || [], liveNews, db.grievances || []);
-  res.json(result);
+// ── Campaign & Scheme Reports ───────────────────────────────────────────────
+const CAMPAIGN_REPORT_TYPES = new Set(['Campaign', 'Government Scheme', 'Cluster Report', 'Other']);
+const CAMPAIGN_REPORT_STATUSES = new Set(['Planned', 'Ongoing', 'Completed', 'Delayed']);
+const CAMPAIGN_MEDIA_MIMES = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+  'application/pdf': 'pdf',
+};
+
+app.get('/api/campaign-reports', (req, res) => {
+  const db = readDB();
+  let items = db.campaign_reports || [];
+  const { type, mandal, status } = req.query;
+  if (type) items = items.filter(r => r.type === type);
+  if (mandal) items = items.filter(r => r.mandal.toLowerCase() === mandal.toLowerCase());
+  if (status) items = items.filter(r => r.status === status);
+  items = items.slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  res.json({ items });
 });
 
-app.get('/api/brief-preview', (req, res) => {
-  res.json({ message: readDB().last_brief_message || null });
+app.post('/api/campaign-reports', upload.single('attachment'), (req, res) => {
+  const { title, mandal, village, description } = req.body;
+  if (!title?.trim()) return res.status(400).json({ error: 'title required' });
+  const type = CAMPAIGN_REPORT_TYPES.has(req.body.type) ? req.body.type : 'Other';
+  const status = CAMPAIGN_REPORT_STATUSES.has(req.body.status) ? req.body.status : 'Planned';
+
+  const id = `CR${Date.now()}`;
+  let attachment = null;
+  if (req.file) {
+    const ext = CAMPAIGN_MEDIA_MIMES[req.file.mimetype];
+    if (!ext) return res.status(400).json({ error: `Unsupported file type: ${req.file.mimetype}` });
+    const filename = `${id}.${ext}`;
+    fs.writeFileSync(path.join(CAMPAIGN_MEDIA_PATH, filename), req.file.buffer);
+    attachment = { filename, mimetype: req.file.mimetype, original_name: req.file.originalname };
+  }
+
+  const item = {
+    id, title: title.trim(), type, status,
+    mandal: mandal?.trim() || '', village: village?.trim() || '',
+    description: description?.trim() || '',
+    attachment,
+    created_at: new Date().toISOString(),
+  };
+  const db = readDB();
+  db.campaign_reports = [item, ...(db.campaign_reports || [])];
+  writeDB(db);
+  res.json({ ok: true, item });
+});
+
+app.patch('/api/campaign-reports/:id', (req, res) => {
+  const db = readDB();
+  const item = (db.campaign_reports || []).find(r => r.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Report not found' });
+  const { title, type, mandal, village, status, description } = req.body;
+  if (title !== undefined) item.title = title.trim();
+  if (type !== undefined && CAMPAIGN_REPORT_TYPES.has(type)) item.type = type;
+  if (mandal !== undefined) item.mandal = mandal.trim();
+  if (village !== undefined) item.village = village.trim();
+  if (status !== undefined && CAMPAIGN_REPORT_STATUSES.has(status)) item.status = status;
+  if (description !== undefined) item.description = description.trim();
+  writeDB(db);
+  res.json({ ok: true, item });
+});
+
+app.delete('/api/campaign-reports/:id', (req, res) => {
+  const db = readDB();
+  const item = (db.campaign_reports || []).find(r => r.id === req.params.id);
+  if (item?.attachment) {
+    const p = path.join(CAMPAIGN_MEDIA_PATH, item.attachment.filename);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
+  db.campaign_reports = (db.campaign_reports || []).filter(r => r.id !== req.params.id);
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.get('/api/campaign-reports/:id/media', (req, res) => {
+  const db = readDB();
+  const item = (db.campaign_reports || []).find(r => r.id === req.params.id);
+  if (!item?.attachment) return res.status(404).json({ error: 'No attachment on file' });
+  const p = path.join(CAMPAIGN_MEDIA_PATH, item.attachment.filename);
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'File missing' });
+  res.setHeader('Content-Type', item.attachment.mimetype);
+  res.sendFile(p);
 });
 
 app.get('/api/stats', (req, res) => {
@@ -2246,27 +1898,7 @@ app.get('/api/stats', (req, res) => {
     open_grievances_register: (db.grievances || []).filter(g => g.resolution_status !== 'Resolved').length,
     news_count: (db.news || []).length,
     schedule_count: (db.schedule || []).length,
-    last_brief_sent: db.whatsapp_log?.[0]?.sent_at || null,
   });
-});
-
-app.get('/api/wa-status', async (req, res) => {
-  try {
-    const wa = await import('./whatsapp.js');
-    res.json({ ...wa.getStatus(), qr: wa.getQR() });
-  } catch (e) {
-    res.json({ connected: false, hasQR: false, qr: null, error: e.message });
-  }
-});
-
-app.post('/api/wa-logout', async (req, res) => {
-  try {
-    const wa = await import('./whatsapp.js');
-    await wa.logout();
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
 });
 
 // ── Google News RSS ────────────────────────────────────────────────────────
@@ -2328,243 +1960,14 @@ app.get('/api/live-news/extract', async (req, res) => {
   }
 });
 
-// ── Broadcast lists ─────────────────────────────────────────────────────────
-const broadcastJobs = new Map(); // jobId → { total, done, sent, failed, status, ... }
-
+// normalizePhone is shared grievance-duplicate-detection infrastructure (findGrievanceDuplicates
+// below matches on it) — not WhatsApp-specific, kept even though WhatsApp/broadcast is gone.
 function normalizePhone(phone) {
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length === 10) return `91${digits}`;
   if (digits.length === 11 && digits[0] === '0') return `91${digits.slice(1)}`;
   return digits; // already has country code or unusual format
 }
-
-app.get('/api/broadcast-lists', (req, res) => {
-  const db = readDB();
-  res.json({ lists: db.broadcast_lists || [] });
-});
-
-app.get('/api/wa-groups', async (req, res) => {
-  try {
-    const wa = await import('./whatsapp.js');
-    const groups = await wa.getGroups();
-    res.json({ groups });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post('/api/broadcast-lists', async (req, res) => {
-  const { name, tier, mandal, party, constituency, village, excluded_contact_ids, group_ids } = req.body;
-  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
-  const db = readDB();
-  let filtered = db.contacts;
-  if (tier) filtered = filtered.filter(c => c.tier === tier);
-  if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase() === mandal.toLowerCase());
-  if (party) filtered = filtered.filter(c => c.party === party);
-  if (constituency) filtered = filtered.filter(c => c.constituency.toLowerCase() === constituency.toLowerCase());
-  if (village) filtered = filtered.filter(c => c.village.toLowerCase() === village.toLowerCase());
-  const excludedIds = Array.isArray(excluded_contact_ids) ? excluded_contact_ids : [];
-  if (excludedIds.length) {
-    const excludedSet = new Set(excludedIds);
-    filtered = filtered.filter(c => !excludedSet.has(c.id));
-  }
-  const phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
-
-  const groupIds = Array.isArray(group_ids) ? group_ids : [];
-  let groups = [];
-  if (groupIds.length) {
-    try {
-      const wa = await import('./whatsapp.js');
-      const allGroups = await wa.getGroups();
-      const idSet = new Set(groupIds);
-      groups = allGroups.filter(g => idSet.has(g.id)).map(g => ({ id: g.id, subject: g.subject, size: g.size }));
-    } catch (e) {
-      return res.status(400).json({ error: `Could not load selected groups: ${e.message}` });
-    }
-  }
-
-  const list = {
-    id: `BL${Date.now()}`,
-    name: name.trim(),
-    filters: { tier: tier || null, mandal: mandal || null, party: party || null, constituency: constituency || null, village: village || null },
-    excluded_ids: excludedIds,
-    phones,
-    contact_count: phones.length,
-    groups,
-    created_at: new Date().toISOString(),
-    last_sent_at: null,
-    send_history: [],
-  };
-  if (!db.broadcast_lists) db.broadcast_lists = [];
-  db.broadcast_lists.push(list);
-  writeDB(db);
-  res.json({ ok: true, list });
-});
-
-app.put('/api/broadcast-lists/:id/refresh', (req, res) => {
-  const db = readDB();
-  const idx = (db.broadcast_lists || []).findIndex(l => l.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'List not found' });
-  const list = db.broadcast_lists[idx];
-  const { tier, mandal, party, constituency, village } = list.filters;
-  let filtered = db.contacts;
-  if (tier) filtered = filtered.filter(c => c.tier === tier);
-  if (mandal) filtered = filtered.filter(c => c.mandal.toLowerCase() === mandal.toLowerCase());
-  if (party) filtered = filtered.filter(c => c.party === party);
-  if (constituency) filtered = filtered.filter(c => c.constituency.toLowerCase() === constituency.toLowerCase());
-  if (village) filtered = filtered.filter(c => c.village.toLowerCase() === village.toLowerCase());
-  if (list.excluded_ids && list.excluded_ids.length) {
-    const excludedSet = new Set(list.excluded_ids);
-    filtered = filtered.filter(c => !excludedSet.has(c.id));
-  }
-  list.phones = [...new Set(filtered.map(c => c.phone).filter(Boolean))];
-  list.contact_count = list.phones.length;
-  list.refreshed_at = new Date().toISOString();
-  writeDB(db);
-  res.json({ ok: true, contact_count: list.contact_count });
-});
-
-app.delete('/api/broadcast-lists/:id', (req, res) => {
-  const db = readDB();
-  db.broadcast_lists = (db.broadcast_lists || []).filter(l => l.id !== req.params.id);
-  writeDB(db);
-  res.json({ ok: true });
-});
-
-// Broadcast pacing/safety knobs — reduces risk of WA flagging the linked session
-const BROADCAST_JITTER_MIN = 0.7;              // jitter floor, ×base delay
-const BROADCAST_JITTER_MAX = 1.5;              // jitter ceiling, ×base delay
-const BROADCAST_REST_EVERY = 50;               // messages between rest breaks
-const BROADCAST_REST_MIN_MS = 30 * 1000;       // 30s
-const BROADCAST_REST_MAX_MS = 60 * 1000;       // 60s
-const BROADCAST_MAX_CONSECUTIVE_FAILURES = 5;  // abort threshold
-const BROADCAST_SLEEP_STEP_MS = 500;           // interruptible-sleep polling granularity
-
-async function interruptibleSleep(totalMs, job) {
-  let elapsed = 0;
-  while (elapsed < totalMs) {
-    if (job.status === 'cancelled') return;
-    const step = Math.min(BROADCAST_SLEEP_STEP_MS, totalMs - elapsed);
-    await new Promise(r => setTimeout(r, step));
-    elapsed += step;
-  }
-}
-
-app.post('/api/broadcast-lists/:id/send', upload.single('attachment'), async (req, res) => {
-  const { message, delay_ms } = req.body;
-  const hasMessage = !!message?.trim();
-  if (!hasMessage && !req.file) return res.status(400).json({ error: 'message or attachment required' });
-  const db = readDB();
-  const list = (db.broadcast_lists || []).find(l => l.id === req.params.id);
-  if (!list) return res.status(404).json({ error: 'List not found' });
-  const targets = [...list.phones.map(normalizePhone), ...(list.groups || []).map(g => g.id)];
-  if (targets.length === 0) return res.status(400).json({ error: 'List has no phone numbers or groups' });
-  const delayMs = Math.max(parseInt(delay_ms) || 2500, 1000); // min 1s to avoid WA ban
-  const jobId = `JOB${Date.now()}`;
-
-  let payload;
-  if (req.file) {
-    const { buffer, mimetype, originalname } = req.file;
-    const caption = hasMessage ? message.trim() : undefined;
-    if (mimetype.startsWith('image/')) payload = { image: buffer, mimetype, caption };
-    else if (mimetype.startsWith('video/')) payload = { video: buffer, mimetype, caption };
-    else if (mimetype.startsWith('audio/')) payload = { audio: buffer, mimetype };
-    else payload = { document: buffer, mimetype, fileName: originalname, caption };
-  } else {
-    payload = message.trim();
-  }
-
-  broadcastJobs.set(jobId, {
-    listId: list.id, listName: list.name,
-    total: targets.length, done: 0, sent: 0, failed: 0,
-    status: 'running', startedAt: new Date().toISOString(), finishedAt: null,
-    resting: false, restUntil: null, consecutiveFailures: 0,
-  });
-  res.json({ ok: true, job_id: jobId, total: targets.length });
-
-  (async () => {
-    const job = broadcastJobs.get(jobId);
-    try {
-      const wa = await import('./whatsapp.js');
-      for (const target of targets) {
-        if (job.status === 'cancelled') break;
-        let sendError = null;
-        try {
-          await wa.default(payload, target);
-          job.sent++;
-          job.consecutiveFailures = 0;
-        } catch (e) {
-          sendError = e;
-          job.failed++;
-          job.consecutiveFailures++;
-        }
-        job.done++;
-
-        // A "not connected"/"scan the QR code" error means every remaining send will fail
-        // identically — abort immediately instead of waiting for the failure count to climb.
-        const isConnectionDown = sendError && /not connected|scan the qr code/i.test(sendError.message || '');
-        if (isConnectionDown) job.consecutiveFailures = BROADCAST_MAX_CONSECUTIVE_FAILURES;
-
-        if (job.consecutiveFailures >= BROADCAST_MAX_CONSECUTIVE_FAILURES) {
-          job.status = 'error';
-          job.error = isConnectionDown
-            ? 'WhatsApp disconnected mid-send — aborted.'
-            : `Aborted after ${BROADCAST_MAX_CONSECUTIVE_FAILURES} consecutive failures — WhatsApp may be throttling this session.`;
-          break;
-        }
-
-        if (job.status === 'cancelled') break;
-
-        if (job.done < job.total) {
-          if (job.done % BROADCAST_REST_EVERY === 0) {
-            job.resting = true;
-            const restMs = BROADCAST_REST_MIN_MS + Math.round(Math.random() * (BROADCAST_REST_MAX_MS - BROADCAST_REST_MIN_MS));
-            job.restUntil = new Date(Date.now() + restMs).toISOString();
-            await interruptibleSleep(restMs, job);
-            job.resting = false;
-            job.restUntil = null;
-          } else {
-            const jitterMs = Math.round(delayMs * (BROADCAST_JITTER_MIN + Math.random() * (BROADCAST_JITTER_MAX - BROADCAST_JITTER_MIN)));
-            await interruptibleSleep(jitterMs, job);
-          }
-        }
-      }
-      if (job.status !== 'cancelled' && job.status !== 'error') job.status = 'done';
-      job.finishedAt = new Date().toISOString();
-      const db2 = readDB();
-      const li = (db2.broadcast_lists || []).find(l => l.id === list.id);
-      if (li) {
-        li.last_sent_at = job.finishedAt;
-        li.send_history = [
-          {
-            sent_at: job.finishedAt, sent: job.sent, failed: job.failed, total: job.total,
-            message: (hasMessage ? message.trim() : '(attachment)').slice(0, 120),
-            status: job.status,
-            ...(job.status === 'error' && job.error ? { error: job.error } : {}),
-          },
-          ...(li.send_history || []),
-        ].slice(0, 10);
-        writeDB(db2);
-      }
-    } catch (e) {
-      const job = broadcastJobs.get(jobId);
-      if (job) { job.status = 'error'; job.error = e.message; job.finishedAt = new Date().toISOString(); }
-    }
-  })();
-});
-
-app.get('/api/broadcast-jobs/:jobId', (req, res) => {
-  const job = broadcastJobs.get(req.params.jobId);
-  if (!job) return res.status(404).json({ error: 'Job not found' });
-  res.json(job);
-});
-
-app.delete('/api/broadcast-jobs/:jobId', (req, res) => {
-  const job = broadcastJobs.get(req.params.jobId);
-  if (!job) return res.status(404).json({ error: 'Job not found' });
-  if (job.status === 'running') job.status = 'cancelled';
-  res.json({ ok: true });
-});
 
 // ── News Brief PDF parser ───────────────────────────────────────────────────
 function parseNewsBriefText(rawText) {

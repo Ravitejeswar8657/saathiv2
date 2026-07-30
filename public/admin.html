@@ -112,7 +112,7 @@
 @media (max-width: 900px) { .stat-strip { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 480px) { .stat-strip { grid-template-columns: repeat(2, 1fr); } }
 
-/* ── Mini list rows (Today's Schedule, Inbox queue) ── */
+/* ── Mini list rows (Today's Schedule) ── */
 .mini-list-card { display: block; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; text-decoration: none; color: inherit; transition: border-color .15s, background .15s; }
 .mini-list-card:last-child { margin-bottom: 0; }
 .mini-list-card:hover { border-color: var(--accent-light); background: var(--accent-bg); }
@@ -291,10 +291,6 @@
           <div class="stat-label">Total Grievances Logged</div>
         </div>
         <div class="stat-tile">
-          <div class="stat-value accent" id="stat-inbox-pending">—</div>
-          <div class="stat-label">WhatsApp Inbox Pending</div>
-        </div>
-        <div class="stat-tile">
           <div class="stat-value" id="stat-events">—</div>
           <div class="stat-label">Upcoming Events</div>
         </div>
@@ -404,12 +400,6 @@
             </div>
             <div id="social-posts-body"><div class="empty-state">Loading…</div></div>
           </div>
-          <div class="card">
-            <div class="section-header">
-              <i data-lucide="inbox"></i> WhatsApp Inbox Triage Queue
-            </div>
-            <div id="inbox-queue-body"><div class="empty-state">Loading…</div></div>
-          </div>
         </div>
       </div>
 
@@ -486,14 +476,9 @@ function fmt12h(t) {
 // ── Summary strip ────────────────────────────────────────────────────────
 async function loadStats() {
   try {
-    const [statsRes, inboxRes] = await Promise.all([
-      fetch('/api/stats'),
-      fetch('/api/grievance-inbox?status=pending_review'),
-    ]);
+    const statsRes = await fetch('/api/stats');
     const s = await statsRes.json();
-    const inbox = await inboxRes.json();
     document.getElementById('stat-grievances-register').textContent = s.open_grievances_register;
-    document.getElementById('stat-inbox-pending').textContent = (inbox.items || []).length;
     document.getElementById('stat-events').textContent = s.schedule_count;
   } catch (e) {
     console.error('Failed to load stats', e);
@@ -704,31 +689,6 @@ async function loadSocialPosts() {
   }
 }
 
-// ── WhatsApp Inbox Triage Queue ───────────────────────────────────────────
-async function loadInboxQueue() {
-  const el = document.getElementById('inbox-queue-body');
-  try {
-    const r = await fetch('/api/grievance-inbox?status=pending_review');
-    const data = await r.json();
-    const items = (data.items || []).slice(0, 5);
-
-    if (items.length === 0) {
-      el.innerHTML = '<div class="empty-state">Inbox is clear — no pending WhatsApp messages.</div>';
-      return;
-    }
-
-    el.innerHTML = items.map(entry => {
-      const preview = entry.text ? entry.text.slice(0, 70) : (entry.audio_path ? 'Voice note' : 'No text');
-      const when = entry.received_at ? new Date(entry.received_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-      return `<a href="/grievance_inbox.html" class="mini-list-card">
-        <div class="mini-list-name">${esc(entry.sender_phone || 'Unknown sender')}</div>
-        <div class="mini-list-meta">${esc(preview)}${preview.length >= 70 ? '…' : ''} · ${when}</div>
-      </a>`;
-    }).join('') + `<a href="/grievance_inbox.html" style="display:block;text-align:center;font-size:12px;font-weight:600;color:var(--accent);margin-top:8px;text-decoration:none">View all &rarr;</a>`;
-  } catch (e) {
-    el.innerHTML = '<div class="empty-state">Failed to load inbox queue.</div>';
-  }
-}
 
 // ── Illustrative widgets (Political Intelligence + Scheme Progress) ─────
 // ILLUSTRATIVE — no live data source exists for any of these yet.
@@ -961,7 +921,6 @@ loadStats();
 loadTodaysSchedule();
 loadIntelligenceData();
 loadSocialPosts();
-loadInboxQueue();
 renderHealthScoreGauge();
 renderVoterSentimentMap();
 renderMediaSentiment();

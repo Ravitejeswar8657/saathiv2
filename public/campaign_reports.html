@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Campaign &amp; Scheme Reports · Saathi Palanadu</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/saathi.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="/js/saathi-ui.js" defer></script>
+<script src="/sidebar.js" defer></script>
+<style>
+.card{margin-bottom:16px}
+.section-title{margin-bottom:14px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:480px){.form-row{grid-template-columns:1fr}}
+.form-group{margin-bottom:14px}
+.form-group input,.form-group select,.form-group textarea{width:100%}
+.form-group textarea{min-height:80px}
+.btn-block{width:100%;justify-content:center}
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.filter-bar select{width:auto;min-width:160px}
+.report-card{padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:10px;background:#fff;box-shadow:var(--shadow-sm)}
+.report-card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.report-title{font-size:14px;font-weight:600;color:var(--ink)}
+.report-meta{font-size:12px;color:var(--stone-500);margin-top:2px}
+.report-desc{font-size:13px;color:var(--stone-700);margin-top:8px;white-space:pre-wrap}
+.report-attachment{margin-top:8px;font-size:12px}
+.report-attachment a{color:var(--accent);text-decoration:none;font-weight:600}
+.report-attachment a:hover{text-decoration:underline}
+.tag{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block}
+.tag-campaign{background:#fef3c7;color:#92400e}
+.tag-scheme{background:var(--info-bg);color:var(--info)}
+.tag-cluster{background:var(--neutral-bg);color:var(--neutral)}
+.tag-other{background:#f3f4f6;color:var(--stone-500)}
+.status-badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block}
+.status-planned{background:#f3f4f6;color:var(--stone-500)}
+.status-ongoing{background:var(--info-bg);color:var(--info)}
+.status-completed{background:#dcfce7;color:#15803d}
+.status-delayed{background:var(--danger-bg);color:var(--danger)}
+.report-actions{display:flex;gap:6px;flex-shrink:0}
+.delete-icon-btn{background:none;border:none;color:var(--stone-400);cursor:pointer;padding:6px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center}
+.delete-icon-btn:hover{color:var(--danger);background:var(--danger-bg)}
+.delete-icon-btn [data-lucide]{width:16px;height:16px}
+.edit-icon-btn{background:none;border:none;color:var(--stone-400);cursor:pointer;padding:6px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center}
+.edit-icon-btn:hover{color:var(--accent);background:var(--accent-bg)}
+.edit-icon-btn [data-lucide]{width:16px;height:16px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Campaign &amp; Scheme Reports</h1>
+      <p class="page-subtitle">Log campaign updates, government scheme progress and cluster-wise field reports.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title" id="form-title">Add new report</div>
+    <input type="hidden" id="cr-edit-id" value=""/>
+    <div class="form-group"><label>Title *</label><input id="cr-title" placeholder="e.g. Jala Jeevan Mission — Q2 progress"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select id="cr-type">
+          <option value="Campaign">Campaign</option>
+          <option value="Government Scheme">Government Scheme</option>
+          <option value="Cluster Report">Cluster Report</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Status</label>
+        <select id="cr-status">
+          <option value="Planned">Planned</option>
+          <option value="Ongoing">Ongoing</option>
+          <option value="Completed">Completed</option>
+          <option value="Delayed">Delayed</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Mandal</label>
+        <select id="cr-mandal" onchange="onMandalChange()">
+          <option value="">Select Mandal</option>
+        </select>
+        <input id="cr-mandal-custom" type="text" placeholder="Enter mandal name" style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group">
+        <label>Village / Cluster</label>
+        <select id="cr-village" disabled>
+          <option value="">Select Mandal first</option>
+        </select>
+        <input id="cr-village-custom" type="text" placeholder="Enter village/cluster name" style="display:none;margin-top:6px">
+      </div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea id="cr-desc" placeholder="Details, progress, fund utilization, notes..."></textarea></div>
+    <div class="form-group"><label>Attachment (image or PDF, optional)</label><input type="file" id="cr-attachment" accept="image/jpeg,image/png,image/webp,application/pdf"></div>
+    <button class="btn btn-primary btn-block" id="cr-submit-btn" onclick="submitReport()">
+      <i data-lucide="plus" style="width:16px;height:16px"></i> Save Report
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="section-title">All reports</div>
+    <div class="filter-bar">
+      <select id="filter-type" onchange="loadReports()">
+        <option value="">All types</option>
+        <option value="Campaign">Campaign</option>
+        <option value="Government Scheme">Government Scheme</option>
+        <option value="Cluster Report">Cluster Report</option>
+        <option value="Other">Other</option>
+      </select>
+      <select id="filter-status" onchange="loadReports()">
+        <option value="">All statuses</option>
+        <option value="Planned">Planned</option>
+        <option value="Ongoing">Ongoing</option>
+        <option value="Completed">Completed</option>
+        <option value="Delayed">Delayed</option>
+      </select>
+    </div>
+    <div id="reports-list"><div class="empty-state">Loading…</div></div>
+  </div>
+</div>
+
+<script>
+let villagesByMandal = {};
+const TYPE_TAG_CLASS = { 'Campaign': 'tag-campaign', 'Government Scheme': 'tag-scheme', 'Cluster Report': 'tag-cluster', 'Other': 'tag-other' };
+const STATUS_CLASS = { 'Planned': 'status-planned', 'Ongoing': 'status-ongoing', 'Completed': 'status-completed', 'Delayed': 'status-delayed' };
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  lucide.createIcons();
+  await loadFilterOptions();
+  loadReports();
+});
+
+async function loadFilterOptions() {
+  try {
+    const r = await fetch('/api/filter-options');
+    const data = await r.json();
+    villagesByMandal = data.villagesByMandal || {};
+    const mandalSel = document.getElementById('cr-mandal');
+    (data.mandals || []).forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      mandalSel.appendChild(opt);
+    });
+    mandalSel.appendChild(new Option('Others', '__other__'));
+  } catch(e) {
+    console.error('Failed to load filter options', e);
+  }
+}
+
+function onMandalChange() {
+  const mandalVal = document.getElementById('cr-mandal').value;
+  const customMandal = document.getElementById('cr-mandal-custom');
+  customMandal.style.display = mandalVal === '__other__' ? 'block' : 'none';
+
+  const villageSel = document.getElementById('cr-village');
+  const customVillage = document.getElementById('cr-village-custom');
+  villageSel.innerHTML = '';
+  customVillage.style.display = 'none';
+
+  if (!mandalVal || mandalVal === '__other__') {
+    villageSel.appendChild(new Option(mandalVal === '__other__' ? 'Select village (optional)' : 'Select Mandal first', ''));
+    villageSel.disabled = mandalVal !== '__other__';
+    if (mandalVal === '__other__') villageSel.appendChild(new Option('Others', '__other__'));
+    return;
+  }
+  const villages = villagesByMandal[mandalVal] || [];
+  villageSel.appendChild(new Option('Select village (optional)', ''));
+  villages.forEach(v => villageSel.appendChild(new Option(v, v)));
+  villageSel.appendChild(new Option('Others', '__other__'));
+  villageSel.disabled = false;
+}
+
+document.addEventListener('change', e => {
+  if (e.target.id === 'cr-village') {
+    document.getElementById('cr-village-custom').style.display =
+      e.target.value === '__other__' ? 'block' : 'none';
+  }
+});
+
+function resetForm() {
+  document.getElementById('cr-edit-id').value = '';
+  document.getElementById('cr-title').value = '';
+  document.getElementById('cr-type').value = 'Campaign';
+  document.getElementById('cr-status').value = 'Planned';
+  document.getElementById('cr-mandal').value = '';
+  document.getElementById('cr-mandal-custom').value = '';
+  document.getElementById('cr-mandal-custom').style.display = 'none';
+  document.getElementById('cr-village').innerHTML = '<option value="">Select Mandal first</option>';
+  document.getElementById('cr-village').disabled = true;
+  document.getElementById('cr-village-custom').value = '';
+  document.getElementById('cr-village-custom').style.display = 'none';
+  document.getElementById('cr-desc').value = '';
+  document.getElementById('cr-attachment').value = '';
+  document.getElementById('form-title').textContent = 'Add new report';
+  document.getElementById('cr-submit-btn').innerHTML = '<i data-lucide="plus" style="width:16px;height:16px"></i> Save Report';
+  lucide.createIcons();
+}
+
+async function submitReport() {
+  const editId = document.getElementById('cr-edit-id').value;
+  const title = document.getElementById('cr-title').value.trim();
+  if (!title) { SaathiUI.toast('Title is required.', 'danger'); return; }
+
+  const mandalSel = document.getElementById('cr-mandal').value;
+  const mandal = mandalSel === '__other__' ? document.getElementById('cr-mandal-custom').value.trim() : mandalSel;
+  const villageSel = document.getElementById('cr-village').value;
+  const village = villageSel === '__other__' ? document.getElementById('cr-village-custom').value.trim() : villageSel;
+
+  const btn = document.getElementById('cr-submit-btn');
+  btn.disabled = true;
+
+  try {
+    if (editId) {
+      const r = await fetch(`/api/campaign-reports/${editId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title, mandal, village,
+          type: document.getElementById('cr-type').value,
+          status: document.getElementById('cr-status').value,
+          description: document.getElementById('cr-desc').value,
+        })
+      });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error);
+      SaathiUI.toast('Report updated.', 'success');
+    } else {
+      const fd = new FormData();
+      fd.append('title', title);
+      fd.append('type', document.getElementById('cr-type').value);
+      fd.append('status', document.getElementById('cr-status').value);
+      fd.append('mandal', mandal);
+      fd.append('village', village);
+      fd.append('description', document.getElementById('cr-desc').value);
+      const file = document.getElementById('cr-attachment').files[0];
+      if (file) fd.append('attachment', file);
+
+      const r = await fetch('/api/campaign-reports', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error);
+      SaathiUI.toast('Report saved.', 'success');
+    }
+    resetForm();
+    loadReports();
+  } catch(e) {
+    SaathiUI.toast(e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function editReport(id, items) {
+  const item = items.find(r => r.id === id);
+  if (!item) return;
+  document.getElementById('cr-edit-id').value = item.id;
+  document.getElementById('cr-title').value = item.title;
+  document.getElementById('cr-type').value = item.type;
+  document.getElementById('cr-status').value = item.status;
+  document.getElementById('cr-mandal').value = item.mandal || '';
+  onMandalChange();
+  document.getElementById('cr-village').value = item.village || '';
+  document.getElementById('cr-desc').value = item.description || '';
+  document.getElementById('form-title').textContent = `Editing: ${item.title}`;
+  document.getElementById('cr-submit-btn').innerHTML = '<i data-lucide="save" style="width:16px;height:16px"></i> Update Report';
+  lucide.createIcons();
+  document.getElementById('form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function deleteReport(id) {
+  if (await SaathiUI.confirm('Delete this report? This cannot be undone.')) {
+    await fetch(`/api/campaign-reports/${id}`, { method: 'DELETE' });
+    loadReports();
+  }
+}
+
+let lastLoadedItems = [];
+
+async function loadReports() {
+  const el = document.getElementById('reports-list');
+  const type = document.getElementById('filter-type').value;
+  const status = document.getElementById('filter-status').value;
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  if (status) params.set('status', status);
+
+  try {
+    const r = await fetch(`/api/campaign-reports?${params}`);
+    const data = await r.json();
+    const items = data.items || [];
+    lastLoadedItems = items;
+
+    if (items.length === 0) {
+      el.innerHTML = '<p class="empty-state">No reports logged yet.</p>';
+      return;
+    }
+
+    el.innerHTML = items.map(item => {
+      const place = [item.village, item.mandal].filter(Boolean).join(', ');
+      const when = item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      const typeCls = TYPE_TAG_CLASS[item.type] || 'tag-other';
+      const statusCls = STATUS_CLASS[item.status] || 'status-planned';
+      return `<div class="report-card">
+        <div class="report-card-header">
+          <div>
+            <div class="report-title">${esc(item.title)} <span class="tag ${typeCls}">${esc(item.type)}</span> <span class="status-badge ${statusCls}">${esc(item.status)}</span></div>
+            <div class="report-meta">${place ? esc(place) + ' · ' : ''}${when}</div>
+          </div>
+          <div class="report-actions">
+            <button class="edit-icon-btn" title="Edit" onclick="editReport('${item.id}', lastLoadedItems)"><i data-lucide="pencil"></i></button>
+            <button class="delete-icon-btn" title="Delete" onclick="deleteReport('${item.id}')"><i data-lucide="trash-2"></i></button>
+          </div>
+        </div>
+        ${item.description ? `<div class="report-desc">${esc(item.description)}</div>` : ''}
+        ${item.attachment ? `<div class="report-attachment"><a href="/api/campaign-reports/${item.id}/media" target="_blank"><i data-lucide="paperclip" style="width:12px;height:12px;vertical-align:middle"></i> ${esc(item.attachment.original_name || 'Attachment')}</a></div>` : ''}
+      </div>`;
+    }).join('');
+    lucide.createIcons();
+  } catch (e) {
+    el.innerHTML = '<p class="empty-state">Failed to load reports.</p>';
+  }
+}
+</script>
+</body>
+</html>

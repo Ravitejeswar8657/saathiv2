@@ -1,11 +1,13 @@
 # Saathi v2 — Real Working Prototype
 
 ## What's inside
-- **2000 real contacts** from your Excel file, scored and ranked
+- **Real contacts** from your Excel file, scored and ranked
 - **Team Dashboard** — full workbench with contacts, issues, coverage map
 - **PA Schedule Upload** — add tomorrow's events, system shows nearby contacts automatically
 - **News Desk** — journalist submits news, appears in brief immediately
-- **WhatsApp Brief** — sends formatted brief to 9652345570 using Baileys
+- **Daily Brief PDF** — generated on demand from schedule/news/grievance data (`/api/brief-pdf`)
+
+There is no WhatsApp integration in this project — see `CLAUDE.md` for the current architecture.
 
 ## How to run locally
 
@@ -17,15 +19,6 @@ node server/index.js        # start the server
 ```
 
 Open http://localhost:3000
-
-## WhatsApp Setup (first time)
-
-1. Start the server: `node server/index.js`
-2. A QR code will appear in the terminal
-3. Open WhatsApp on your phone → Settings → Linked Devices → Link a Device
-4. Scan the QR code
-5. Once connected, the "Send Brief Now" button will send to 9652345570
-6. Auth is saved — you only scan once per session
 
 ## Deploy to Railway (recommended - free)
 
@@ -49,14 +42,12 @@ No login needed. They fill the form, it appears in the MP's brief immediately.
 - Dashboard: `/`
 - Journalist form: `/news`
 - API: `/api/dashboard`, `/api/contacts`, `/api/stats`
-- WhatsApp status: `/api/wa-status`
 
 ## Files
 ```
 saathi_v2/
 ├── server/
-│   ├── index.js        # Express API server
-│   └── whatsapp.js     # Baileys WhatsApp sender
+│   └── index.js        # Express API server
 ├── public/
 │   ├── index.html      # Team dashboard
 │   └── news.html       # Journalist form
