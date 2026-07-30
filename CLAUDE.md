@@ -36,7 +36,7 @@ Single Express file (ES Modules). Key responsibilities:
 Wraps `@whiskeysockets/baileys`. On module load it immediately calls `init()`, which opens a Baileys socket with multi-file auth stored in `data/wa_auth/`. The module exports:
 - `default` (= `sendMessage(text, phone)`) — sends a message; throws if not connected.
 - `getStatus()` / `getQR()` — used by `/api/wa-status`.
-- `setOnIncomingMessage(cb)` — registered by `index.js` to handle MP replies of the form `approve <ISS…>` or `reject <ISS…>`.
+- `setOnIncomingMessage(cb)` — registered by `index.js` to handle MP replies of the form `approve <ISS…>` or `reject <ISS…>`, recording them to `db.wa_responses`. This array is now write-only: the admin UI/endpoints that used to read and confirm it were removed, so replies are still captured but nothing surfaces or acts on them.
 - `setOnPublicMessage(cb)` — registered by `index.js` to handle open grievance intake: any 1:1 sender other than the MP's own number, text or a voice note (`ptt` audio). Group messages are always ignored. A per-sender in-memory rate guard (5 messages / 10 min) tags floods as `rateLimited` so the caller can skip the Gemini call rather than drop the message.
 
 WhatsApp reconnects automatically on non-logout disconnects. On logout it wipes `wa_auth/` and resets for a new QR scan.
@@ -63,7 +63,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | `news.html` | Journalist submission form |
 | `pa_schedule.html` | PA schedule upload |
 | `pa_issues.html` | Issue/grievance logging |
-| `admin.html` | Pending approval confirmations |
+| `admin.html` | Chief of Staff intelligence hub — daily brief + WhatsApp status, today's schedule, Personal/Political/Governance Intelligence pillars (mandal/village governance report, grievance category breakdown, social-media and WhatsApp-inbox queues are real data; Constituency Health Score, Political Temperature, Opposition Activity, Campaign Alerts, Media Sentiment, and Government Scheme Progress are clearly-tagged illustrative placeholders), plus the News Dashboard/Live News pulse |
 | `heatmap.html` | Mandal-level coverage heatmap (Leaflet + OpenStreetMap, no API key) — contact density, average priority score, and grievance-register hotspots (count/top category/avg priority per mandal, from `/api/grievances`, additive to the legacy `contact.open_grievance` count) per mandal, joined against `public/assets/mandal_coords.json` (generated once via `scripts/geocode_mandals.js`) |
 | `journalist.html` | Alternate journalist form |
 | `ttd_letters.html` | TTD reference letter register — calendar view, Aadhar duplicate check, Excel/PDF exports, per-letter PDF |
@@ -81,16 +81,11 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | POST | `/api/contact` | Add new contact |
 | POST | `/api/schedule` | Add event; auto-finds nearby contacts by mandal using Fuse.js |
 | DELETE | `/api/schedule/:id` | Remove event |
-| POST | `/api/issue` | Log issue against a contact |
-| POST | `/api/issue/approve` | Admin approve/reject |
-| GET | `/api/pending-approvals` | All pending issues |
+| POST | `/api/issue` | Log issue against a contact (still used by `pa_issues.html`; issues logged this way stay `pending` — the admin approve/reject workflow that used to resolve them was removed) |
 | POST | `/api/news` | Submit news item (multipart, optional attachment) |
 | POST | `/api/send-brief` | Trigger WhatsApp send |
 | GET | `/api/generate-brief` | Regenerate brief text without sending |
 | GET | `/api/brief-preview` | Last generated brief text |
-| POST | `/api/send-approval-request` | Send approval request to MP via WhatsApp |
-| GET | `/api/wa-responses` | Unconfirmed MP WhatsApp replies |
-| POST | `/api/wa-response/confirm` | Admin confirms/overrides WA response |
 | GET | `/api/wa-status` | WhatsApp connection state + QR data |
 | GET | `/api/live-news` | Cached Google News RSS (Palanadu keywords) |
 | GET | `/api/stats` | Aggregate counts, including `open_grievances_register` (unresolved `db.grievances`, distinct from the legacy `with_grievances` contact-flag count) |

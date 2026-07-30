@@ -1174,37 +1174,6 @@ app.post('/api/issue', (req, res) => {
   res.json({ ok: true, issue });
 });
 
-app.get('/api/pending-approvals', (req, res) => {
-  const db = readDB();
-  const pending = [];
-  db.contacts.forEach(c => {
-    (c.issues || []).forEach(iss => {
-      if (iss.status === 'pending') {
-        pending.push({ ...iss, contact_name: c.name, contact_id: c.id, mandal: c.mandal });
-      }
-    });
-  });
-  res.json({ pending });
-});
-
-app.post('/api/issue/approve', (req, res) => {
-  const { contact_id, issue_id, status } = req.body; // status: 'approved' or 'rejected'
-  if (!contact_id || !issue_id || !status) return res.status(400).json({ error: 'Missing params' });
-  
-  const db = readDB();
-  const cIdx = db.contacts.findIndex(c => c.id === contact_id);
-  if (cIdx === -1) return res.status(404).json({ error: 'Contact not found' });
-  
-  const issIdx = (db.contacts[cIdx].issues || []).findIndex(iss => iss.id === issue_id);
-  if (issIdx === -1) return res.status(404).json({ error: 'Issue not found' });
-  
-  db.contacts[cIdx].issues[issIdx].status = status;
-  db.contacts[cIdx].issues[issIdx].resolved_at = new Date().toISOString();
-  
-  writeDB(db);
-  res.json({ ok: true });
-});
-
 app.get('/api/news', (req, res) => {
   const db = readDB();
   let items = db.news || [];
@@ -2357,90 +2326,6 @@ app.get('/api/live-news/extract', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch/extract article: ' + e.message });
   }
-});
-
-// ── WhatsApp response routes ───────────────────────────────────────────────
-app.get('/api/wa-responses', (req, res) => {
-  const db = readDB();
-  const unconfirmed = (db.wa_responses || []).filter(r => !r.confirmed);
-  res.json({ responses: unconfirmed });
-});
-
-app.post('/api/wa-response/confirm', (req, res) => {
-  const { issue_id, action } = req.body;
-  if (!issue_id || !action) return res.status(400).json({ error: 'issue_id and action required' });
-  if (!['approved', 'rejected'].includes(action)) return res.status(400).json({ error: 'action must be approved or rejected' });
-
-  const db = readDB();
-  if (!db.wa_responses) return res.status(404).json({ error: 'No WA responses found' });
-
-  const respIdx = db.wa_responses.findIndex(r => r.issue_id === issue_id && !r.confirmed);
-  if (respIdx === -1) return res.status(404).json({ error: 'No unconfirmed response for this issue' });
-
-  // Mark as confirmed
-  db.wa_responses[respIdx].confirmed = true;
-  db.wa_responses[respIdx].confirmed_at = new Date().toISOString();
-
-  // Update the actual issue status
-  let updated = false;
-  for (const c of db.contacts) {
-    const iss = (c.issues || []).find(i => i.id === issue_id);
-    if (iss) {
-      iss.status = action;
-      iss.resolved_at = new Date().toISOString();
-      updated = true;
-      break;
-    }
-  }
-
-  writeDB(db);
-  res.json({ ok: true, issue_updated: updated });
-});
-
-app.post('/api/send-approval-request', async (req, res) => {
-  const { contact_id, issue_id } = req.body;
-  if (!contact_id || !issue_id) return res.status(400).json({ error: 'contact_id and issue_id required' });
-
-  const db = readDB();
-  const contact = db.contacts.find(c => c.id === contact_id);
-  if (!contact) return res.status(404).json({ error: 'Contact not found' });
-
-  const issue = (contact.issues || []).find(i => i.id === issue_id);
-  if (!issue) return res.status(404).json({ error: 'Issue not found' });
-
-  const message = [
-    `🔔 *Approval Request*`,
-    ``,
-    `*Type:* ${issue.type}`,
-    `*For:* ${contact.name} (${contact.mandal})`,
-    `*Details:* ${issue.description || 'No details provided'}`,
-    ``,
-    `Reply: *approve ${issue_id}* or *reject ${issue_id}*`,
-  ].join('\n');
-
-  const logEntry = {
-    sent_at: new Date().toISOString(),
-    to: '919652345570',
-    type: 'approval_request',
-    issue_id,
-    contact_id,
-    contact_name: contact.name,
-    status: 'pending',
-  };
-
-  try {
-    const wa = await import('./whatsapp.js');
-    await wa.default(message, '919652345570');
-    logEntry.status = 'sent';
-  } catch (e) {
-    logEntry.status = e.message.includes('QR') || e.message.includes('not connected')
-      ? 'preview_only' : 'error';
-    logEntry.note = e.message;
-  }
-
-  db.whatsapp_log = [logEntry, ...(db.whatsapp_log || [])].slice(0, 50);
-  writeDB(db);
-  res.json({ ok: true, log: logEntry, message_preview: message });
 });
 
 // ── Broadcast lists ─────────────────────────────────────────────────────────

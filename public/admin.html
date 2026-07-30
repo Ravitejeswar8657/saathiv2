@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>MP Dashboard · Saathi Palanadu</title>
+<title>Chief of Staff · Saathi Palanadu</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/saathi.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
@@ -21,9 +21,32 @@
   .grid { grid-template-columns: 1fr 360px; }
 }
 
-/* This page's .card is an edge-to-edge list container (rows carry their own
-   padding/dividers), not a padded content box — override the shared padding. */
-.card { padding: 0; }
+.page-sub-note {
+  font-size: 12px;
+  color: var(--stone-500);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── "Illustrative" convention — a dashed neutral-gray pill on any fabricated
+   widget. Absence of the pill means the numbers are real. Never colored
+   accent/success/danger so it can't be mistaken for a live status. ── */
+.illustrative-tag {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--stone-500);
+  border: 1px dashed var(--stone-400);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  cursor: help;
+  white-space: nowrap;
+}
 
 /* ── Section headings ── */
 .section-header {
@@ -42,176 +65,158 @@
   height: 14px;
   stroke-width: 2;
 }
-
 .section-block { margin-bottom: 40px; }
 .section-block:last-child { margin-bottom: 0; }
 
-/* ── Tables / Issue rows ── */
-.issue-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.issue-table td {
-  padding: 14px 0;
-  vertical-align: top;
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
-}
-.issue-table tr:last-child td { border-bottom: none; }
-.issue-table .col-info { padding-right: 16px; }
-.issue-table .col-actions {
-  white-space: nowrap;
-  text-align: right;
-  vertical-align: middle;
-}
-.issue-type {
+/* ── Pillar grouping (Personal / Political / Governance Intelligence) ── */
+.pillar-block { margin-bottom: 44px; }
+.pillar-heading {
+  font-family: var(--font-display);
+  font-size: 19px;
   font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 2px;
-}
-.issue-meta {
-  font-size: 12px;
-  color: var(--stone-500);
-}
-.issue-desc {
-  font-size: 13px;
-  color: var(--stone-700);
-  margin-top: 4px;
-}
-
-/* ── Buttons ── */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-weight: 500;
-  font-size: 13px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  line-height: 1.4;
-}
-.btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.btn [data-lucide] {
-  width: 14px;
-  height: 14px;
-  stroke-width: 2;
-}
-
-/* .btn-success (teal/Approve), .btn-danger (outline/Reject), .btn-ghost,
-   .btn-accent and .btn-secondary all now come from saathi.css — this page
-   only needs the compact sizing above and .btn-actions layout below. */
-
-.btn-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-/* ── WA Response rows ── */
-.wa-response-item {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.wa-response-item:last-child { border-bottom: none; }
-
-/* ── News list ── */
-.news-item {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.news-item:last-child { border-bottom: none; }
-.news-headline { font-weight: 500; font-size: 14px; }
-.news-meta { font-size: 12px; color: var(--stone-500); margin-top: 2px; }
-.news-body { font-size: 13px; color: var(--stone-700); margin-top: 4px; }
-
-.live-news-item {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.live-news-item:last-child { border-bottom: none; }
-.live-news-item a {
   color: var(--ink);
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 18px;
 }
+.pillar-heading [data-lucide] { width: 18px; height: 18px; color: var(--accent); stroke-width: 2; }
+.pillar-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.pillar-grid + .pillar-grid { margin-top: 16px; }
+@media (max-width: 900px) {
+  .pillar-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Generic data table (governance report) ── */
+.data-table-wrap { max-height: 380px; overflow-y: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th {
+  position: sticky; top: 0; background: var(--card);
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--stone-500); padding: 8px 10px; border-bottom: 2px solid var(--border);
+}
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--bg); }
+
+/* ── Stat strip (mirrors index.html) ── */
+.stat-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 32px; }
+.stat-tile { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px 16px; text-align: center; box-shadow: var(--shadow-sm); }
+.stat-value { font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+.stat-value.accent { color: var(--accent); }
+.stat-value-sm { font-size: 15px; }
+.stat-label { font-size: 11px; color: var(--stone-500); margin-top: 6px; font-weight: 500; }
+@media (max-width: 900px) { .stat-strip { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 480px) { .stat-strip { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── Mini list rows (Today's Schedule, Inbox queue) ── */
+.mini-list-card { display: block; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; text-decoration: none; color: inherit; transition: border-color .15s, background .15s; }
+.mini-list-card:last-child { margin-bottom: 0; }
+.mini-list-card:hover { border-color: var(--accent-light); background: var(--accent-bg); }
+.mini-list-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.mini-list-meta { font-size: 12px; color: var(--stone-500); margin-top: 2px; }
+
+/* ── Social media mini grid (mirrors index.html) ── */
+.social-mini-grid { display: flex; flex-direction: column; gap: 8px; }
+.social-mini-card { display: flex; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: inherit; transition: border-color .15s, background .15s; }
+.social-mini-card:hover { border-color: var(--accent-light); background: var(--accent-bg); }
+.social-mini-thumb { width: 44px; height: 44px; border-radius: 5px; overflow: hidden; background: #f3f4f6; border: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.social-mini-thumb img, .social-mini-thumb video { width: 100%; height: 100%; object-fit: cover; }
+.social-mini-thumb i { width: 18px; height: 18px; color: var(--accent); }
+.social-mini-body { min-width: 0; }
+.social-mini-date { font-size: 11px; font-weight: 700; color: var(--accent); }
+.social-mini-caption { font-size: 12px; color: var(--stone-700); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Constituency Health Score / mandal mini-rankings ── */
+.rank-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.rank-row:last-child { border-bottom: none; }
+.rank-name { font-weight: 500; }
+.rank-score { display: flex; align-items: center; gap: 8px; }
+.rank-divider { margin: 12px 0; text-align: center; font-size: 11px; color: var(--stone-500); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ── Reach & affinity stat rows ── */
+.mini-stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.mini-stat-row:last-child { border-bottom: none; }
+.mini-stat-row b { font-size: 15px; color: var(--ink); }
+
+/* ── Category breakdown bars ── */
+.cat-bar-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.cat-bar-label { font-size: 12px; color: var(--stone-700); width: 42%; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-bar-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.cat-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+.cat-bar-count { font-size: 12px; font-weight: 600; color: var(--ink); width: 22px; text-align: right; flex-shrink: 0; }
+
+/* ── Political Temperature gauge ── */
+.temp-gauge { display: flex; align-items: center; gap: 20px; margin-bottom: 10px; }
+.temp-score { font-family: var(--font-display); font-size: 38px; font-weight: 700; color: var(--accent); line-height: 1; }
+.temp-label { font-size: 13px; font-weight: 600; color: var(--stone-700); margin-top: 4px; }
+.temp-spark { display: flex; align-items: flex-end; gap: 4px; height: 40px; }
+.temp-spark div { width: 7px; background: var(--accent-light); border-radius: 2px; opacity: 0.75; }
+.temp-spark div:last-child { opacity: 1; background: var(--accent); }
+.pillar-caption { font-size: 11px; color: var(--stone-500); margin-top: 4px; }
+
+/* ── Media sentiment stacked bar ── */
+.sentiment-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin-bottom: 10px; }
+.sentiment-seg-pos { background: var(--success); }
+.sentiment-seg-neu { background: #d6d3d1; }
+.sentiment-seg-neg { background: var(--danger); }
+.sentiment-legend { display: flex; gap: 16px; font-size: 12px; color: var(--stone-600); flex-wrap: wrap; }
+.sentiment-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle; }
+
+/* ── Opposition / campaign alert item cards ── */
+.intel-item-list { display: flex; flex-direction: column; gap: 8px; }
+.intel-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.intel-item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+.intel-item-title { font-size: 13px; font-weight: 600; }
+.intel-item-meta { font-size: 11px; color: var(--stone-500); }
+
+/* ── Government scheme progress ── */
+.scheme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.scheme-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; background: #fff; }
+.scheme-name { font-size: 12px; font-weight: 600; margin-bottom: 10px; line-height: 1.3; min-height: 30px; }
+.scheme-bar-track { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+.scheme-bar-fill { height: 100%; background: var(--success); border-radius: 3px; }
+.scheme-meta { font-size: 11px; color: var(--stone-500); }
+
+/* ── News (kept from previous version) ── */
+.live-news-item { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.live-news-item:last-child { border-bottom: none; }
+.live-news-item a { color: var(--ink); text-decoration: none; font-weight: 500; font-size: 13px; }
 .live-news-item a:hover { color: var(--accent); }
 .live-news-item .news-meta { margin-top: 2px; }
+.news-meta { font-size: 12px; color: var(--stone-500); }
+.news-body { font-size: 13px; color: var(--stone-700); margin-top: 4px; }
 
-/* ── News Dashboard ── */
 .nd-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
 }
 .nd-date {
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 12px;
-  font-family: inherit;
-  background: var(--bg);
-  color: var(--ink);
-  cursor: pointer;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; font-family: inherit; background: var(--bg); color: var(--ink); cursor: pointer;
 }
 .nd-date:focus { outline: none; border-color: var(--accent); }
 .nd-filter {
-  padding: 5px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  font-family: inherit;
-  background: var(--bg);
-  color: var(--stone-500);
-  cursor: pointer;
-  transition: all .15s;
+  padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; font-weight: 500; font-family: inherit; background: var(--bg);
+  color: var(--stone-500); cursor: pointer; transition: all .15s;
 }
 .nd-filter.active, .nd-filter:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
 .nd-count {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--stone-500);
-  background: var(--neutral-bg);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 3px 9px;
-  font-weight: 500;
+  margin-left: auto; font-size: 11px; color: var(--stone-500); background: var(--neutral-bg);
+  border: 1px solid var(--border); border-radius: 20px; padding: 3px 9px; font-weight: 500;
 }
-.nd-card {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.nd-card { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
 .nd-card:last-child { border-bottom: none; }
 .nd-card-top { display: flex; align-items: flex-start; gap: 8px; }
 .cat-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 20px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  margin-top: 2px;
+  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px;
+  white-space: nowrap; flex-shrink: 0; margin-top: 2px;
 }
-/* National=info, International=neutral — must match news.html's mapping exactly */
 .cat-national { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
 .cat-international { background: var(--neutral-bg); color: var(--neutral); border: 1px solid var(--neutral-border); }
 .cat-other { background: var(--bg); color: var(--stone-500); border: 1px solid var(--border); }
@@ -220,176 +225,238 @@
 .nd-meta { display: flex; gap: 12px; flex-wrap: wrap; }
 .nd-meta span { font-size: 11px; color: var(--stone-500); display: flex; align-items: center; gap: 3px; }
 .nd-meta span [data-lucide] { width: 11px; height: 11px; }
-.nd-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--accent);
-  text-decoration: none;
-}
+.nd-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--accent); text-decoration: none; }
 .nd-link:hover { opacity: 0.75; }
 .nd-link [data-lucide] { width: 12px; height: 12px; }
 
+/* ── List-style cards (edge-to-edge rows, no inner padding) ── */
+.card-list { padding: 0; }
+
 /* ── Sidebar ── */
 .sidebar-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: 20px;
-  margin-bottom: 20px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm); padding: 20px; margin-bottom: 20px;
 }
-.sidebar-card .section-header {
-  margin-bottom: 12px;
-}
+.sidebar-card .section-header { margin-bottom: 12px; }
 
-/* WA status */
-.wa-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
+.wa-status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
 .wa-status-badge [data-lucide] { width: 14px; height: 14px; }
 .wa-status-connected { color: var(--success); }
 .wa-status-pending { color: var(--accent); }
 .wa-status-loading { color: var(--stone-500); }
 
 #wa-qr-container {
-  text-align: center;
-  margin-top: 16px;
-  padding: 16px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  text-align: center; margin-top: 16px; padding: 16px; background: #fff;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
 }
-#wa-qr-container p.qr-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--stone-500);
-  margin-bottom: 12px;
-}
-#wa-qr-container p.qr-hint {
-  font-size: 11px;
-  color: var(--stone-500);
-  margin-top: 10px;
-}
+#wa-qr-container p.qr-label { font-size: 12px; font-weight: 500; color: var(--stone-500); margin-bottom: 12px; }
+#wa-qr-container p.qr-hint { font-size: 11px; color: var(--stone-500); margin-top: 10px; }
 
-/* ── WA Preview (dark phone screen) ── */
 .wa-preview {
-  background: #0b141a;
-  border-radius: var(--radius-md);
-  padding: 16px;
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 13px;
-  color: #e9edef;
-  white-space: pre-wrap;
-  line-height: 1.6;
-  max-height: 480px;
-  overflow-y: auto;
+  background: #0b141a; border-radius: var(--radius-md); padding: 16px;
+  font-family: 'Inter', system-ui, sans-serif; font-size: 13px; color: #e9edef;
+  white-space: pre-wrap; line-height: 1.6; max-height: 480px; overflow-y: auto;
   border: 1px solid #1f2c34;
 }
 .wa-preview b { color: #00a884; font-weight: 600; }
 
-/* ── Brief action buttons ── */
-.brief-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 14px;
-}
-.brief-actions .btn {
-  width: 100%;
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 500;
-}
+.brief-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.brief-actions .btn { width: 100%; padding: 10px 16px; font-size: 13px; font-weight: 500; }
 .brief-actions .btn-accent { font-weight: 600; }
 
-#send-status {
-  margin-top: 10px;
-  font-size: 12px;
-  text-align: center;
-  min-height: 18px;
-}
+#send-status { margin-top: 10px; font-size: 12px; text-align: center; min-height: 18px; }
 
-/* ── Empty states ── */
-.empty-state {
-  color: var(--stone-500);
-  font-size: 13px;
-  padding: 20px 16px;
-  text-align: center;
-}
+.empty-state { color: var(--stone-500); font-size: 13px; padding: 20px 16px; text-align: center; }
 
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .container { padding: 16px; }
-  .issue-table td { display: block; padding: 0; }
-  .issue-table .col-actions { text-align: left; padding-top: 10px; }
-  .issue-table tr { display: block; padding: 14px 0; border-bottom: 1px solid var(--border); }
-  .issue-table tr:last-child { border-bottom: none; }
-  .issue-table td { border-bottom: none; }
-  .wa-response-item { flex-direction: column; align-items: flex-start; }
 }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="page-header">
-    <div><h1 class="page-title">MP Dashboard</h1></div>
+    <div>
+      <h1 class="page-title">Chief of Staff</h1>
+      <p class="page-sub-note">
+        <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+        tagged sections are example placeholder data — everything else on this page is drawn from real records.
+      </p>
+    </div>
   </div>
 
   <div class="grid">
     <!-- ── Main column ── -->
     <div class="left-col">
 
-      <!-- Pending Approvals -->
-      <div class="section-block">
-        <div class="section-header">
-          <i data-lucide="scale"></i> Pending Approvals
+      <!-- Summary strip -->
+      <section class="stat-strip" id="stat-strip">
+        <div class="stat-tile">
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-label">Total Contacts</div>
         </div>
-        <div class="card">
-          <div id="pending-list"></div>
+        <div class="stat-tile">
+          <div class="stat-value stat-value-sm" id="stat-tiers">—</div>
+          <div class="stat-label">Tier Breakdown</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value accent" id="stat-grievances-register">—</div>
+          <div class="stat-label">Open Grievance Register</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value accent" id="stat-inbox-pending">—</div>
+          <div class="stat-label">WhatsApp Inbox Pending</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value" id="stat-events">—</div>
+          <div class="stat-label">Upcoming Events</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value stat-value-sm" id="stat-brief">—</div>
+          <div class="stat-label">Last Brief Sent</div>
+        </div>
+      </section>
+
+      <!-- Today's Schedule -->
+      <div class="section-block">
+        <div class="section-header"><i data-lucide="calendar-clock"></i> Today's Schedule</div>
+        <div class="card card-list">
+          <div id="todays-schedule-list"><div class="empty-state">Loading…</div></div>
         </div>
       </div>
 
-      <!-- WA Responses -->
-      <div class="section-block">
-        <div class="section-header">
-          <i data-lucide="message-circle"></i> MP WhatsApp Responses
-        </div>
-        <div class="card">
-          <div id="wa-responses-list"></div>
-        </div>
-      </div>
-
-      <!-- News Dashboard -->
-      <div class="section-block" id="news-dashboard">
-        <div class="section-header">
-          <i data-lucide="newspaper"></i> News Dashboard
-        </div>
-        <div class="card">
-          <div class="nd-toolbar">
-            <input type="date" class="nd-date" id="nd-date"/>
-            <button class="nd-filter active" id="nd-all" onclick="ndSetFilter('all')">All</button>
-            <button class="nd-filter" id="nd-national" onclick="ndSetFilter('National')">National</button>
-            <button class="nd-filter" id="nd-intl" onclick="ndSetFilter('International')">International</button>
-            <span class="nd-count" id="nd-count">0 reports</span>
+      <!-- Personal Intelligence -->
+      <div class="pillar-block">
+        <div class="pillar-heading"><i data-lucide="user-round"></i> Personal Intelligence</div>
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="heart-pulse"></i> Constituency Health Score
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="health-score-body"><div class="empty-state">Loading…</div></div>
           </div>
-          <div id="nd-list"></div>
+          <div class="card">
+            <div class="section-header"><i data-lucide="users"></i> Reach &amp; Affinity</div>
+            <div id="reach-affinity-body"><div class="empty-state">Loading…</div></div>
+          </div>
         </div>
       </div>
 
-      <!-- Live News -->
-      <div class="section-block">
-        <div class="section-header">
-          <i data-lucide="globe"></i> Live News
+      <!-- Political Intelligence -->
+      <div class="pillar-block">
+        <div class="pillar-heading"><i data-lucide="flag"></i> Political Intelligence</div>
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="thermometer"></i> Political Temperature
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="temp-body"></div>
+          </div>
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="signal"></i> Media Sentiment
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="sentiment-body"></div>
+          </div>
         </div>
-        <div class="card">
-          <div id="live-news-list"></div>
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="megaphone"></i> Opposition Activity
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="opposition-body"></div>
+          </div>
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="alert-triangle"></i> Campaign Alerts
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="alerts-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Governance Intelligence -->
+      <div class="pillar-block">
+        <div class="pillar-heading"><i data-lucide="landmark"></i> Governance Intelligence</div>
+
+        <div class="section-block">
+          <div class="section-header"><i data-lucide="map"></i> Mandal / Village Governance Report</div>
+          <div class="card card-list">
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Mandal</th><th>Contacts</th><th>Avg PPS</th><th>T1/T2/T3</th>
+                    <th>Open Grievances</th><th>Top Category</th>
+                  </tr>
+                </thead>
+                <tbody id="gov-table-body">
+                  <tr><td colspan="6"><div class="empty-state">Loading…</div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header"><i data-lucide="bar-chart-3"></i> Grievance Category Breakdown</div>
+            <div id="category-breakdown-body"><div class="empty-state">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="clipboard-list"></i> Government Scheme Progress
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="scheme-body"></div>
+          </div>
+        </div>
+
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="image"></i> Ready-to-Post Social Media
+            </div>
+            <div id="social-posts-body"><div class="empty-state">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="inbox"></i> WhatsApp Inbox Triage Queue
+            </div>
+            <div id="inbox-queue-body"><div class="empty-state">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Media & News Pulse -->
+      <div class="pillar-block">
+        <div class="pillar-heading"><i data-lucide="radio"></i> Media &amp; News Pulse</div>
+
+        <div class="section-block" id="news-dashboard">
+          <div class="section-header"><i data-lucide="newspaper"></i> News Dashboard</div>
+          <div class="card card-list">
+            <div class="nd-toolbar">
+              <input type="date" class="nd-date" id="nd-date"/>
+              <button class="nd-filter active" id="nd-all" onclick="ndSetFilter('all')">All</button>
+              <button class="nd-filter" id="nd-national" onclick="ndSetFilter('National')">National</button>
+              <button class="nd-filter" id="nd-intl" onclick="ndSetFilter('International')">International</button>
+              <span class="nd-count" id="nd-count">0 reports</span>
+            </div>
+            <div id="nd-list"></div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-header"><i data-lucide="globe"></i> Live News</div>
+          <div class="card card-list">
+            <div id="live-news-list"></div>
+          </div>
         </div>
       </div>
 
@@ -443,89 +510,395 @@
 </div>
 
 <script>
-async function loadData() {
-  // Load Pending Approvals
-  const r1 = await fetch('/api/pending-approvals');
-  const d1 = await r1.json();
-  let h1 = '';
-  if (d1.pending.length === 0) {
-    h1 = '<div class="empty-state">No pending approvals</div>';
-  } else {
-    h1 = '<table class="issue-table"><tbody>';
-    d1.pending.forEach(iss => {
-      h1 += `
-      <tr>
-        <td class="col-info">
-          <div class="issue-type">${iss.type}</div>
-          <div class="issue-meta">${iss.contact_name} · ${iss.mandal}</div>
-          <div class="issue-desc">${iss.description}</div>
-        </td>
-        <td class="col-actions">
-          <div class="btn-actions">
-            <button class="btn btn-success" onclick="actionIssue('${iss.contact_id}','${iss.id}','approved')">Approve</button>
-            <button class="btn btn-danger" onclick="actionIssue('${iss.contact_id}','${iss.id}','rejected')">Reject</button>
-            <button class="btn btn-ghost" onclick="sendApprovalToWA('${iss.contact_id}','${iss.id}',this)">
-              <i data-lucide="send"></i> Send to MP
-            </button>
-          </div>
-        </td>
-      </tr>`;
-    });
-    h1 += '</tbody></table>';
-  }
-  document.getElementById('pending-list').innerHTML = h1;
-
-  // Load WhatsApp responses
-  const r3 = await fetch('/api/wa-responses');
-  const d3 = await r3.json();
-  let h3 = '';
-  if (d3.responses.length === 0) {
-    h3 = '<div class="empty-state">No pending MP responses</div>';
-  } else {
-    d3.responses.forEach(resp => {
-      h3 += `
-      <div class="wa-response-item">
-        <div>
-          <span class="badge ${resp.mp_response === 'approved' ? 'badge-success' : 'badge-danger'}">${resp.mp_response.toUpperCase()}</span>
-          <span style="font-weight:600;margin-left:8px;font-size:14px">${resp.issue_type}</span>
-          <div class="issue-meta" style="margin-top:4px">${resp.contact_name} · MP replied: "${resp.mp_message}"</div>
-          <div style="font-size:11px;color:var(--stone-500)">${new Date(resp.responded_at).toLocaleString('en-IN')}</div>
-        </div>
-        <div class="btn-actions">
-          <button class="btn btn-success" onclick="confirmWAResponse('${resp.issue_id}','approved')">Confirm</button>
-          <button class="btn btn-danger" onclick="confirmWAResponse('${resp.issue_id}','rejected')">Reject</button>
-        </div>
-      </div>`;
-    });
-  }
-  document.getElementById('wa-responses-list').innerHTML = h3;
-
-  // Load Brief Preview
-  const r2 = await fetch('/api/dashboard');
-  const d2 = await r2.json();
-
-  const preview = d2.last_brief_message || "Brief will be generated upon approval.";
-  currentBriefText = d2.last_brief_message || "";
-  document.getElementById('brief-preview').innerHTML = preview.replace(/\*/g, '<b>').replace(/<b>([^*]*)<\/b>/g, '<b>$1</b>');
-  if (currentBriefText) {
-    document.getElementById('copy-btn').disabled = false;
-  }
-
-  lucide.createIcons();
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function getTodayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+function fmt12h(t) {
+  if (!t) return '';
+  const [hStr, mStr] = t.split(':');
+  let h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ap}`;
 }
 
-async function actionIssue(contact_id, issue_id, status) {
-  const r = await fetch('/api/issue/approve', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({contact_id, issue_id, status})
-  });
-  if (r.ok) loadData();
+// ── Summary strip ────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const [statsRes, inboxRes] = await Promise.all([
+      fetch('/api/stats'),
+      fetch('/api/grievance-inbox?status=pending_review'),
+    ]);
+    const s = await statsRes.json();
+    const inbox = await inboxRes.json();
+    document.getElementById('stat-total').textContent = s.total.toLocaleString('en-IN');
+    document.getElementById('stat-tiers').textContent = `T1 ${s.t1} · T2 ${s.t2} · T3 ${s.t3}`;
+    document.getElementById('stat-grievances-register').textContent = s.open_grievances_register;
+    document.getElementById('stat-inbox-pending').textContent = (inbox.items || []).length;
+    document.getElementById('stat-events').textContent = s.schedule_count;
+    document.getElementById('stat-brief').textContent = s.last_brief_sent
+      ? new Date(s.last_brief_sent).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })
+      : 'Never';
+  } catch (e) {
+    console.error('Failed to load stats', e);
+  }
 }
 
-let briefGenerated = false;
-let briefApproved = false;
+// ── Today's Schedule ─────────────────────────────────────────────────────
+async function loadTodaysSchedule() {
+  const listEl = document.getElementById('todays-schedule-list');
+  try {
+    const r = await fetch('/api/schedule');
+    const data = await r.json();
+    const todayIST = getTodayIST();
+    const todays = (data.schedule || [])
+      .filter(ev => ev.date === todayIST)
+      .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+    if (todays.length === 0) {
+      listEl.innerHTML = `<div class="empty-state">No events scheduled for today — <a href="/pa_schedule.html" style="color:var(--accent);font-weight:600">Add one &rarr;</a></div>`;
+      return;
+    }
+
+    listEl.innerHTML = todays.map(ev => `
+      <a href="/brief_workflow.html?date=${ev.date}" class="mini-list-card">
+        <div class="mini-list-name">${esc(ev.event_name)}</div>
+        <div class="mini-list-meta">${ev.time ? fmt12h(ev.time) : 'Time TBD'}${ev.mandal ? ' · ' + esc(ev.mandal) : ''}</div>
+      </a>`).join('');
+  } catch (e) {
+    listEl.innerHTML = '<div class="empty-state">Failed to load schedule.</div>';
+  }
+}
+
+// ── Shared contacts/grievances aggregation ──────────────────────────────
+// Mirrors the mandal-aggregation logic in public/heatmap.html (same source
+// fetches, same accumulator shape) — reused here for a table instead of map
+// markers, plus a couple of extra rollups (reach/affinity, category totals)
+// that heatmap.html doesn't need.
+const MANDAL_ALIAS = {
+  'Chilakaluripeta': 'Chilakaluripet',
+  'Dachepalli': 'Dachepalle',
+  'Gurajala': 'Gurazala',
+  'Sattenapalli': 'Sattenapalle',
+};
+const EXCLUDED_MANDALS = new Set(['Thummalacheruvu', 'Veerapuram']);
+function normalizeMandalName(name) { return MANDAL_ALIAS[name] || name; }
+
+let mandalStats = {};
+let categoryLabels = {};
+let globalCategoryCounts = {};
+let globalGrievanceCount = 0;
+
+function seededFactor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return (h % 100) / 100;
+}
+
+async function loadIntelligenceData() {
+  try {
+    const [contactsRes, grievancesRes, categoriesRes] = await Promise.all([
+      fetch('/api/contacts?limit=5000'),
+      fetch('/api/grievances'),
+      fetch('/api/grievances/categories'),
+    ]);
+    const { contacts } = await contactsRes.json();
+    const { items: grievances } = await grievancesRes.json();
+    const { categories } = await categoriesRes.json();
+    categoryLabels = Object.fromEntries((categories || []).map(c => [c.key, c.label]));
+
+    mandalStats = {};
+    (window.SaathiUI ? SaathiUI.MANDALS : []).forEach(name => {
+      mandalStats[name] = { count: 0, ppsSum: 0, tiers: { T1: 0, T2: 0, T3: 0 }, grievanceCountLive: 0, priorityScoreSum: 0, categoryCounts: {} };
+    });
+
+    let krishnaCount = 0, supportiveCount = 0, neutralCount = 0, reachSum = 0;
+    contacts.forEach(c => {
+      reachSum += c.estimated_reach || 0;
+      if (c.krishna_follower) krishnaCount++;
+      if (c.affinity === 'supportive') supportiveCount++;
+      else if (c.affinity === 'neutral') neutralCount++;
+
+      if (!c.mandal || EXCLUDED_MANDALS.has(c.mandal)) return;
+      const key = normalizeMandalName(c.mandal);
+      const stat = mandalStats[key];
+      if (!stat) return;
+      stat.count++;
+      stat.ppsSum += (c.pps_score || 0);
+      if (c.tier && stat.tiers[c.tier] !== undefined) stat.tiers[c.tier]++;
+    });
+
+    globalCategoryCounts = {};
+    globalGrievanceCount = (grievances || []).length;
+    (grievances || []).forEach(g => {
+      if (g.resolution_status !== 'Resolved') {
+        globalCategoryCounts[g.category] = (globalCategoryCounts[g.category] || 0) + 1;
+      }
+      if (!g.mandal || g.resolution_status === 'Resolved' || EXCLUDED_MANDALS.has(g.mandal)) return;
+      const key = normalizeMandalName(g.mandal);
+      const stat = mandalStats[key];
+      if (!stat) return;
+      stat.grievanceCountLive++;
+      stat.priorityScoreSum += (g.priority_score || 0);
+      stat.categoryCounts[g.category] = (stat.categoryCounts[g.category] || 0) + 1;
+    });
+
+    Object.values(mandalStats).forEach(stat => {
+      stat.avgPps = stat.count ? stat.ppsSum / stat.count : 0;
+      stat.avgPriorityScore = stat.grievanceCountLive ? stat.priorityScoreSum / stat.grievanceCountLive : 0;
+      stat.topCategory = Object.entries(stat.categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+    });
+
+    renderGovernanceTable();
+    renderReachAffinity(krishnaCount, supportiveCount, neutralCount, reachSum);
+    renderHealthScore();
+    renderCategoryBreakdown();
+  } catch (e) {
+    console.error('Failed to load intelligence data', e);
+  }
+}
+
+function renderGovernanceTable() {
+  const rows = Object.entries(mandalStats).sort((a, b) => b[1].count - a[1].count);
+  const tbody = document.getElementById('gov-table-body');
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state">No mandal data available.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(([name, s]) => {
+    const topCat = s.topCategory ? (categoryLabels[s.topCategory] || s.topCategory) : '—';
+    return `<tr>
+      <td>${esc(name)}</td>
+      <td>${s.count}</td>
+      <td>${s.avgPps.toFixed(1)}</td>
+      <td>${s.tiers.T1} / ${s.tiers.T2} / ${s.tiers.T3}</td>
+      <td>${s.grievanceCountLive}</td>
+      <td>${esc(topCat)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderReachAffinity(krishnaCount, supportiveCount, neutralCount, reachSum) {
+  document.getElementById('reach-affinity-body').innerHTML = `
+    <div class="mini-stat-row"><span>Krishna-follower contacts</span><b>${krishnaCount.toLocaleString('en-IN')}</b></div>
+    <div class="mini-stat-row"><span>Supportive affinity</span><b>${supportiveCount.toLocaleString('en-IN')}</b></div>
+    <div class="mini-stat-row"><span>Neutral affinity</span><b>${neutralCount.toLocaleString('en-IN')}</b></div>
+    <div class="mini-stat-row"><span>Estimated total reach</span><b>${reachSum.toLocaleString('en-IN')}</b></div>
+  `;
+}
+
+function renderHealthScore() {
+  const scored = Object.entries(mandalStats)
+    .filter(([, s]) => s.count > 0)
+    .map(([name, s]) => {
+      const score = Math.round(Math.min(100,
+        (s.avgPps * 0.5) + (Math.min(s.count, 300) / 300 * 100 * 0.3) + (seededFactor(name) * 20)
+      ));
+      return { name, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length === 0) {
+    document.getElementById('health-score-body').innerHTML = '<div class="empty-state">No contact data available.</div>';
+    return;
+  }
+
+  const badgeFor = (score) => score >= 70 ? 'badge-success' : score >= 40 ? 'badge-accent' : 'badge-danger';
+  const rowHtml = (r) => `<div class="rank-row">
+      <span class="rank-name">${esc(r.name)}</span>
+      <span class="rank-score"><span class="badge ${badgeFor(r.score)}">${r.score}</span></span>
+    </div>`;
+
+  const top = scored.slice(0, 5);
+  const bottom = scored.slice(-5).reverse();
+  document.getElementById('health-score-body').innerHTML =
+    top.map(rowHtml).join('') +
+    (scored.length > 5 ? `<div class="rank-divider">Needs attention</div>${bottom.map(rowHtml).join('')}` : '');
+}
+
+function renderCategoryBreakdown() {
+  const el = document.getElementById('category-breakdown-body');
+  const entries = Object.entries(globalCategoryCounts).sort((a, b) => b[1] - a[1]);
+  if (globalGrievanceCount === 0 || entries.length === 0) {
+    el.innerHTML = '<div class="empty-state">No grievances logged yet in the register.</div>';
+    return;
+  }
+  const max = Math.max(...entries.map(([, n]) => n));
+  el.innerHTML = entries.map(([key, count]) => {
+    const label = categoryLabels[key] || key;
+    const pct = Math.round((count / max) * 100);
+    return `<div class="cat-bar-row">
+      <span class="cat-bar-label" title="${esc(label)}">${esc(label)}</span>
+      <span class="cat-bar-track"><span class="cat-bar-fill" style="width:${pct}%"></span></span>
+      <span class="cat-bar-count">${count}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Ready-to-Post Social Media ───────────────────────────────────────────
+async function loadSocialPosts() {
+  const el = document.getElementById('social-posts-body');
+  try {
+    const today = getTodayIST();
+    const future = new Date();
+    future.setDate(future.getDate() + 14);
+    const to = future.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const r = await fetch(`/api/social-calendar?from=${today}&to=${to}`);
+    const data = await r.json();
+    const posts = (data.posts || []).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+
+    if (posts.length === 0) {
+      el.innerHTML = `<div class="empty-state">No posts scheduled in the next 14 days — <a href="/social_calendar.html" style="color:var(--accent);font-weight:600">Add one &rarr;</a></div>`;
+      return;
+    }
+
+    el.innerHTML = `<div class="social-mini-grid">` + posts.map(p => {
+      const dateLabel = new Date(p.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      const first = (p.media || [])[0];
+      let thumb = '<i data-lucide="image"></i>';
+      if (first) {
+        const src = `/api/social-calendar/media/${encodeURIComponent(first.filename)}`;
+        if (first.type === 'image') thumb = `<img src="${src}" loading="lazy">`;
+        else if (first.type === 'video') thumb = `<video src="${src}"></video>`;
+        else thumb = '<i data-lucide="file-text"></i>';
+      }
+      const captionText = p.caption ? esc(p.caption) : 'No caption';
+      return `<a href="/social_calendar.html" class="social-mini-card">
+        <div class="social-mini-thumb">${thumb}</div>
+        <div class="social-mini-body">
+          <div class="social-mini-date">${dateLabel}${p.media && p.media.length > 1 ? ' · ' + p.media.length + ' files' : ''}</div>
+          <div class="social-mini-caption">${captionText}</div>
+        </div>
+      </a>`;
+    }).join('') + `</div>`;
+    if (window.lucide) lucide.createIcons();
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">Failed to load social posts.</div>';
+  }
+}
+
+// ── WhatsApp Inbox Triage Queue ───────────────────────────────────────────
+async function loadInboxQueue() {
+  const el = document.getElementById('inbox-queue-body');
+  try {
+    const r = await fetch('/api/grievance-inbox?status=pending_review');
+    const data = await r.json();
+    const items = (data.items || []).slice(0, 5);
+
+    if (items.length === 0) {
+      el.innerHTML = '<div class="empty-state">Inbox is clear — no pending WhatsApp messages.</div>';
+      return;
+    }
+
+    el.innerHTML = items.map(entry => {
+      const preview = entry.text ? entry.text.slice(0, 70) : (entry.audio_path ? 'Voice note' : 'No text');
+      const when = entry.received_at ? new Date(entry.received_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      return `<a href="/grievance_inbox.html" class="mini-list-card">
+        <div class="mini-list-name">${esc(entry.sender_phone || 'Unknown sender')}</div>
+        <div class="mini-list-meta">${esc(preview)}${preview.length >= 70 ? '…' : ''} · ${when}</div>
+      </a>`;
+    }).join('') + `<a href="/grievance_inbox.html" style="display:block;text-align:center;font-size:12px;font-weight:600;color:var(--accent);margin-top:8px;text-decoration:none">View all &rarr;</a>`;
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">Failed to load inbox queue.</div>';
+  }
+}
+
+// ── Illustrative widgets (Political Intelligence + Scheme Progress) ─────
+// ILLUSTRATIVE — no live data source exists for any of these yet.
+function renderPoliticalTemperature() {
+  const heights = [40, 55, 48, 60, 52, 68];
+  document.getElementById('temp-body').innerHTML = `
+    <div class="temp-gauge">
+      <div><div class="temp-score">62</div><div class="temp-label">Favorable</div></div>
+      <div class="temp-spark">${heights.map(h => `<div style="height:${h}%"></div>`).join('')}</div>
+    </div>
+    <div class="pillar-caption">Illustrative 7-day trend — no live political-sentiment feed is connected yet.</div>
+  `;
+}
+
+// ILLUSTRATIVE — no live data source exists for any of these yet.
+function renderMediaSentiment() {
+  document.getElementById('sentiment-body').innerHTML = `
+    <div class="sentiment-bar">
+      <div class="sentiment-seg-pos" style="width:58%"></div>
+      <div class="sentiment-seg-neu" style="width:27%"></div>
+      <div class="sentiment-seg-neg" style="width:15%"></div>
+    </div>
+    <div class="sentiment-legend">
+      <span><span class="sentiment-dot" style="background:var(--success)"></span>Positive 58%</span>
+      <span><span class="sentiment-dot" style="background:#d6d3d1"></span>Neutral 27%</span>
+      <span><span class="sentiment-dot" style="background:var(--danger)"></span>Negative 15%</span>
+    </div>
+    <div class="pillar-caption">Illustrative split — no live sentiment analysis is connected yet.</div>
+  `;
+}
+
+// ILLUSTRATIVE — no live data source exists for any of these yet.
+const ILLUSTRATIVE_OPPOSITION = [
+  { title: 'Public meeting on irrigation dues', meta: 'Local YSRCP unit · Macherla · 2 days ago' },
+  { title: 'Social media campaign on road conditions', meta: 'Local YSRCP unit · Sattenapalli · 4 days ago' },
+  { title: 'Petition drive on drinking water supply', meta: 'Independent group · Gurazala · 6 days ago' },
+];
+function renderOppositionActivity() {
+  document.getElementById('opposition-body').innerHTML = `<div class="intel-item-list">` +
+    ILLUSTRATIVE_OPPOSITION.map(o => `<div class="intel-item">
+      <div class="intel-item-title">${esc(o.title)}</div>
+      <div class="intel-item-meta">${esc(o.meta)}</div>
+    </div>`).join('') + `</div>`;
+}
+
+// ILLUSTRATIVE — no live data source exists for any of these yet.
+const ILLUSTRATIVE_ALERTS = [
+  { severity: 'badge-danger', text: 'Low turnout risk flagged in Macherla mandal' },
+  { severity: 'badge-accent', text: 'Rally logistics pending confirmation — Vinukonda, this weekend' },
+  { severity: 'badge-info', text: 'Volunteer coverage gap in 3 booths, Sattenapalli' },
+];
+function renderCampaignAlerts() {
+  document.getElementById('alerts-body').innerHTML = `<div class="intel-item-list">` +
+    ILLUSTRATIVE_ALERTS.map(a => `<div class="intel-item">
+      <div class="intel-item-top">
+        <div class="intel-item-title">${esc(a.text)}</div>
+        <span class="badge ${a.severity}">Alert</span>
+      </div>
+    </div>`).join('') + `</div>`;
+}
+
+// ILLUSTRATIVE — no live data source exists for any of these yet.
+const ILLUSTRATIVE_SCHEMES = [
+  { name: 'PM Awas Yojana (PMAY)', pct: 68, meta: '4,120 beneficiaries' },
+  { name: 'Jal Jeevan Mission', pct: 82, meta: '9,340 households' },
+  { name: 'MGNREGA', pct: 54, meta: '61,200 person-days' },
+  { name: 'PM-KISAN', pct: 91, meta: '38,700 farmers' },
+  { name: 'Ayushman Bharat', pct: 45, meta: '22,050 cards issued' },
+];
+function renderSchemeProgress() {
+  document.getElementById('scheme-body').innerHTML = `<div class="scheme-grid">` +
+    ILLUSTRATIVE_SCHEMES.map(s => `<div class="scheme-card">
+      <div class="scheme-name">${esc(s.name)}</div>
+      <div class="scheme-bar-track"><div class="scheme-bar-fill" style="width:${s.pct}%"></div></div>
+      <div class="scheme-meta">${s.pct}% complete · ${esc(s.meta)}</div>
+    </div>`).join('') + `</div>`;
+}
+
+// ── Daily Brief (unchanged logic) ────────────────────────────────────────
 let currentBriefText = "";
+
+async function loadBriefPreview() {
+  try {
+    const r = await fetch('/api/dashboard');
+    const d = await r.json();
+    const preview = d.last_brief_message || "Brief will be generated upon approval.";
+    currentBriefText = d.last_brief_message || "";
+    document.getElementById('brief-preview').innerHTML = preview.replace(/\*/g, '<b>').replace(/<b>([^*]*)<\/b>/g, '<b>$1</b>');
+    if (currentBriefText) document.getElementById('copy-btn').disabled = false;
+  } catch (e) {
+    console.error('Failed to load brief preview', e);
+  }
+}
 
 function copyBrief() {
   if (!currentBriefText) return;
@@ -553,11 +926,7 @@ async function generateBrief() {
     const preview = d.message || "Brief will be generated upon approval.";
     currentBriefText = d.message || "";
     document.getElementById('brief-preview').innerHTML = preview.replace(/\*/g, '<b>').replace(/<b>([^*]*)<\/b>/g, '<b>$1</b>');
-    if (currentBriefText) {
-      document.getElementById('copy-btn').disabled = false;
-    }
-    briefGenerated = true;
-    briefApproved = false;
+    if (currentBriefText) document.getElementById('copy-btn').disabled = false;
     document.getElementById('approve-btn').disabled = false;
     document.getElementById('send-btn').disabled = true;
     status.textContent = 'Brief generated. Review and approve below.';
@@ -572,7 +941,6 @@ async function generateBrief() {
 }
 
 function approveBrief() {
-  briefApproved = true;
   document.getElementById('approve-btn').disabled = true;
   document.getElementById('approve-btn').innerHTML = '<i data-lucide="check-circle"></i> Approved';
   document.getElementById('send-btn').disabled = false;
@@ -592,8 +960,6 @@ async function sendToWhatsApp() {
     const data = await r.json();
     status.textContent = data.status === 'sent' ? 'Sent to WhatsApp.' : 'Previewed (Module in Preview Mode).';
     status.style.color = 'var(--success)';
-    briefGenerated = false;
-    briefApproved = false;
     document.getElementById('approve-btn').disabled = true;
     document.getElementById('approve-btn').innerHTML = '<i data-lucide="check"></i> Approve Brief';
   } catch(e) {
@@ -606,6 +972,7 @@ async function sendToWhatsApp() {
   }
 }
 
+// ── WhatsApp connection status (unchanged logic) ─────────────────────────
 async function checkWAStatus() {
   try {
     const r = await fetch('/api/wa-status');
@@ -633,36 +1000,7 @@ async function checkWAStatus() {
   }
 }
 
-async function sendApprovalToWA(contact_id, issue_id, btn) {
-  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader"></i> Sending...';
-  lucide.createIcons();
-  try {
-    const r = await fetch('/api/send-approval-request', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ contact_id, issue_id })
-    });
-    const data = await r.json();
-    btn.innerHTML = data.log.status === 'sent' ? '<i data-lucide="check"></i> Sent' : '<i data-lucide="clipboard"></i> Previewed';
-    btn.style.color = 'var(--success)';
-    btn.style.borderColor = 'var(--success)';
-    lucide.createIcons();
-  } catch(e) {
-    btn.innerHTML = '<i data-lucide="x"></i> Failed';
-    btn.disabled = false;
-    lucide.createIcons();
-  }
-}
-
-async function confirmWAResponse(issue_id, action) {
-  const r = await fetch('/api/wa-response/confirm', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ issue_id, action })
-  });
-  if (r.ok) loadData();
-}
-
+// ── Live news (unchanged logic) ──────────────────────────────────────────
 async function loadLiveNews() {
   try {
     const r = await fetch('/api/live-news');
@@ -706,7 +1044,7 @@ async function fetchFullArticle(elId, link) {
   }
 }
 
-// ── News Dashboard ────────────────────────────────────────────────────────
+// ── News Dashboard (unchanged logic) ─────────────────────────────────────
 let ndAllNews = [];
 let ndCategory = 'all';
 
@@ -720,9 +1058,7 @@ function ndFmtTime(iso) {
     hour: '2-digit', minute: '2-digit'
   });
 }
-function ndEsc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function ndEsc(s) { return esc(s); }
 
 function ndRender() {
   const filtered = ndCategory === 'all'
@@ -788,9 +1124,19 @@ function ndSetFilter(cat) {
 document.getElementById('nd-date').value = ndTodayIST();
 document.getElementById('nd-date').addEventListener('change', loadNewsDashboard);
 
-// ── Initialize
+// ── Initialize ────────────────────────────────────────────────────────────
 lucide.createIcons();
-loadData();
+loadStats();
+loadTodaysSchedule();
+loadIntelligenceData();
+loadSocialPosts();
+loadInboxQueue();
+renderPoliticalTemperature();
+renderMediaSentiment();
+renderOppositionActivity();
+renderCampaignAlerts();
+renderSchemeProgress();
+loadBriefPreview();
 loadLiveNews();
 loadNewsDashboard();
 checkWAStatus();
