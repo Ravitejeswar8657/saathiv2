@@ -9,6 +9,7 @@ import { createRequire } from 'module';
 import Fuse from 'fuse.js';
 import PDFDocument from 'pdfkit';
 import XLSX from 'xlsx';
+import { searchAll } from './search.js';
 
 const require = createRequire(import.meta.url);
 
@@ -333,6 +334,16 @@ app.get('/api/contacts', (req, res) => {
   if (role) contacts = contacts.filter(c => c.role === role);
   const limit = Math.min(parseInt(req.query.limit) || 200, 10000);
   res.json({ contacts: contacts.slice(0, limit), total: contacts.length });
+});
+
+// ── Cross-collection search (contacts/grievances/schedule/news/campaign_reports/
+// social_posts) — powers both the admin.html search box and the chat assistant's
+// grounding step. Fuse.js only; no SQL/vector DB in this app.
+app.get('/api/search', (req, res) => {
+  const { q, limit } = req.query;
+  if (!q) return res.json({ results: [] });
+  const results = searchAll(readDB(), q, { limit: Math.min(parseInt(limit) || 30, 100) });
+  res.json({ results });
 });
 
 app.get('/api/filter-options', (req, res) => {
@@ -1882,6 +1893,60 @@ app.get('/api/campaign-reports/:id/media', (req, res) => {
   if (!fs.existsSync(p)) return res.status(404).json({ error: 'File missing' });
   res.setHeader('Content-Type', item.attachment.mimetype);
   res.sendFile(p);
+});
+
+// ── Ask Saathi (read-only chat assistant, admin.html) ──────────────────────
+// One continuous conversation — no multi-thread/rename/trash, this is a single
+// MP-facing page. The load-bearing property (kept from the design brief this was
+// adapted from): the user's message is persisted BEFORE the model is called, and
+// an assistant reply is always persisted and returned — even a graceful failure
+// message — so history never shows a question with no answer.
+const CHAT_FALLBACK_REPLY = "I couldn't reach the AI assistant just now. Please try again in a moment.";
+
+app.get('/api/chat/messages', (req, res) => {
+  res.json({ messages: readDB().chat_messages || [] });
+});
+
+app.delete('/api/chat/messages', (req, res) => {
+  const db = readDB();
+  db.chat_messages = [];
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.post('/api/chat', async (req, res) => {
+  const message = req.body.message?.trim();
+  if (!message) return res.status(400).json({ error: 'message required' });
+
+  const db = readDB();
+  if (!db.chat_messages) db.chat_messages = [];
+
+  const userMsg = { id: `CHAT${Date.now()}`, role: 'user', body: message, created_at: new Date().toISOString(), grounding: [] };
+  db.chat_messages.push(userMsg);
+  writeDB(db);
+
+  const results = searchAll(db, message, { limit: 15 });
+  const priorMessages = db.chat_messages.slice(0, -1);
+
+  let replyBody;
+  let grounding = [];
+  try {
+    if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
+    const gemini = await import('./gemini.js');
+    const result = await gemini.chatWithData(message, results, priorMessages);
+    replyBody = result.reply || CHAT_FALLBACK_REPLY;
+    grounding = results.map(r => ({ source: r.source, id: r.id, label: r.title }));
+  } catch (e) {
+    replyBody = CHAT_FALLBACK_REPLY;
+  }
+
+  const db2 = readDB();
+  if (!db2.chat_messages) db2.chat_messages = [];
+  const assistantMsg = { id: `CHAT${Date.now()}_a`, role: 'assistant', body: replyBody, created_at: new Date().toISOString(), grounding };
+  db2.chat_messages.push(assistantMsg);
+  writeDB(db2);
+
+  res.json({ ok: true, reply: assistantMsg });
 });
 
 app.get('/api/stats', (req, res) => {

@@ -258,6 +258,25 @@
 
 .empty-state { color: var(--stone-500); font-size: 13px; padding: 20px 16px; text-align: center; }
 
+/* ── Ask Saathi (chat + search) ── */
+.chat-search-row { position: relative; margin-bottom: 14px; }
+.chat-search-row input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; }
+.chat-search-row input:focus { outline: none; border-color: var(--accent); }
+.chat-search-results { margin-bottom: 14px; }
+.chat-search-group-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--stone-500); margin: 10px 0 6px; }
+.chat-search-group-label:first-child { margin-top: 0; }
+.chat-messages { max-height: 380px; overflow-y: auto; padding: 4px 2px; margin-bottom: 12px; }
+.chat-bubble { max-width: 82%; padding: 9px 13px; border-radius: var(--radius-md); margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
+.chat-bubble.user { background: var(--accent); color: #fff; margin-left: auto; border-bottom-right-radius: 3px; }
+.chat-bubble.assistant { background: var(--bg); color: var(--ink); border: 1px solid var(--border); margin-right: auto; border-bottom-left-radius: 3px; }
+.chat-grounding { font-size: 11px; color: var(--stone-500); margin-top: 6px; }
+.chat-thinking { font-size: 12px; color: var(--stone-500); padding: 4px 13px 10px; animation: chat-pulse 1.3s ease-in-out infinite; }
+@keyframes chat-pulse { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
+.chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
+.chat-input-row textarea { flex: 1; min-height: 40px; max-height: 120px; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; resize: vertical; }
+.chat-input-row textarea:focus { outline: none; border-color: var(--accent); }
+.chat-input-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .container { padding: 16px; }
@@ -279,6 +298,27 @@
   <div class="grid">
     <!-- ── Main column ── -->
     <div class="left-col">
+
+      <!-- Ask Saathi: search + read-only chat over the app's own records -->
+      <div class="section-block">
+        <div class="section-header"><i data-lucide="sparkles"></i> Ask Saathi</div>
+        <div class="card" style="padding:18px">
+          <div class="chat-search-row">
+            <input type="text" id="chat-search-input" placeholder="Search contacts, grievances, schedule, news, reports…" oninput="onChatSearchInput()"/>
+          </div>
+          <div id="chat-search-results" class="chat-search-results" style="display:none"></div>
+
+          <div id="chat-messages" class="chat-messages"></div>
+          <div id="chat-thinking" class="chat-thinking" style="display:none">Thinking…</div>
+          <div class="chat-input-row">
+            <textarea id="chat-input" placeholder="Ask about contacts, grievances, schedule, campaigns…"></textarea>
+            <div class="chat-input-actions">
+              <button class="btn btn-accent" id="chat-send-btn" onclick="sendChatMessage()"><i data-lucide="send"></i> Send</button>
+              <button class="btn btn-secondary" id="chat-clear-btn" onclick="clearChat()"><i data-lucide="trash-2"></i> Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Summary strip -->
       <section class="stat-strip" id="stat-strip">
@@ -471,6 +511,123 @@ function fmt12h(t) {
   const ap = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${h}:${m} ${ap}`;
+}
+
+// ── Ask Saathi: chat ─────────────────────────────────────────────────────
+let chatMessages = [];
+
+async function loadChatMessages() {
+  try {
+    const r = await fetch('/api/chat/messages');
+    const data = await r.json();
+    chatMessages = data.messages || [];
+    renderChatMessages();
+  } catch (e) {
+    console.error('Failed to load chat messages', e);
+  }
+}
+
+function renderChatMessages() {
+  const el = document.getElementById('chat-messages');
+  if (chatMessages.length === 0) {
+    el.innerHTML = '<div class="empty-state">Ask a question about your contacts, grievances, schedule, or campaign reports.</div>';
+    return;
+  }
+  el.innerHTML = chatMessages.map(m => {
+    const groundingHtml = (m.grounding && m.grounding.length)
+      ? `<div class="chat-grounding">Based on: ${esc([...new Set(m.grounding.map(g => g.source))].join(', '))}</div>`
+      : '';
+    return `<div class="chat-bubble ${m.role}">${esc(m.body)}${groundingHtml}</div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  const sendBtn = document.getElementById('chat-send-btn');
+  sendBtn.disabled = true;
+  input.value = '';
+  chatMessages.push({ id: 'pending', role: 'user', body: message, grounding: [] });
+  renderChatMessages();
+  document.getElementById('chat-thinking').style.display = 'block';
+
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    if (!r.ok) throw new Error(`Server returned ${r.status}`);
+    const data = await r.json();
+    chatMessages.push(data.reply);
+    renderChatMessages();
+  } catch (e) {
+    SaathiUI.toast('Could not reach the server. Please try again.', 'danger');
+    await loadChatMessages();
+  } finally {
+    document.getElementById('chat-thinking').style.display = 'none';
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+async function clearChat() {
+  const ok = await SaathiUI.confirm('Clear the entire chat history? This cannot be undone.', { confirmLabel: 'Clear' });
+  if (!ok) return;
+  await fetch('/api/chat/messages', { method: 'DELETE' });
+  chatMessages = [];
+  renderChatMessages();
+}
+
+// ── Ask Saathi: search ───────────────────────────────────────────────────
+let chatSearchDebounce;
+
+function onChatSearchInput() {
+  clearTimeout(chatSearchDebounce);
+  const q = document.getElementById('chat-search-input').value.trim();
+  const resultsEl = document.getElementById('chat-search-results');
+  if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+  chatSearchDebounce = setTimeout(() => runChatSearch(q), 300);
+}
+
+async function runChatSearch(q) {
+  const resultsEl = document.getElementById('chat-search-results');
+  try {
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const data = await r.json();
+    const results = data.results || [];
+    if (results.length === 0) {
+      resultsEl.style.display = 'block';
+      resultsEl.innerHTML = '<div class="empty-state">No matching records.</div>';
+      return;
+    }
+    const groups = {};
+    results.forEach(res => { (groups[res.source] = groups[res.source] || []).push(res); });
+    resultsEl.innerHTML = Object.keys(groups).map(source => {
+      const rows = groups[source].map(res => `
+        <a class="mini-list-card" href="javascript:void(0)" onclick="askAboutResult('${esc(res.title).replace(/'/g, "\\'")}')">
+          <div class="mini-list-name">${esc(res.title)}</div>
+          <div class="mini-list-meta">${esc(res.subtitle || '')}</div>
+        </a>`).join('');
+      return `<div class="chat-search-group-label">${esc(source.replace(/_/g, ' '))}</div>${rows}`;
+    }).join('');
+    resultsEl.style.display = 'block';
+  } catch (e) {
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = '<div class="empty-state">Search failed.</div>';
+  }
+}
+
+function askAboutResult(title) {
+  document.getElementById('chat-search-input').value = '';
+  document.getElementById('chat-search-results').style.display = 'none';
+  document.getElementById('chat-search-results').innerHTML = '';
+  const input = document.getElementById('chat-input');
+  input.value = `Tell me about ${title}`;
+  input.focus();
 }
 
 // ── Summary strip ────────────────────────────────────────────────────────
@@ -917,6 +1074,10 @@ document.getElementById('nd-date').addEventListener('change', loadNewsDashboard)
 
 // ── Initialize ────────────────────────────────────────────────────────────
 lucide.createIcons();
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+});
+loadChatMessages();
 loadStats();
 loadTodaysSchedule();
 loadIntelligenceData();
