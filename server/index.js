@@ -37,20 +37,22 @@ fs.mkdirSync(GRIEVANCE_MEDIA_PATH, { recursive: true });
 fs.mkdirSync(SOCIAL_MEDIA_PATH, { recursive: true });
 fs.mkdirSync(CAMPAIGN_MEDIA_PATH, { recursive: true });
 
-// Sweep pending grievance recordings abandoned mid-review (browser closed before the
-// preview was saved or discarded). Anything still named tmp_* after a day is orphaned.
-(function sweepPendingGrievanceMedia() {
+// Sweep pending recordings abandoned mid-review (browser closed before the preview
+// was saved or discarded). Anything still named tmp_* after a day is orphaned.
+function sweepPendingMedia(dir) {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   try {
-    for (const name of fs.readdirSync(GRIEVANCE_MEDIA_PATH)) {
+    for (const name of fs.readdirSync(dir)) {
       if (!name.startsWith('tmp_')) continue;
-      const p = path.join(GRIEVANCE_MEDIA_PATH, name);
+      const p = path.join(dir, name);
       if (fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p);
     }
   } catch (e) {
     console.error('Pending media sweep skipped:', e.message);
   }
-})();
+}
+sweepPendingMedia(GRIEVANCE_MEDIA_PATH);
+sweepPendingMedia(CAMPAIGN_MEDIA_PATH);
 
 // Seed db.json from bundled snapshot if volume is empty
 const SEED_PATH = path.join(ROOT, 'data', 'db.json');
@@ -95,6 +97,12 @@ const logGrievanceMedia = uploadGrievanceMedia.fields([
 ]);
 // Social media calendar posts can include video, which runs much larger than photos.
 const uploadSocialMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 10 } });
+// Universal "Log Political Report" intake — one report's own attachments (photos/PDF + audio).
+const uploadCampaignReportMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 11 } });
+const logCampaignReportMedia = uploadCampaignReportMedia.fields([
+  { name: 'images', maxCount: 10 },
+  { name: 'audio', maxCount: 1 },
+]);
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
 function readDB() {
@@ -1858,13 +1866,25 @@ app.get('/api/social-calendar/media/:filename', (req, res) => {
   res.sendFile(p);
 });
 
-// ── Campaign & Scheme Reports ───────────────────────────────────────────────
+// ── Campaign & Scheme Reports (AI-assisted political intake) ──────────────
+// Mirrors the grievance universal-intake shape: any combination of typed text,
+// photo(s)/PDF, and audio describing ONE campaign/scheme/cluster item is merged
+// into a single AI-extracted preview record staff review and edit before saving.
+// No per-value weight/department metadata exists for report type/status (unlike
+// ISSUE_CATEGORIES), so these stay bare fixed enums.
 const CAMPAIGN_REPORT_TYPES = new Set(['Campaign', 'Government Scheme', 'Cluster Report', 'Other']);
 const CAMPAIGN_REPORT_STATUSES = new Set(['Planned', 'Ongoing', 'Completed', 'Delayed']);
+// Unified mime map for this intake's single parking path (unlike grievances, which
+// split an image-only allowlist for the bulk /upload route from GRIEVANCE_AUDIO_MIMES
+// for /log — campaign reports have only one intake route, so one map covers it all).
 const CAMPAIGN_MEDIA_MIMES = {
-  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
-  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf',
+  'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a',
+  'audio/aac': 'aac', 'audio/ogg': 'ogg', 'audio/flac': 'flac',
 };
+
+// NOTE ON ROUTE ORDER: /log and /pending-media/:filename must stay registered ahead
+// of /:id routes below, or Express will match the literal segment as an id.
 
 app.get('/api/campaign-reports', (req, res) => {
   const db = readDB();
@@ -1877,33 +1897,198 @@ app.get('/api/campaign-reports', (req, res) => {
   res.json({ items });
 });
 
-app.post('/api/campaign-reports', upload.single('attachment'), (req, res) => {
-  const { title, mandal, village, description } = req.body;
-  if (!title?.trim()) return res.status(400).json({ error: 'title required' });
-  const type = CAMPAIGN_REPORT_TYPES.has(req.body.type) ? req.body.type : 'Other';
-  const status = CAMPAIGN_REPORT_STATUSES.has(req.body.status) ? req.body.status : 'Planned';
+// Universal intake — extracts a preview only, does not write to the DB.
+app.post('/api/campaign-reports/log', logCampaignReportMedia, async (req, res) => {
+  const text = String(req.body.text || '').trim();
+  const images = req.files?.images || [];
+  const audioFile = req.files?.audio?.[0];
+  if (!text && !images.length && !audioFile) {
+    return res.status(400).json({ error: 'Add at least one of: typed text, a photo/PDF, or audio.' });
+  }
+  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
 
-  const id = `CR${Date.now()}`;
-  let attachment = null;
-  if (req.file) {
-    const ext = CAMPAIGN_MEDIA_MIMES[req.file.mimetype];
-    if (!ext) return res.status(400).json({ error: `Unsupported file type: ${req.file.mimetype}` });
-    const filename = `${id}.${ext}`;
-    fs.writeFileSync(path.join(CAMPAIGN_MEDIA_PATH, filename), req.file.buffer);
-    attachment = { filename, mimetype: req.file.mimetype, original_name: req.file.originalname };
+  for (const f of images) {
+    if (!CAMPAIGN_MEDIA_MIMES[f.mimetype] || f.mimetype.startsWith('audio/')) {
+      return res.status(400).json({ error: `Unsupported file type: ${f.mimetype}` });
+    }
+  }
+  let audioExt = null;
+  if (audioFile) {
+    audioExt = CAMPAIGN_MEDIA_MIMES[audioFile.mimetype];
+    if (!audioExt || !audioFile.mimetype.startsWith('audio/')) {
+      return res.status(400).json({
+        error: `Unsupported audio type: ${audioFile.mimetype}. Use WAV, MP3, M4A, AAC, OGG or FLAC.`,
+      });
+    }
   }
 
+  const { title, mandal, village, logged_by } = req.body;
+  const known = { title, mandal, village };
+
+  // Park every attachment to disk immediately — nothing is lost if a Gemini call
+  // below fails, and it sidesteps express.json's 10mb cap for this multipart path.
+  const media = [];
+  try {
+    images.forEach((f, i) => {
+      const ext = CAMPAIGN_MEDIA_MIMES[f.mimetype];
+      const filename = `tmp_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      fs.writeFileSync(path.join(CAMPAIGN_MEDIA_PATH, filename), f.buffer);
+      media.push({ pending_media: filename, mime: f.mimetype, type: f.mimetype === 'application/pdf' ? 'pdf' : 'image', label: `Attached photo ${i + 1}` });
+    });
+    if (audioFile) {
+      const filename = `tmp_${Date.now()}_audio_${Math.random().toString(36).slice(2, 8)}.${audioExt}`;
+      fs.writeFileSync(path.join(CAMPAIGN_MEDIA_PATH, filename), audioFile.buffer);
+      media.push({ pending_media: filename, mime: audioFile.mimetype, type: 'audio', label: 'Voice note' });
+    }
+  } catch (e) {
+    return res.status(500).json({ error: `Could not store attachment(s): ${e.message}` });
+  }
+
+  const gemini = await import('./gemini.js');
+  const [imageResults, audioResult, textResult] = await Promise.all([
+    Promise.all(images.map(async (f, i) => {
+      try {
+        const extracted = await gemini.extractReportFromImage(f.buffer, f.mimetype);
+        return { ok: true, idx: i, file: f.originalname, extracted };
+      } catch (e) {
+        return { ok: false, idx: i, file: f.originalname, error: e.message };
+      }
+    })),
+    audioFile
+      ? gemini.extractReportFromAudio(audioFile.buffer, audioFile.mimetype)
+          .then(extracted => ({ ok: true, extracted }))
+          .catch(e => ({ ok: false, error: e.message }))
+      : null,
+    text
+      ? gemini.extractReportFromText(text)
+          .then(extracted => ({ ok: true, extracted }))
+          .catch(e => ({ ok: false, error: e.message }))
+      : null,
+  ]);
+
+  const merged = mergeReportExtraction({ imageResults, audioResult, textResult, typedText: text, known });
+  const tmp_id = `tmp${Date.now()}_0`;
   const item = {
-    id, title: title.trim(), type, status,
-    mandal: mandal?.trim() || '', village: village?.trim() || '',
-    description: description?.trim() || '',
-    attachment,
+    tmp_id,
+    intake_mode: 'mixed',
+    logged_by: logged_by || '',
+    extracted: merged,
+    media,
+  };
+  res.json({ ok: true, items: [item], count: 1 });
+});
+
+// Called when staff discard a preview, so abandoned attachments don't pile up.
+app.delete('/api/campaign-reports/pending-media/:filename', (req, res) => {
+  const safeName = path.basename(req.params.filename);
+  if (!safeName.startsWith('tmp_')) return res.status(400).json({ error: 'Not a pending upload' });
+  const p = path.join(CAMPAIGN_MEDIA_PATH, safeName);
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+  res.json({ ok: true });
+});
+
+// Merge across text/photo(s)/audio into ONE report — same discipline as
+// mergeGrievanceExtraction: scalar fields first-source-wins in priority order
+// image→audio→text; {type, status} chosen as one coherent bundle from a single
+// richest source (never mixed); description concatenated per-source, never chosen,
+// so nothing is silently dropped; staff-typed known fields always win outright.
+function mergeReportExtraction({ imageResults, audioResult, textResult, typedText, known }) {
+  const scalarFields = ['title', 'mandal', 'village', 'event_date', 'key_people_mentioned', 'attendance_or_beneficiaries'];
+  const successfulImages = imageResults.filter(r => r.ok).map(r => r.extracted);
+  const scalarSources = [
+    ...successfulImages,
+    ...(audioResult?.ok ? [audioResult.extracted] : []),
+    ...(textResult?.ok ? [textResult.extracted] : []),
+  ];
+
+  const merged = {};
+  for (const field of scalarFields) {
+    merged[field] = '';
+    for (const src of scalarSources) {
+      if (src[field]) { merged[field] = src[field]; break; }
+    }
+  }
+
+  const bundleSource = audioResult?.ok ? audioResult.extracted
+    : (successfulImages[0] || (textResult?.ok ? textResult.extracted : null));
+  merged.type = (bundleSource && CAMPAIGN_REPORT_TYPES.has(bundleSource.type)) ? bundleSource.type : 'Other';
+  merged.status = (bundleSource && CAMPAIGN_REPORT_STATUSES.has(bundleSource.status)) ? bundleSource.status : 'Planned';
+  merged.sentiment = (bundleSource && SENTIMENTS.has(bundleSource.sentiment)) ? bundleSource.sentiment : '';
+  merged.confidence = bundleSource?.confidence || '';
+  merged.ocr_confidence = imageResults.find(r => r.ok)?.extracted?.ocr_confidence || '';
+  merged.transcript = audioResult?.ok ? (audioResult.extracted.transcript || '') : '';
+
+  const parts = [];
+  if (audioResult) {
+    parts.push(audioResult.ok
+      ? `[From voice note]: ${audioResult.extracted.transcript || ''}`
+      : `[From voice note]: (extraction failed — ${audioResult.error})`);
+  }
+  if (typedText) parts.push(`[Typed note]: ${typedText}`);
+  imageResults.forEach((r, i) => {
+    const label = `[From attached photo ${i + 1}${r.file ? ' — ' + r.file : ''}]`;
+    parts.push(r.ok
+      ? `${label}: ${r.extracted.description || ''}`
+      : `${label}: (extraction failed — ${r.error})`);
+  });
+  merged.description = parts.join('\n\n');
+
+  for (const [k, v] of Object.entries(known)) if (v) merged[k] = v;
+
+  return merged;
+}
+
+// Single write path into db.campaign_reports, whether committed from the AI-intake
+// preview or (in future) any other source — id format and media handling can't drift.
+function buildCampaignReportRecord(it, id) {
+  const type = CAMPAIGN_REPORT_TYPES.has(it.type) ? it.type : 'Other';
+  const status = CAMPAIGN_REPORT_STATUSES.has(it.status) ? it.status : 'Planned';
+  const sentiment = SENTIMENTS.has(it.sentiment) ? it.sentiment : '';
+
+  const media = (Array.isArray(it.media) ? it.media : []).map((m, idx) => {
+    if (!m.pending_media) return null;
+    const safeName = path.basename(String(m.pending_media));
+    const src = path.join(CAMPAIGN_MEDIA_PATH, safeName);
+    if (!fs.existsSync(src)) return null;
+    const filename = `${id}_${idx}${path.extname(safeName)}`;
+    try {
+      fs.renameSync(src, path.join(CAMPAIGN_MEDIA_PATH, filename));
+    } catch (e) {
+      console.error('Failed to adopt pending campaign report media:', e.message);
+      return null;
+    }
+    return { path: filename, mime: m.mime || '', type: m.type || 'image', label: m.label || '' };
+  }).filter(Boolean);
+
+  return {
+    id,
+    title: (it.title || '').trim() || '(untitled report)',
+    type, status,
+    mandal: (it.mandal || '').trim(), village: (it.village || '').trim(),
+    description: it.description || '',
+    event_date: it.event_date || '',
+    key_people_mentioned: it.key_people_mentioned || '',
+    attendance_or_beneficiaries: it.attendance_or_beneficiaries || '',
+    sentiment, confidence: it.confidence || '', ocr_confidence: it.ocr_confidence || '',
+    transcript: it.transcript || '',
+    intake_mode: it.intake_mode || 'mixed',
+    logged_by: it.logged_by || '',
+    attachment: null, // new records never populate the legacy singular field
+    media,
     created_at: new Date().toISOString(),
   };
+}
+
+// Commit the staff-reviewed/edited preview item(s) to the register.
+app.post('/api/campaign-reports', (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
   const db = readDB();
-  db.campaign_reports = [item, ...(db.campaign_reports || [])];
+  const ts = Date.now();
+  const saved = items.map((it, idx) => buildCampaignReportRecord(it, `CR${ts}_${idx}`));
+  db.campaign_reports = [...saved, ...(db.campaign_reports || [])];
   writeDB(db);
-  res.json({ ok: true, item });
+  res.json({ ok: true, count: saved.length, items: saved });
 });
 
 app.patch('/api/campaign-reports/:id', (req, res) => {
@@ -1928,19 +2113,35 @@ app.delete('/api/campaign-reports/:id', (req, res) => {
     const p = path.join(CAMPAIGN_MEDIA_PATH, item.attachment.filename);
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
+  (item?.media || []).forEach(m => {
+    const p = path.join(CAMPAIGN_MEDIA_PATH, m.path);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  });
   db.campaign_reports = (db.campaign_reports || []).filter(r => r.id !== req.params.id);
   writeDB(db);
   res.json({ ok: true });
 });
 
-app.get('/api/campaign-reports/:id/media', (req, res) => {
+app.get('/api/campaign-reports/:id/media/:index?', (req, res) => {
   const db = readDB();
   const item = (db.campaign_reports || []).find(r => r.id === req.params.id);
-  if (!item?.attachment) return res.status(404).json({ error: 'No attachment on file' });
-  const p = path.join(CAMPAIGN_MEDIA_PATH, item.attachment.filename);
-  if (!fs.existsSync(p)) return res.status(404).json({ error: 'File missing' });
-  res.setHeader('Content-Type', item.attachment.mimetype);
-  res.sendFile(p);
+  if (!item) return res.status(404).json({ error: 'Report not found' });
+  const idx = parseInt(req.params.index || '0', 10) || 0;
+  if (item.media?.length) {
+    const m = item.media[idx];
+    if (!m) return res.status(404).json({ error: 'No attachment at that index' });
+    const p = path.join(CAMPAIGN_MEDIA_PATH, m.path);
+    if (!fs.existsSync(p)) return res.status(404).json({ error: 'File missing' });
+    res.setHeader('Content-Type', m.mime || 'application/octet-stream');
+    return res.sendFile(p);
+  }
+  if (item.attachment) {
+    const p = path.join(CAMPAIGN_MEDIA_PATH, item.attachment.filename);
+    if (!fs.existsSync(p)) return res.status(404).json({ error: 'File missing' });
+    res.setHeader('Content-Type', item.attachment.mimetype);
+    return res.sendFile(p);
+  }
+  res.status(404).json({ error: 'No attachment on file' });
 });
 
 // ── Ask Saathi (read-only chat assistant, admin.html) ──────────────────────

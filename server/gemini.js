@@ -196,6 +196,142 @@ export async function extractGrievanceFromAudio(buffer, mimeType, categories) {
   );
 }
 
+// ── Campaign/scheme/cluster report extraction ──────────────────────────────────
+// Structurally parallel to the grievance extractors above, but there is no
+// per-value weight/department metadata for report type/status the way
+// ISSUE_CATEGORIES has for grievance categories — so the 4-value enums are
+// just hardcoded here, the same way resolution_status is hardcoded in
+// SHARED_PROPERTIES, rather than built via a withCategoryEnum-style injector.
+function buildReportImagePrompt() {
+  return `You are reading a photographed item from an Indian MP's constituency office — this could be a banner/event photo, an attendance sheet, a handwritten field note, or a government scheme progress note.
+
+Extract only what is legibly visible. If a field isn't shown or is illegible, return an empty string for it — never invent or guess a value.
+
+For "type", pick the single best match: "Campaign" (a political/public event, rally, health camp, etc.), "Government Scheme" (a scheme rollout/progress update), "Cluster Report" (a village/mandal-cluster field report, which may include notes about local leaders), or "Other".
+
+For "status", pick the single best match for how far along the activity is: "Planned", "Ongoing", "Completed", or "Delayed".
+
+Write "description" as a clear one-or-two-sentence summary of what the item shows.
+
+For "key_people_mentioned", list any named officials, leaders, or organizers visible on the item, as free text (empty string if none).
+
+For "attendance_or_beneficiaries", give a free-text best-effort figure only if one is actually written (e.g. "~300 attendees") — never estimate or invent a number that isn't shown.
+
+For "ocr_confidence", rate how legible/certain your overall reading was.
+
+event_date should be normalized to YYYY-MM-DD if a date is shown and unambiguous; otherwise return your best-effort raw reading or an empty string.`;
+}
+
+function buildReportTextPrompt() {
+  return `You are triaging a staff-written note about a campaign event, a government scheme update, or a constituency/cluster field report for an Indian MP's office. The text may be in English, Telugu, or a mix.
+
+Pull out whatever details are actually present. Most fields may be missing — return an empty string for anything not stated. Never invent or guess a value. Write "description" as a clear one-or-two-sentence summary.
+
+For "type", pick the single best match: "Campaign" (a political/public event, rally, health camp, etc.), "Government Scheme" (a scheme rollout/progress update), "Cluster Report" (a village/mandal-cluster field report, which may include notes about local leaders), or "Other".
+
+For "status", pick the single best match: "Planned", "Ongoing", "Completed", or "Delayed".
+
+For "key_people_mentioned", list any named officials, leaders, or organizers mentioned, as free text (empty string if none).
+
+For "attendance_or_beneficiaries", give a free-text figure only if one is actually stated (e.g. "~300 attendees") — never estimate a number that isn't mentioned.
+
+Set "confidence" to how certain you are of the type/status you picked. Use Low when the text is too short or vague to tell.
+
+Set "sentiment" to the overall tone of the note toward the MP/office/government — Positive, Negative, Neutral, or Mixed.
+
+event_date should be YYYY-MM-DD if the text states when the activity happened/is happening; otherwise return an empty string.`;
+}
+
+function buildReportAudioPrompt() {
+  return `You are processing an audio recording of a staff member describing a campaign event, a government scheme update, or a constituency/cluster field report for an Indian MP's office.
+
+First transcribe the audio into "transcript". The speaker may use Telugu, English, or a mix of both. Keep the original language and script — transcribe Telugu speech in Telugu script. Do not translate. If parts are inaudible, mark them [inaudible] rather than guessing.
+
+Then extract the report fields from that transcript. Return an empty string for any detail not actually spoken — never invent or guess a value. Write "description" as a clear one-or-two-sentence summary.
+
+For "type", pick the single best match: "Campaign" (a political/public event, rally, health camp, etc.), "Government Scheme" (a scheme rollout/progress update), "Cluster Report" (a village/mandal-cluster field report, which may include notes about local leaders), or "Other".
+
+For "status", pick the single best match: "Planned", "Ongoing", "Completed", or "Delayed".
+
+For "key_people_mentioned", list any named officials, leaders, or organizers mentioned, as free text (empty string if none).
+
+For "attendance_or_beneficiaries", give a free-text figure only if one is actually spoken (e.g. "~300 attendees") — never estimate a number that isn't mentioned.
+
+Set "confidence" to how certain you are of the type/status you picked. Use Low when the audio is unclear or too short to tell.
+
+Set "sentiment" to the overall tone of the note toward the MP/office/government — Positive, Negative, Neutral, or Mixed.
+
+event_date should be YYYY-MM-DD if the speaker states when the activity happened/is happening; otherwise return an empty string.`;
+}
+
+const REPORT_SHARED_PROPERTIES = {
+  title: { type: 'STRING' },
+  type: { type: 'STRING', enum: ['Campaign', 'Government Scheme', 'Cluster Report', 'Other'] },
+  status: { type: 'STRING', enum: ['Planned', 'Ongoing', 'Completed', 'Delayed'] },
+  mandal: { type: 'STRING' },
+  village: { type: 'STRING' },
+  event_date: { type: 'STRING' },
+  description: { type: 'STRING' },
+  key_people_mentioned: { type: 'STRING' },
+  attendance_or_beneficiaries: { type: 'STRING' },
+};
+
+const REPORT_IMAGE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    ...REPORT_SHARED_PROPERTIES,
+    ocr_confidence: { type: 'STRING', enum: ['High', 'Medium', 'Low'] },
+  },
+  required: ['title', 'type', 'status', 'description'],
+};
+
+const REPORT_TEXT_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    ...REPORT_SHARED_PROPERTIES,
+    confidence: { type: 'STRING', enum: ['High', 'Medium', 'Low'] },
+    sentiment: { type: 'STRING', enum: ['Positive', 'Neutral', 'Negative', 'Mixed'] },
+  },
+  required: ['title', 'type', 'status', 'description', 'confidence', 'sentiment'],
+};
+
+const REPORT_AUDIO_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    ...REPORT_TEXT_SCHEMA.properties,
+    transcript: { type: 'STRING' },
+  },
+  required: [...REPORT_TEXT_SCHEMA.required, 'transcript'],
+};
+
+export async function extractReportFromImage(buffer, mimeType) {
+  return callGemini(
+    [
+      { text: buildReportImagePrompt() },
+      { inline_data: { mime_type: mimeType, data: buffer.toString('base64') } },
+    ],
+    REPORT_IMAGE_SCHEMA,
+  );
+}
+
+export async function extractReportFromText(text) {
+  return callGemini(
+    [{ text: `${buildReportTextPrompt()}\n\n--- Reported item ---\n${text}` }],
+    REPORT_TEXT_SCHEMA,
+  );
+}
+
+export async function extractReportFromAudio(buffer, mimeType) {
+  return callGemini(
+    [
+      { text: buildReportAudioPrompt() },
+      { inline_data: { mime_type: mimeType, data: buffer.toString('base64') } },
+    ],
+    REPORT_AUDIO_SCHEMA,
+    AUDIO_TIMEOUT_MS,
+  );
+}
+
 const SUGGESTION_SCHEMA = {
   type: 'OBJECT',
   properties: {

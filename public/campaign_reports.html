@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Campaign &amp; Scheme Reports · Saathi Palanadu</title>
+<title>Political Intake · Saathi Palanadu</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest"></script>
@@ -25,7 +25,7 @@
 .report-title{font-size:14px;font-weight:600;color:var(--ink)}
 .report-meta{font-size:12px;color:var(--stone-500);margin-top:2px}
 .report-desc{font-size:13px;color:var(--stone-700);margin-top:8px;white-space:pre-wrap}
-.report-attachment{margin-top:8px;font-size:12px}
+.report-attachment{margin-top:8px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap}
 .report-attachment a{color:var(--accent);text-decoration:none;font-weight:600}
 .report-attachment a:hover{text-decoration:underline}
 .tag{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block}
@@ -45,60 +45,118 @@
 .edit-icon-btn{background:none;border:none;color:var(--stone-400);cursor:pointer;padding:6px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center}
 .edit-icon-btn:hover{color:var(--accent);background:var(--accent-bg)}
 .edit-icon-btn [data-lucide]{width:16px;height:16px}
+
+/* Log Political Report intake — text / photo+camera / audio, all optional */
+.modal-hint{font-size:12px;color:var(--stone-500);margin-bottom:12px}
+.recorder{display:flex;align-items:center;gap:12px}
+.rec-timer{font-variant-numeric:tabular-nums;font-weight:600;font-size:15px;color:var(--stone-600)}
+.rec-dot{width:10px;height:10px;border-radius:50%;background:var(--danger);animation:rec-pulse 1.2s ease-in-out infinite}
+@keyframes rec-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rec-dot{animation:none}}
+.attachment-gallery{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.attachment-gallery:empty{margin-bottom:0}
+.thumb-wrap{position:relative;width:64px;height:64px}
+.thumb, .thumb-pdf{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+.thumb-pdf{display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--stone-500)}
+.thumb-remove{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:1px solid var(--border);background:#fff;color:var(--stone-600);font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.attachment-gallery audio{width:100%}
+
+/* Review & Save preview card */
+.review-banner{background:var(--accent-bg);border:1px solid var(--accent-border);color:var(--accent-hover);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.preview-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.preview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.preview-grid label{display:block;font-size:11px;font-weight:600;color:var(--stone-500);margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em}
+.preview-grid .full-width{grid-column:1/-1}
+.preview-grid textarea{min-height:60px}
+.transcript-box{grid-column:1/-1}
+.transcript-box audio{width:100%;margin-bottom:6px}
 </style>
 </head>
 <body>
 <div class="container">
   <div class="page-header">
     <div>
-      <h1 class="page-title">Campaign &amp; Scheme Reports</h1>
-      <p class="page-subtitle">Log campaign updates, government scheme progress and cluster-wise field reports.</p>
+      <h1 class="page-title">Political Intake</h1>
+      <p class="page-subtitle">Log campaign updates, government scheme progress and cluster-wise field reports — text, photos/PDF, or a voice note, in any combination.</p>
     </div>
   </div>
 
   <div class="card">
-    <div class="section-title" id="form-title">Add new report</div>
-    <input type="hidden" id="cr-edit-id" value=""/>
-    <div class="form-group"><label>Title *</label><input id="cr-title" placeholder="e.g. Jala Jeevan Mission — Q2 progress"></div>
-    <div class="form-row">
-      <div class="form-group"><label>Type</label>
-        <select id="cr-type">
-          <option value="Campaign">Campaign</option>
-          <option value="Government Scheme">Government Scheme</option>
-          <option value="Cluster Report">Cluster Report</option>
-          <option value="Other">Other</option>
-        </select>
-      </div>
-      <div class="form-group"><label>Status</label>
-        <select id="cr-status">
-          <option value="Planned">Planned</option>
-          <option value="Ongoing">Ongoing</option>
-          <option value="Completed">Completed</option>
-          <option value="Delayed">Delayed</option>
-        </select>
-      </div>
+    <div class="section-title">Log Political Report</div>
+    <p class="modal-hint">
+      Add anything you have about this campaign, scheme update, or cluster/constituency matter — a typed
+      note, a photo (or take one now), a PDF, and/or a voice recording — in any combination. The AI reads
+      whatever you attach and merges it into one entry. You'll review and can correct everything before saving.
+    </p>
+
+    <div class="form-group"><label>What happened? (optional)</label><textarea id="log-text" rows="4" placeholder="e.g. Free health camp held today in Macherla, around 300 attended, along with the local MLA."></textarea></div>
+
+    <div class="section-title" style="margin-top:12px">Photos / PDF (optional)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('log-camera-input').click()">
+        <i data-lucide="camera"></i> Take photo
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('log-file-input').click()">
+        <i data-lucide="image-plus"></i> Choose file(s)
+      </button>
     </div>
+    <input type="file" id="log-camera-input" accept="image/*" capture="environment" style="display:none" onchange="onLogImagesChosen(this)">
+    <input type="file" id="log-file-input" accept="image/*,.pdf" multiple style="display:none" onchange="onLogImagesChosen(this)">
+    <div class="attachment-gallery" id="log-image-list"></div>
+
+    <div class="section-title" style="margin-top:12px">Audio (optional)</div>
+    <div class="recorder">
+      <button class="btn btn-secondary btn-sm" id="rec-btn" onclick="toggleRecording()">
+        <i data-lucide="mic"></i> Start recording
+      </button>
+      <span class="rec-timer" id="rec-timer">0:00</span>
+      <span class="rec-dot" id="rec-dot" style="display:none"></span>
+    </div>
+    <div class="modal-hint" id="rec-hint">Up to 5 minutes. Speak naturally — mention what happened, where, and who was involved.</div>
+    <audio id="rec-playback" controls style="display:none;width:100%;margin-top:6px"></audio>
+    <div class="modal-hint" style="margin:8px 0 4px">— or attach an audio file instead —</div>
+    <div class="file-drop" onclick="document.getElementById('audio-input').click()">
+      <i data-lucide="file-audio"></i><br>
+      Click to choose an audio file (WAV, MP3, M4A, AAC, OGG, FLAC)
+    </div>
+    <input type="file" id="audio-input" accept="audio/*" style="display:none" onchange="onAudioChosen()">
+    <div class="file-preview-list" id="audio-file-list"></div>
+
+    <div class="section-title" style="margin-top:16px">Known details (optional)</div>
+    <p class="modal-hint">Anything you fill in here overrides what the AI picks up.</p>
+    <div class="form-group"><label>Title</label><input id="log-title" placeholder="e.g. Jala Jeevan Mission — Q2 progress"></div>
     <div class="form-row">
       <div class="form-group">
         <label>Mandal</label>
-        <select id="cr-mandal" onchange="onMandalChange()">
+        <select id="log-mandal" onchange="onMandalChange('log')">
           <option value="">Select Mandal</option>
         </select>
-        <input id="cr-mandal-custom" type="text" placeholder="Enter mandal name" style="display:none;margin-top:6px">
+        <input id="log-mandal-custom" type="text" placeholder="Enter mandal name" style="display:none;margin-top:6px">
       </div>
       <div class="form-group">
         <label>Village / Cluster</label>
-        <select id="cr-village" disabled>
+        <select id="log-village" disabled onchange="onVillageChange('log')">
           <option value="">Select Mandal first</option>
         </select>
-        <input id="cr-village-custom" type="text" placeholder="Enter village/cluster name" style="display:none;margin-top:6px">
+        <input id="log-village-custom" type="text" placeholder="Enter village/cluster name" style="display:none;margin-top:6px">
       </div>
     </div>
-    <div class="form-group"><label>Description</label><textarea id="cr-desc" placeholder="Details, progress, fund utilization, notes..."></textarea></div>
-    <div class="form-group"><label>Attachment (image or PDF, optional)</label><input type="file" id="cr-attachment" accept="image/jpeg,image/png,image/webp,application/pdf"></div>
-    <button class="btn btn-primary btn-block" id="cr-submit-btn" onclick="submitReport()">
-      <i data-lucide="plus" style="width:16px;height:16px"></i> Save Report
+    <div class="form-group"><label>Logged by</label><input id="log-by" placeholder="Your name"></div>
+
+    <button class="btn btn-primary btn-block" id="log-extract-btn" onclick="submitReportLog()">
+      <i data-lucide="sparkles"></i> Extract with AI
     </button>
+  </div>
+
+  <div id="review-section" class="card" style="display:none">
+    <div class="review-banner">
+      <span>Review before saving — every field is editable.</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveReportPreview()"><i data-lucide="check"></i> Save Report</button>
+        <button class="btn btn-secondary" onclick="discardReportPreview()">Discard</button>
+      </div>
+    </div>
+    <div id="preview-card"></div>
   </div>
 
   <div class="card">
@@ -123,6 +181,54 @@
   </div>
 </div>
 
+<!-- EDIT REPORT MODAL — the 6 fields the commit record still accepts a JSON PATCH for -->
+<div id="edit-modal" class="modal-overlay" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>Edit Report</h3>
+    <input type="hidden" id="edit-id" value=""/>
+    <div class="form-group"><label>Title</label><input id="edit-title"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select id="edit-type">
+          <option value="Campaign">Campaign</option>
+          <option value="Government Scheme">Government Scheme</option>
+          <option value="Cluster Report">Cluster Report</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Status</label>
+        <select id="edit-status">
+          <option value="Planned">Planned</option>
+          <option value="Ongoing">Ongoing</option>
+          <option value="Completed">Completed</option>
+          <option value="Delayed">Delayed</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Mandal</label>
+        <select id="edit-mandal" onchange="onMandalChange('edit')">
+          <option value="">Select Mandal</option>
+        </select>
+        <input id="edit-mandal-custom" type="text" placeholder="Enter mandal name" style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group">
+        <label>Village / Cluster</label>
+        <select id="edit-village" disabled onchange="onVillageChange('edit')">
+          <option value="">Select Mandal first</option>
+        </select>
+        <input id="edit-village-custom" type="text" placeholder="Enter village/cluster name" style="display:none;margin-top:6px">
+      </div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea id="edit-desc"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="submitEdit()"><i data-lucide="save" style="width:16px;height:16px"></i> Update Report</button>
+      <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let villagesByMandal = {};
 const TYPE_TAG_CLASS = { 'Campaign': 'tag-campaign', 'Government Scheme': 'tag-scheme', 'Cluster Report': 'tag-cluster', 'Other': 'tag-other' };
@@ -143,25 +249,29 @@ async function loadFilterOptions() {
     const r = await fetch('/api/filter-options');
     const data = await r.json();
     villagesByMandal = data.villagesByMandal || {};
-    const mandalSel = document.getElementById('cr-mandal');
-    (data.mandals || []).forEach(m => {
-      const opt = document.createElement('option');
-      opt.value = m; opt.textContent = m;
-      mandalSel.appendChild(opt);
+    ['log-mandal', 'edit-mandal'].forEach(id => {
+      const sel = document.getElementById(id);
+      (data.mandals || []).forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m;
+        sel.appendChild(opt);
+      });
+      sel.appendChild(new Option('Others', '__other__'));
     });
-    mandalSel.appendChild(new Option('Others', '__other__'));
   } catch(e) {
     console.error('Failed to load filter options', e);
   }
 }
 
-function onMandalChange() {
-  const mandalVal = document.getElementById('cr-mandal').value;
-  const customMandal = document.getElementById('cr-mandal-custom');
+// prefix is 'log' or 'edit' — both the intake form and the edit modal share the
+// same cascading mandal→village select pattern under prefixed ids.
+function onMandalChange(prefix) {
+  const mandalVal = document.getElementById(`${prefix}-mandal`).value;
+  const customMandal = document.getElementById(`${prefix}-mandal-custom`);
   customMandal.style.display = mandalVal === '__other__' ? 'block' : 'none';
 
-  const villageSel = document.getElementById('cr-village');
-  const customVillage = document.getElementById('cr-village-custom');
+  const villageSel = document.getElementById(`${prefix}-village`);
+  const customVillage = document.getElementById(`${prefix}-village-custom`);
   villageSel.innerHTML = '';
   customVillage.style.display = 'none';
 
@@ -178,100 +288,425 @@ function onMandalChange() {
   villageSel.disabled = false;
 }
 
-document.addEventListener('change', e => {
-  if (e.target.id === 'cr-village') {
-    document.getElementById('cr-village-custom').style.display =
-      e.target.value === '__other__' ? 'block' : 'none';
-  }
-});
-
-function resetForm() {
-  document.getElementById('cr-edit-id').value = '';
-  document.getElementById('cr-title').value = '';
-  document.getElementById('cr-type').value = 'Campaign';
-  document.getElementById('cr-status').value = 'Planned';
-  document.getElementById('cr-mandal').value = '';
-  document.getElementById('cr-mandal-custom').value = '';
-  document.getElementById('cr-mandal-custom').style.display = 'none';
-  document.getElementById('cr-village').innerHTML = '<option value="">Select Mandal first</option>';
-  document.getElementById('cr-village').disabled = true;
-  document.getElementById('cr-village-custom').value = '';
-  document.getElementById('cr-village-custom').style.display = 'none';
-  document.getElementById('cr-desc').value = '';
-  document.getElementById('cr-attachment').value = '';
-  document.getElementById('form-title').textContent = 'Add new report';
-  document.getElementById('cr-submit-btn').innerHTML = '<i data-lucide="plus" style="width:16px;height:16px"></i> Save Report';
-  lucide.createIcons();
+function onVillageChange(prefix) {
+  const villageVal = document.getElementById(`${prefix}-village`).value;
+  document.getElementById(`${prefix}-village-custom`).style.display = villageVal === '__other__' ? 'block' : 'none';
 }
 
-async function submitReport() {
-  const editId = document.getElementById('cr-edit-id').value;
-  const title = document.getElementById('cr-title').value.trim();
-  if (!title) { SaathiUI.toast('Title is required.', 'danger'); return; }
+function resolvedMandalVillage(prefix) {
+  const mandalSel = document.getElementById(`${prefix}-mandal`).value;
+  const mandal = mandalSel === '__other__' ? document.getElementById(`${prefix}-mandal-custom`).value.trim() : mandalSel;
+  const villageSel = document.getElementById(`${prefix}-village`).value;
+  const village = villageSel === '__other__' ? document.getElementById(`${prefix}-village-custom`).value.trim() : villageSel;
+  return { mandal, village };
+}
 
-  const mandalSel = document.getElementById('cr-mandal').value;
-  const mandal = mandalSel === '__other__' ? document.getElementById('cr-mandal-custom').value.trim() : mandalSel;
-  const villageSel = document.getElementById('cr-village').value;
-  const village = villageSel === '__other__' ? document.getElementById('cr-village-custom').value.trim() : villageSel;
+// ── Log Political Report (universal intake: text / photo+camera / audio, any mix) ──
+let pendingLogImages = [];
+let pendingLogImageUrls = [];
+let recordedBlob = null;
+let recordedUrl = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let recStream = null;
+let isRecording = false;
+let recTimerId = null;
+let recStartedAt = 0;
+const REC_MAX_MS = 5 * 60 * 1000;
 
-  const btn = document.getElementById('cr-submit-btn');
-  btn.disabled = true;
+function onLogImagesChosen(inputEl) {
+  Array.from(inputEl.files).forEach(f => {
+    pendingLogImages.push(f);
+    pendingLogImageUrls.push(f.type === 'application/pdf' ? '' : URL.createObjectURL(f));
+  });
+  inputEl.value = '';
+  renderLogImageList();
+}
+
+function removeLogImage(i) {
+  if (pendingLogImageUrls[i]) URL.revokeObjectURL(pendingLogImageUrls[i]);
+  pendingLogImages.splice(i, 1);
+  pendingLogImageUrls.splice(i, 1);
+  renderLogImageList();
+}
+
+function renderLogImageList() {
+  document.getElementById('log-image-list').innerHTML = pendingLogImages.map((f, i) => `
+    <div class="thumb-wrap">
+      ${pendingLogImageUrls[i] ? `<img class="thumb" src="${pendingLogImageUrls[i]}">` : `<div class="thumb thumb-pdf"><i data-lucide="file-text"></i></div>`}
+      <button type="button" class="thumb-remove" onclick="removeLogImage(${i})" title="Remove">&times;</button>
+    </div>`).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function onAudioChosen() {
+  const files = document.getElementById('audio-input').files;
+  document.getElementById('audio-file-list').innerHTML = Array.from(files)
+    .map(f => `<div class="file-preview-item"><i data-lucide="file-audio"></i> ${esc(f.name)}</div>`).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function discardRecording() {
+  if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+  recordedUrl = null;
+  recordedBlob = null;
+  const player = document.getElementById('rec-playback');
+  player.removeAttribute('src');
+  player.style.display = 'none';
+  document.getElementById('rec-timer').textContent = '0:00';
+}
+
+function fmtDuration(ms) {
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+async function toggleRecording() {
+  if (isRecording) { stopRecording(); return; }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    SaathiUI.toast('Recording needs a secure (https) connection — type the summary or attach an audio file instead.', 'danger');
+    return;
+  }
 
   try {
-    if (editId) {
-      const r = await fetch(`/api/campaign-reports/${editId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title, mandal, village,
-          type: document.getElementById('cr-type').value,
-          status: document.getElementById('cr-status').value,
-          description: document.getElementById('cr-desc').value,
-        })
-      });
-      const data = await r.json();
-      if (!data.ok) throw new Error(data.error);
-      SaathiUI.toast('Report updated.', 'success');
-    } else {
-      const fd = new FormData();
-      fd.append('title', title);
-      fd.append('type', document.getElementById('cr-type').value);
-      fd.append('status', document.getElementById('cr-status').value);
-      fd.append('mandal', mandal);
-      fd.append('village', village);
-      fd.append('description', document.getElementById('cr-desc').value);
-      const file = document.getElementById('cr-attachment').files[0];
-      if (file) fd.append('attachment', file);
+    recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    SaathiUI.toast(
+      e.name === 'NotAllowedError'
+        ? 'Microphone permission was denied — type the summary or attach an audio file instead.'
+        : 'Could not start the microphone: ' + e.message,
+      'danger');
+    return;
+  }
 
-      const r = await fetch('/api/campaign-reports', { method: 'POST', body: fd });
-      const data = await r.json();
-      if (!data.ok) throw new Error(data.error);
-      SaathiUI.toast('Report saved.', 'success');
+  discardRecording();
+  recordedChunks = [];
+  mediaRecorder = new MediaRecorder(recStream);
+  mediaRecorder.ondataavailable = e => { if (e.data.size) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = onRecordingStopped;
+  mediaRecorder.start();
+
+  isRecording = true;
+  recStartedAt = Date.now();
+  document.getElementById('rec-dot').style.display = 'inline-block';
+  document.getElementById('rec-btn').innerHTML = '<i data-lucide="square"></i> Stop recording';
+  document.getElementById('rec-hint').textContent = 'Recording… press stop when finished.';
+  if (window.lucide) lucide.createIcons();
+
+  recTimerId = setInterval(() => {
+    const elapsed = Date.now() - recStartedAt;
+    document.getElementById('rec-timer').textContent = fmtDuration(elapsed);
+    if (elapsed >= REC_MAX_MS) {
+      SaathiUI.toast('Reached the 5 minute limit — recording stopped.', 'info');
+      stopRecording();
     }
-    resetForm();
+  }, 250);
+}
+
+function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+  clearInterval(recTimerId);
+  try { mediaRecorder?.stop(); } catch { /* already stopped */ }
+  recStream?.getTracks().forEach(t => t.stop());
+  recStream = null;
+  document.getElementById('rec-dot').style.display = 'none';
+  document.getElementById('rec-btn').innerHTML = '<i data-lucide="mic"></i> Start recording';
+  if (window.lucide) lucide.createIcons();
+}
+
+async function onRecordingStopped() {
+  const raw = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+  recordedChunks = [];
+  document.getElementById('rec-hint').textContent = 'Preparing the recording…';
+  try {
+    recordedBlob = await blobToWav(raw);
+    recordedUrl = URL.createObjectURL(recordedBlob);
+    const player = document.getElementById('rec-playback');
+    player.src = recordedUrl;
+    player.style.display = 'block';
+    document.getElementById('rec-hint').textContent =
+      `Recorded ${fmtDuration(Date.now() - recStartedAt)} — play it back, or extract with AI below.`;
+  } catch (e) {
+    SaathiUI.toast('Could not process the recording: ' + e.message, 'danger');
+    document.getElementById('rec-hint').textContent = 'Recording failed — try again, or type the summary.';
+  }
+}
+
+async function blobToWav(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const targetRate = 16000;
+    const frames = Math.ceil(decoded.duration * targetRate);
+    const offline = new OfflineAudioContext(1, frames, targetRate);
+    const src = offline.createBufferSource();
+    src.buffer = decoded;
+    src.connect(offline.destination);
+    src.start();
+    const rendered = await offline.startRendering();
+    return encodeWav(rendered.getChannelData(0), targetRate);
+  } finally {
+    ctx.close();
+  }
+}
+
+function encodeWav(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeStr = (offset, s) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const clamped = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+let previewItem = null;
+
+async function submitReportLog() {
+  const text = document.getElementById('log-text').value.trim();
+  const audioFile = document.getElementById('audio-input').files[0];
+  const audio = recordedBlob || audioFile;
+
+  if (!text && !pendingLogImages.length && !audio) {
+    SaathiUI.toast('Add a typed note, a photo/PDF, or audio before extracting.', 'danger');
+    return;
+  }
+
+  const { mandal, village } = resolvedMandalVillage('log');
+  const fd = new FormData();
+  if (text) fd.append('text', text);
+  pendingLogImages.forEach(f => fd.append('images', f));
+  if (audio) fd.append('audio', audio, recordedBlob ? 'dictation.wav' : audio.name);
+  fd.append('title', document.getElementById('log-title').value.trim());
+  fd.append('mandal', mandal);
+  fd.append('village', village);
+  fd.append('logged_by', document.getElementById('log-by').value.trim());
+
+  const btn = document.getElementById('log-extract-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-circle"></i> Extracting… this can take a moment';
+  if (window.lucide) lucide.createIcons();
+
+  try {
+    const r = await fetch('/api/campaign-reports/log', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) { SaathiUI.toast(data.error || 'Extraction failed.', 'danger'); return; }
+    previewItem = attachLocalReportMedia(data.items[0], { audioFile });
+    resetLogForm();
+    renderReportPreview();
+  } catch (e) {
+    SaathiUI.toast('Extraction failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="sparkles"></i> Extract with AI';
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+function resetLogForm() {
+  document.getElementById('log-text').value = '';
+  document.getElementById('log-title').value = '';
+  document.getElementById('log-by').value = '';
+  document.getElementById('log-camera-input').value = '';
+  document.getElementById('log-file-input').value = '';
+  document.getElementById('audio-input').value = '';
+  document.getElementById('audio-file-list').innerHTML = '';
+  document.getElementById('log-mandal').value = '';
+  onMandalChange('log');
+  discardRecording();
+  // pendingLogImages/pendingLogImageUrls ownership moves to the preview card in
+  // attachLocalReportMedia — do not revoke here.
+  pendingLogImages = [];
+  pendingLogImageUrls = [];
+  renderLogImageList();
+}
+
+// Keep local object URLs alive on the preview card so staff can see the photo(s)
+// and replay the audio they just attached, without a round trip to the server.
+// The server returns media in submission order (images first, audio last).
+function attachLocalReportMedia(item, { audioFile }) {
+  if (item?.media?.length) {
+    let imgI = 0;
+    item.media.forEach(m => {
+      if (m.type === 'audio') {
+        m.local_url = recordedUrl || (audioFile ? URL.createObjectURL(audioFile) : null);
+      } else {
+        m.local_url = pendingLogImageUrls[imgI] || null;
+        imgI += 1;
+      }
+    });
+  }
+  recordedUrl = null;
+  recordedBlob = null;
+  return item;
+}
+
+function renderReportPreview() {
+  const section = document.getElementById('review-section');
+  if (!previewItem) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+
+  const ex = previewItem.extracted || {};
+  const typeOptions = ['Campaign', 'Government Scheme', 'Cluster Report', 'Other']
+    .map(t => `<option value="${t}">${t}</option>`).join('');
+  const statusOptions = ['Planned', 'Ongoing', 'Completed', 'Delayed']
+    .map(s => `<option value="${s}">${s}</option>`).join('');
+
+  document.getElementById('preview-card').innerHTML = `
+    <div class="preview-card-head">
+      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        ${ex.ocr_confidence ? `<span class="badge badge-neutral">OCR confidence: ${esc(ex.ocr_confidence)}</span>` : ''}
+        ${ex.confidence ? `<span class="badge badge-neutral">AI confidence: ${esc(ex.confidence)}</span>` : ''}
+        ${ex.sentiment ? `<span class="badge badge-neutral">Sentiment: ${esc(ex.sentiment)}</span>` : ''}
+      </span>
+    </div>
+    ${(previewItem.media || []).some(m => m.type !== 'audio') ? `
+    <div class="attachment-gallery">
+      ${previewItem.media.filter(m => m.type !== 'audio').map(m => m.local_url ? `<img class="thumb" src="${m.local_url}">` : `<div class="thumb thumb-pdf"><i data-lucide="file-text"></i></div>`).join('')}
+    </div>` : ''}
+    <div class="preview-grid">
+      ${(previewItem.media || []).some(m => m.type === 'audio') ? `
+      <div class="transcript-box">
+        ${previewItem.media.find(m => m.type === 'audio')?.local_url ? `<audio controls src="${previewItem.media.find(m => m.type === 'audio').local_url}"></audio>` : ''}
+        <label>Transcript — correct any mistakes before saving</label>
+        <textarea id="pr-transcript" rows="3">${esc(ex.transcript || '')}</textarea>
+      </div>` : ''}
+      <div><label>Title</label><input id="pr-title" value="${esc(ex.title)}"></div>
+      <div><label>Type</label><select id="pr-type">${typeOptions}</select></div>
+      <div><label>Status</label><select id="pr-status">${statusOptions}</select></div>
+      <div><label>Mandal</label><input id="pr-mandal" value="${esc(ex.mandal)}"></div>
+      <div><label>Village / Cluster</label><input id="pr-village" value="${esc(ex.village)}"></div>
+      <div><label>Event date</label><input id="pr-event-date" value="${esc(ex.event_date)}" placeholder="YYYY-MM-DD"></div>
+      <div><label>Key people mentioned</label><input id="pr-people" value="${esc(ex.key_people_mentioned)}"></div>
+      <div><label>Attendance / beneficiaries</label><input id="pr-attendance" value="${esc(ex.attendance_or_beneficiaries)}"></div>
+      <div class="full-width"><label>Description</label><textarea id="pr-desc">${esc(ex.description)}</textarea></div>
+    </div>
+  `;
+  document.getElementById('pr-type').value = typeOptions.includes(`value="${ex.type}"`) ? ex.type : 'Other';
+  document.getElementById('pr-status').value = statusOptions.includes(`value="${ex.status}"`) ? ex.status : 'Planned';
+  if (window.lucide) lucide.createIcons();
+  section.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Media parked server-side by /api/campaign-reports/log is only claimed when the
+// report is saved, so anything discarded from the preview has to be cleaned up
+// explicitly (a 24h server-side sweep is the backstop if this fails).
+function releasePendingReportMedia(item) {
+  for (const m of (item?.media || [])) {
+    if (m.local_url) URL.revokeObjectURL(m.local_url);
+    if (!m.pending_media) continue;
+    fetch('/api/campaign-reports/pending-media/' + encodeURIComponent(m.pending_media), { method: 'DELETE' })
+      .catch(() => { /* the 24h server-side sweep will get it */ });
+  }
+}
+
+async function discardReportPreview() {
+  if (!(await SaathiUI.confirm('Discard this report without saving?'))) return;
+  releasePendingReportMedia(previewItem);
+  previewItem = null;
+  document.getElementById('review-section').style.display = 'none';
+}
+
+async function saveReportPreview() {
+  const item = {
+    title: document.getElementById('pr-title').value.trim(),
+    type: document.getElementById('pr-type').value,
+    status: document.getElementById('pr-status').value,
+    mandal: document.getElementById('pr-mandal').value.trim(),
+    village: document.getElementById('pr-village').value.trim(),
+    event_date: document.getElementById('pr-event-date').value.trim(),
+    key_people_mentioned: document.getElementById('pr-people').value.trim(),
+    attendance_or_beneficiaries: document.getElementById('pr-attendance').value.trim(),
+    description: document.getElementById('pr-desc').value.trim(),
+    sentiment: previewItem.extracted?.sentiment || '',
+    confidence: previewItem.extracted?.confidence || '',
+    ocr_confidence: previewItem.extracted?.ocr_confidence || '',
+    transcript: document.getElementById('pr-transcript')?.value.trim() || previewItem.extracted?.transcript || '',
+    intake_mode: previewItem.intake_mode || 'mixed',
+    logged_by: previewItem.logged_by || '',
+    media: (previewItem.media || []).map(m => ({ pending_media: m.pending_media, mime: m.mime, type: m.type, label: m.label })),
+  };
+
+  if (!item.title) { SaathiUI.toast('Title is required.', 'danger'); return; }
+
+  const r = await fetch('/api/campaign-reports', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: [item] }),
+  });
+  const data = await r.json();
+  if (!data.ok) { SaathiUI.toast(data.error || 'Failed to save.', 'danger'); return; }
+
+  (previewItem.media || []).forEach(m => { if (m.local_url) URL.revokeObjectURL(m.local_url); });
+  previewItem = null;
+  document.getElementById('review-section').style.display = 'none';
+  SaathiUI.toast('Report saved.', 'success');
+  loadReports();
+}
+
+// ── Edit (already-committed reports — the narrower 6-field JSON PATCH surface) ──
+function openEditModal(id, items) {
+  const item = items.find(r => r.id === id);
+  if (!item) return;
+  document.getElementById('edit-id').value = item.id;
+  document.getElementById('edit-title').value = item.title;
+  document.getElementById('edit-type').value = item.type;
+  document.getElementById('edit-status').value = item.status;
+  document.getElementById('edit-mandal').value = item.mandal || '';
+  onMandalChange('edit');
+  document.getElementById('edit-village').value = item.village || '';
+  document.getElementById('edit-desc').value = item.description || '';
+  document.getElementById('edit-modal').classList.add('open');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+}
+
+async function submitEdit() {
+  const id = document.getElementById('edit-id').value;
+  const title = document.getElementById('edit-title').value.trim();
+  if (!title) { SaathiUI.toast('Title is required.', 'danger'); return; }
+  const { mandal, village } = resolvedMandalVillage('edit');
+
+  try {
+    const r = await fetch(`/api/campaign-reports/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title, mandal, village,
+        type: document.getElementById('edit-type').value,
+        status: document.getElementById('edit-status').value,
+        description: document.getElementById('edit-desc').value,
+      })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    SaathiUI.toast('Report updated.', 'success');
+    closeEditModal();
     loadReports();
   } catch(e) {
     SaathiUI.toast(e.message, 'danger');
-  } finally {
-    btn.disabled = false;
   }
-}
-
-function editReport(id, items) {
-  const item = items.find(r => r.id === id);
-  if (!item) return;
-  document.getElementById('cr-edit-id').value = item.id;
-  document.getElementById('cr-title').value = item.title;
-  document.getElementById('cr-type').value = item.type;
-  document.getElementById('cr-status').value = item.status;
-  document.getElementById('cr-mandal').value = item.mandal || '';
-  onMandalChange();
-  document.getElementById('cr-village').value = item.village || '';
-  document.getElementById('cr-desc').value = item.description || '';
-  document.getElementById('form-title').textContent = `Editing: ${item.title}`;
-  document.getElementById('cr-submit-btn').innerHTML = '<i data-lucide="save" style="width:16px;height:16px"></i> Update Report';
-  lucide.createIcons();
-  document.getElementById('form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function deleteReport(id) {
@@ -307,6 +742,12 @@ async function loadReports() {
       const when = item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' }) : '';
       const typeCls = TYPE_TAG_CLASS[item.type] || 'tag-other';
       const statusCls = STATUS_CLASS[item.status] || 'status-planned';
+      let attachmentsHtml = '';
+      if (item.media?.length) {
+        attachmentsHtml = item.media.map((m, idx) => `<a href="/api/campaign-reports/${item.id}/media/${idx}" target="_blank"><i data-lucide="paperclip" style="width:12px;height:12px;vertical-align:middle"></i> ${esc(m.label || 'Attachment')}</a>`).join('');
+      } else if (item.attachment) {
+        attachmentsHtml = `<a href="/api/campaign-reports/${item.id}/media" target="_blank"><i data-lucide="paperclip" style="width:12px;height:12px;vertical-align:middle"></i> ${esc(item.attachment.original_name || 'Attachment')}</a>`;
+      }
       return `<div class="report-card">
         <div class="report-card-header">
           <div>
@@ -314,12 +755,12 @@ async function loadReports() {
             <div class="report-meta">${place ? esc(place) + ' · ' : ''}${when}</div>
           </div>
           <div class="report-actions">
-            <button class="edit-icon-btn" title="Edit" onclick="editReport('${item.id}', lastLoadedItems)"><i data-lucide="pencil"></i></button>
+            <button class="edit-icon-btn" title="Edit" onclick="openEditModal('${item.id}', lastLoadedItems)"><i data-lucide="pencil"></i></button>
             <button class="delete-icon-btn" title="Delete" onclick="deleteReport('${item.id}')"><i data-lucide="trash-2"></i></button>
           </div>
         </div>
         ${item.description ? `<div class="report-desc">${esc(item.description)}</div>` : ''}
-        ${item.attachment ? `<div class="report-attachment"><a href="/api/campaign-reports/${item.id}/media" target="_blank"><i data-lucide="paperclip" style="width:12px;height:12px;vertical-align:middle"></i> ${esc(item.attachment.original_name || 'Attachment')}</a></div>` : ''}
+        ${attachmentsHtml ? `<div class="report-attachment">${attachmentsHtml}</div>` : ''}
       </div>`;
     }).join('');
     lucide.createIcons();

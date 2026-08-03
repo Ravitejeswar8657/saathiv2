@@ -6,7 +6,7 @@
     { href: '/admin.html',       label: 'Admin',          icon: 'layout-dashboard' },
     { href: '/news.html',        label: 'News Submission',icon: 'file-text' },
     { href: '/grievances.html', label: 'Grievances',     icon: 'clipboard-list' },
-    { href: '/campaign_reports.html', label: 'Campaign & Scheme Reports', icon: 'trending-up' },
+    { href: '/campaign_reports.html', label: 'Political Intake', icon: 'trending-up' },
     { href: '/social_calendar.html', label: 'Social Media Calendar', icon: 'image' },
   ];
 

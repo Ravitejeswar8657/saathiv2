@@ -190,7 +190,7 @@
 .sentiment-chip-label.neu { color: var(--stone-500); }
 .sentiment-chip-label.neg { color: var(--danger); }
 
-/* ── Sidebar illustrative lists (Campaign Summaries, Daily Actions) ── */
+/* ── Sidebar lists (Political Intake, Daily Actions) ── */
 .side-list { display: flex; flex-direction: column; gap: 8px; }
 .side-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px; }
 .side-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.35; }
@@ -538,11 +538,10 @@
     <!-- ── Sidebar ── -->
     <div class="right-col">
 
-      <!-- Campaign Summaries -->
+      <!-- Political Intake -->
       <div class="sidebar-card">
         <div class="section-header">
-          <i data-lucide="megaphone"></i> Campaign Summaries
-          <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+          <i data-lucide="megaphone"></i> Political Intake
         </div>
         <div id="campaign-summaries-body"></div>
       </div>
@@ -1063,21 +1062,48 @@ function renderOppositionActivity() {
     </div>`).join('') + `</div>`;
 }
 
-// ILLUSTRATIVE — fabricated end-of-campaign results, not live alerts.
-const ILLUSTRATIVE_CAMPAIGN_SUMMARIES = [
-  { title: 'Free health camp — Macherla', meta: '2 weeks ago', result: '1,240 attendees · 340 referrals issued' },
-  { title: 'Farmer input subsidy drive — Gurazala', meta: '3 weeks ago', result: '2,860 farmers enrolled' },
-  { title: 'Village road inspection tour — Sattenapalli', meta: '4 weeks ago', result: '18 sites flagged for repair' },
-  { title: 'Youth skills workshop — Vinukonda', meta: '5 weeks ago', result: '410 registrations · 92% attendance' },
-  { title: 'Women’s SHG loan mela — Dachepalle', meta: '6 weeks ago', result: '₹3.2 Cr sanctioned across 640 groups' },
-];
-function renderCampaignSummaries() {
-  document.getElementById('campaign-summaries-body').innerHTML = `<div class="side-list">` +
-    ILLUSTRATIVE_CAMPAIGN_SUMMARIES.map(c => `<div class="side-item">
-      <div class="side-item-title">${esc(c.title)}</div>
-      <div class="side-item-meta">${esc(c.meta)}</div>
-      <div class="side-item-result">${esc(c.result)}</div>
-    </div>`).join('') + `</div>`;
+// Political Intake — real data from the political intake page (campaign_reports.html).
+// A compact 4-bucket type-count breakdown answers "how is this analysed" without a
+// disproportionate new sidebar card (unlike grievance categories' ~24-way long tail,
+// renderCategoryBreakdown()'s bar-chart pattern isn't worth it here).
+async function loadCampaignSummaries() {
+  const el = document.getElementById('campaign-summaries-body');
+  try {
+    const r = await fetch('/api/campaign-reports');
+    const { items } = await r.json();
+    const reports = items || [];
+
+    const counts = { 'Campaign': 0, 'Government Scheme': 0, 'Cluster Report': 0, 'Other': 0 };
+    reports.forEach(c => { counts[c.type] = (counts[c.type] || 0) + 1; });
+    const chips = Object.entries(counts).map(([type, n]) => `
+      <div class="sentiment-chip">
+        <div class="sentiment-chip-name" title="${esc(type)}">${esc(type)}</div>
+        <div class="sentiment-chip-label neu">${n}</div>
+      </div>`).join('');
+
+    if (!reports.length) {
+      el.innerHTML = `<div class="sentiment-map-grid">${chips}</div>
+        <div class="empty-state">No campaign/scheme reports logged yet — <a href="/campaign_reports.html" style="color:var(--accent);font-weight:600">Log one &rarr;</a></div>`;
+      return;
+    }
+
+    const recent = reports.slice()
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      .slice(0, 5);
+    el.innerHTML = `<div class="sentiment-map-grid" style="margin-bottom:10px">${chips}</div>
+      <div class="side-list">` + recent.map(c => {
+      const place = [c.village, c.mandal].filter(Boolean).join(', ');
+      const when = c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' }) : '';
+      const snippet = (c.description || '').slice(0, 100);
+      return `<a href="/campaign_reports.html" class="side-item" style="display:block;text-decoration:none">
+        <div class="side-item-title">${esc(c.title)} <span class="badge badge-neutral" style="margin-left:4px">${esc(c.type)}</span></div>
+        <div class="side-item-meta">${esc(c.status)}${place ? ' · ' + esc(place) : ''}${when ? ' · ' + when : ''}</div>
+        ${snippet ? `<div class="side-item-result" style="color:var(--stone-500)">${esc(snippet)}${c.description.length > 100 ? '…' : ''}</div>` : ''}
+      </a>`;
+    }).join('') + `</div>`;
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">Failed to load campaign reports.</div>';
+  }
 }
 
 // ILLUSTRATIVE — fabricated staff action suggestions.
@@ -1271,7 +1297,7 @@ renderHealthScoreGauge();
 renderVoterSentimentMap();
 renderMediaSentiment();
 renderOppositionActivity();
-renderCampaignSummaries();
+loadCampaignSummaries();
 renderDailyActions();
 renderSchemeProgress();
 renderFundUtilization();
