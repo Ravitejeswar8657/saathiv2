@@ -81,6 +81,8 @@ Set "is_grievance" to false when the message is not a request for help at all �
 
 Set "confidence" to how certain you are of that is_grievance judgement and the category you picked. Use Low when the message is too short or vague to tell.
 
+Set "sentiment" to the speaker's overall tone toward the MP/office/government — Positive (praise, thanks, support), Negative (anger, criticism, complaint tone), Neutral (matter-of-fact, informational), or Mixed (both praise and criticism). Judge this independently of is_grievance — a Negative-sentiment message can still be a legitimate grievance, and a Positive-sentiment message (e.g. "thank you for the road work") is often not a grievance at all.
+
 date_of_visit should be YYYY-MM-DD if the text states when the issue was reported or occurred; otherwise return an empty string.`;
 }
 
@@ -96,6 +98,8 @@ ${triageInstructions(categories)}
 Set "is_grievance" to false when the recording is not a request for help at all — a greeting, a test recording, or unrelated chatter. Set it to true only when there is an actual issue or request the office could act on.
 
 Set "confidence" to how certain you are of that is_grievance judgement and the category you picked. Use Low when the audio is unclear or too short to tell.
+
+Set "sentiment" to the speaker's overall tone toward the MP/office/government — Positive (praise, thanks, support), Negative (anger, criticism, complaint tone), Neutral (matter-of-fact, informational), or Mixed (both praise and criticism). Judge this independently of is_grievance — a Negative-sentiment message can still be a legitimate grievance, and a Positive-sentiment message (e.g. thanking the MP) is often not a grievance at all.
 
 date_of_visit should be YYYY-MM-DD if the speaker states when the issue was reported or occurred; otherwise return an empty string.`;
 }
@@ -140,8 +144,9 @@ const TEXT_SCHEMA = {
     ...SHARED_PROPERTIES,
     is_grievance: { type: 'BOOLEAN' },
     confidence: { type: 'STRING', enum: ['High', 'Medium', 'Low'] },
+    sentiment: { type: 'STRING', enum: ['Positive', 'Neutral', 'Negative', 'Mixed'] },
   },
-  required: ['issue_description', 'category', 'urgency', 'is_grievance', 'confidence'],
+  required: ['issue_description', 'category', 'urgency', 'is_grievance', 'confidence', 'sentiment'],
 };
 
 const AUDIO_SCHEMA = {

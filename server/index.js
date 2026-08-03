@@ -392,8 +392,38 @@ app.post('/api/log-interaction', (req, res) => {
   res.json({ ok: true });
 });
 
+// Audience/community cohorts a schedule event can be tagged with — independent of
+// event_type (which describes the event's nature, e.g. Public Meeting vs. Condolence
+// Visit, and drives the speech-point templates below). Optional: most events won't
+// target a specific cohort. Derived from the Strategic Cohorts doc; "Forward Castes
+// (OC)" is intentionally omitted (not tracked as a caste-named group), and Vaishyas
+// are folded into "Business & Commerce" rather than named by caste.
+const COHORTS = [
+  { key: 'political_fronts',    label: 'Mainstream Political Fronts',            group: 'Political Ecosystem' },
+  { key: 'muslim_minority',     label: 'Muslim Minority',                        group: 'Communities — Religion' },
+  { key: 'christian_community', label: 'Christian Community',                    group: 'Communities — Religion' },
+  { key: 'sc',                  label: 'Scheduled Castes (SC)',                  group: 'Communities — Caste' },
+  { key: 'bc',                  label: 'Backward Castes (BC)',                   group: 'Communities — Caste' },
+  { key: 'st',                  label: 'Scheduled Tribes (ST)',                  group: 'Communities — Caste' },
+  { key: 'youth_students',      label: 'Young Voters & Student Activists',       group: 'Demographics' },
+  { key: 'women_shg',           label: 'Women — Self-Help Groups & Business Owners', group: 'Demographics' },
+  { key: 'general_demographics',label: 'Special Interest & Focus Groups',        group: 'Demographics' },
+  { key: 'labour_workforce',    label: 'Labour & Workforce (Unorganized Sector & Unions)', group: 'Working Groups' },
+  { key: 'business_commerce',   label: 'Business & Commerce',                    group: 'Working Groups' },
+  { key: 'government_sector',   label: 'Government Sector (Public Admin & Frontline Workers)', group: 'Working Groups' },
+  { key: 'education_sector',    label: 'Education Sector',                       group: 'Working Groups' },
+  { key: 'professionals',       label: 'Professionals',                          group: 'Working Groups' },
+  { key: 'local_influencers',   label: 'Local Business Owners & Hubs',           group: 'Other Local Influencers' },
+  { key: 'civic_social',        label: 'Civic & Social Networks',                group: 'Community Engagement' },
+];
+const COHORT_KEYS = new Set(COHORTS.map(c => c.key));
+
+app.get('/api/schedule/cohorts', (req, res) => {
+  res.json({ cohorts: COHORTS });
+});
+
 app.post('/api/schedule', (req, res) => {
-  const { event_name, date, time, address, village, mandal, description, event_type } = req.body;
+  const { event_name, date, time, address, village, mandal, description, event_type, audience_cohort } = req.body;
   if (!mandal || !event_name || !date)
     return res.status(400).json({ error: 'event_name, date and mandal required' });
   const db = readDB();
@@ -425,6 +455,7 @@ app.post('/api/schedule', (req, res) => {
     address: address || '', village: village || '',
     mandal, description: description || '',
     event_type: event_type || '',
+    audience_cohort: COHORT_KEYS.has(audience_cohort) ? audience_cohort : '',
     nearby_contacts: nearby.map(c => ({
       id: c.id, name: c.name, phone: c.phone,
       village: c.village, role: c.role, tier: c.tier,
@@ -1060,6 +1091,11 @@ function categoryDepartmentInfo(key) {
 }
 const RESOLUTION_STATUSES = new Set(['Pending', 'In Progress', 'Resolved']);
 const URGENCY_WEIGHTS = { High: 100, Medium: 60, Low: 30 };
+// 'feedback' is non-actionable input (opinions, sentiment) the AI didn't read as a
+// grievance (is_grievance:false) that staff chose to keep as intelligence input rather
+// than force-save as a grievance or discard.
+const ENTRY_TYPES = new Set(['grievance', 'feedback']);
+const SENTIMENTS = new Set(['Positive', 'Neutral', 'Negative', 'Mixed']);
 
 function categoryWeight(key) {
   return ISSUE_CATEGORIES.find(c => c.key === key)?.weight ?? ISSUE_CATEGORIES.find(c => c.key === 'others').weight;
@@ -1173,6 +1209,7 @@ function mergeGrievanceExtraction({ imageResults, audioResult, textResult, typed
   merged.urgency = (bundleSource && URGENCY_WEIGHTS[bundleSource.urgency] !== undefined) ? bundleSource.urgency : 'Medium';
   merged.urgency_reason = bundleSource?.urgency_reason || '';
   merged.confidence = (bundleSource && bundleSource.confidence) || '';
+  merged.sentiment = (bundleSource && SENTIMENTS.has(bundleSource.sentiment)) ? bundleSource.sentiment : '';
   merged.ocr_confidence = imageResults.find(r => r.ok)?.extracted?.ocr_confidence || '';
   merged.transcript = audioResult?.ok ? (audioResult.extracted.transcript || '') : '';
 
@@ -1362,6 +1399,8 @@ function buildGrievanceRecord(db, it, id) {
   const resolution_status = RESOLUTION_STATUSES.has(it.resolution_status) ? it.resolution_status : 'Pending';
   const urgency = URGENCY_WEIGHTS[it.urgency] !== undefined ? it.urgency : 'Medium';
   const channel = GRIEVANCE_CHANNELS.has(it.channel) ? it.channel : 'walk_in';
+  const entry_type = ENTRY_TYPES.has(it.entry_type) ? it.entry_type : 'grievance';
+  const sentiment = SENTIMENTS.has(it.sentiment) ? it.sentiment : '';
 
   // Media arrives one of two shapes: the new universal intake's `media` array (each
   // entry a pending_media filename parked on disk, one grievance can carry several
@@ -1433,6 +1472,8 @@ function buildGrievanceRecord(db, it, id) {
   const record = {
     id,
     channel,
+    entry_type,
+    sentiment,
     intake_mode: ['typed', 'ocr', 'dictated', 'mixed'].includes(it.intake_mode) ? it.intake_mode : 'typed',
     logged_by: it.logged_by || '',
     full_name: it.full_name || '',
@@ -1524,13 +1565,14 @@ app.post('/api/grievances', (req, res) => {
 
 // Shared by the list view and both exports so a filter can't apply in one and not
 // the other. Records predating the channel field are walk-ins.
-function filterGrievances(db, { from, to, category, status, channel }) {
+function filterGrievances(db, { from, to, category, status, channel, entry_type }) {
   let items = db.grievances || [];
   if (from) items = items.filter(v => v.date_of_visit >= from);
   if (to) items = items.filter(v => v.date_of_visit <= to);
   if (category) items = items.filter(v => v.category === category);
   if (status) items = items.filter(v => v.resolution_status === status);
   if (channel) items = items.filter(v => (v.channel || 'walk_in') === channel);
+  if (entry_type) items = items.filter(v => (v.entry_type || 'grievance') === entry_type);
   return items;
 }
 
@@ -1548,7 +1590,9 @@ app.get('/api/grievances/export.xlsx', (req, res) => {
     .sort((a, b) => (a.date_of_visit || '').localeCompare(b.date_of_visit || ''));
 
   const rows = items.map(v => ({
-    'Date Reported': v.date_of_visit, Channel: channelLabel(v.channel), Name: v.full_name,
+    'Date Reported': v.date_of_visit, Channel: channelLabel(v.channel),
+    'Entry Type': v.entry_type === 'feedback' ? 'Feedback' : 'Grievance',
+    Sentiment: v.sentiment || '', Name: v.full_name,
     Village: v.village, Mandal: v.mandal,
     'Assembly Constituency': v.assembly_constituency, Contact: v.contact_number, Email: v.email,
     'Reference Name': v.reference_name, 'Reference Number': v.reference_number,
@@ -1606,6 +1650,10 @@ app.patch('/api/grievances/:id', (req, res) => {
     item.resolution_status = RESOLUTION_STATUSES.has(req.body.resolution_status) ? req.body.resolution_status : item.resolution_status;
   if (req.body.urgency !== undefined && URGENCY_WEIGHTS[req.body.urgency] !== undefined)
     item.urgency = req.body.urgency;
+  if (req.body.entry_type !== undefined && ENTRY_TYPES.has(req.body.entry_type))
+    item.entry_type = req.body.entry_type;
+  if (req.body.sentiment !== undefined)
+    item.sentiment = SENTIMENTS.has(req.body.sentiment) ? req.body.sentiment : item.sentiment;
 
   item.priority_score = computePriorityScore(item.category, item.urgency);
   writeDB(db);
@@ -1960,10 +2008,77 @@ app.get('/api/stats', (req, res) => {
     tdp: c.filter(x => x.party === 'TDP').length,
     ysrcp: c.filter(x => x.party === 'YSRCP').length,
     with_grievances: c.filter(x => x.open_grievance).length,
-    open_grievances_register: (db.grievances || []).filter(g => g.resolution_status !== 'Resolved').length,
+    open_grievances_register: (db.grievances || []).filter(g => g.resolution_status !== 'Resolved' && (g.entry_type || 'grievance') === 'grievance').length,
+    feedback_count: (db.grievances || []).filter(g => g.entry_type === 'feedback').length,
     news_count: (db.news || []).length,
     schedule_count: (db.schedule || []).length,
   });
+});
+
+// Stage 2 outcomes: which villages/mandals/cohorts the team is actually engaging
+// (inferred from schedule events — no separate attendance-tracking step), and which
+// are being neglected. Also surfaces individual "Influencer"-role contacts going
+// stale, reusing the existing days_since_contact field.
+app.get('/api/coverage-report', (req, res) => {
+  const db = readDB();
+  const staleDays = parseInt(req.query.stale_days, 10) || 90;
+  const staleCutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const contacts = db.contacts || [];
+  const events = db.schedule || [];
+
+  // Universe = places that matter (have contacts), joined against actual visits —
+  // same case-insensitive matching level already used by the nearby-contacts finder.
+  function buildPlaceCoverage(field) {
+    const universe = new Map();
+    for (const c of contacts) {
+      const v = (c[field] || '').trim();
+      if (v && !universe.has(v.toLowerCase())) universe.set(v.toLowerCase(), v);
+    }
+    const visits = new Map();
+    for (const ev of events) {
+      const v = (ev[field] || '').trim();
+      if (!v) continue;
+      const key = v.toLowerCase();
+      const label = universe.get(key) || v;
+      const entry = visits.get(key) || { name: label, visit_count: 0, last_visit_date: '' };
+      entry.visit_count += 1;
+      if (!entry.last_visit_date || ev.date > entry.last_visit_date) entry.last_visit_date = ev.date;
+      visits.set(key, entry);
+    }
+    const visited = [...visits.values()].sort((a, b) => (a.last_visit_date || '').localeCompare(b.last_visit_date || ''));
+    const never_visited = [...universe.entries()]
+      .filter(([key]) => !visits.has(key))
+      .map(([, name]) => name)
+      .sort();
+    const stale = visited.filter(v => v.last_visit_date && v.last_visit_date < staleCutoff);
+    return { visited, never_visited, stale };
+  }
+
+  const mandals = buildPlaceCoverage('mandal');
+  const villages = buildPlaceCoverage('village');
+
+  const cohortStats = new Map(COHORTS.map(c => [c.key, { ...c, meeting_count: 0, last_meeting_date: '' }]));
+  for (const ev of events) {
+    const entry = cohortStats.get(ev.audience_cohort);
+    if (!entry) continue;
+    entry.meeting_count += 1;
+    if (!entry.last_meeting_date || ev.date > entry.last_meeting_date) entry.last_meeting_date = ev.date;
+  }
+  const cohorts = [...cohortStats.values()].sort((a, b) => (a.last_meeting_date || '').localeCompare(b.last_meeting_date || ''));
+  const never_engaged_cohorts = cohorts.filter(c => c.meeting_count === 0).map(({ key, label, group }) => ({ key, label, group }));
+
+  const stale_influencers = contacts
+    .filter(c => c.role === 'Influencer')
+    .slice()
+    .sort((a, b) => (b.days_since_contact ?? 0) - (a.days_since_contact ?? 0))
+    .slice(0, 25)
+    .map(c => ({
+      id: c.id, name: c.name, phone: c.phone, village: c.village, mandal: c.mandal,
+      days_since_contact: c.days_since_contact ?? null, pps_score: c.pps_score,
+    }));
+
+  res.json({ stale_days: staleDays, mandals, villages, cohorts, never_engaged_cohorts, stale_influencers });
 });
 
 // ── Google News RSS ────────────────────────────────────────────────────────
@@ -2821,9 +2936,10 @@ function buildGrievancesRegisterPDF(doc, items, from, to) {
   const cols = [
     { label: 'Date', width: 58 },
     { label: 'Channel', width: 62 },
+    { label: 'Type', width: 40 },
     { label: 'Name', width: 85 },
-    { label: 'Village/Mandal', width: 95 },
-    { label: 'Category', width: 105 },
+    { label: 'Village/Mandal', width: 80 },
+    { label: 'Category', width: 80 },
     { label: 'Urgency', width: 45 },
     { label: 'Status', width: 65 },
   ];
@@ -2867,8 +2983,8 @@ function buildGrievancesRegisterPDF(doc, items, from, to) {
     }
     const villageMandal = [v.village, v.mandal].filter(Boolean).join(', ');
     drawRow(
-      [v.date_of_visit, channelLabel(v.channel), v.full_name, villageMandal,
-        categoryLabel(v.category), v.urgency, v.resolution_status],
+      [v.date_of_visit, channelLabel(v.channel), v.entry_type === 'feedback' ? 'Feedback' : 'Grievance',
+        v.full_name, villageMandal, categoryLabel(v.category), v.urgency, v.resolution_status],
       bodyFont, 8.5, C.ink
     );
   });

@@ -120,8 +120,9 @@
       <button class="chip active" data-mode="count" id="mode-count">Contact Density</button>
       <button class="chip" data-mode="pps" id="mode-pps">Priority Score</button>
       <button class="chip" data-mode="grievances" id="mode-grievances">Grievance Hotspots</button>
+      <button class="chip" data-mode="visits" id="mode-visits">Visit Coverage</button>
     </div>
-    <div class="gap-note"><i data-lucide="info"></i> Gray markers = mandal with no recorded contacts</div>
+    <div class="gap-note" id="gap-note"><i data-lucide="info"></i> Gray markers = mandal with no recorded contacts</div>
   </div>
 
   <div class="map-card">
@@ -154,16 +155,18 @@ function normalizeMandalName(name) {
 }
 
 async function loadData() {
-  const [coordsRes, contactsRes, grievancesRes, categoriesRes] = await Promise.all([
+  const [coordsRes, contactsRes, grievancesRes, categoriesRes, coverageRes] = await Promise.all([
     fetch('/assets/mandal_coords.json'),
     fetch('/api/contacts?limit=5000'),
     fetch('/api/grievances'),
     fetch('/api/grievances/categories'),
+    fetch('/api/coverage-report'),
   ]);
   const coords = await coordsRes.json();
   const { contacts } = await contactsRes.json();
   const { items: grievances } = await grievancesRes.json();
   const { categories } = await categoriesRes.json();
+  const coverage = await coverageRes.json();
   categoryLabels = Object.fromEntries((categories || []).map(c => [c.key, c.label]));
 
   // seed every official mandal, even ones with zero contacts
@@ -171,7 +174,17 @@ async function loadData() {
     mandalStats[name] = {
       lat: ll.lat, lng: ll.lng, count: 0, ppsSum: 0, grievanceCount: 0, tiers: { T1: 0, T2: 0, T3: 0 },
       grievanceCountLive: 0, priorityScoreSum: 0, categoryCounts: {},
+      visitCount: 0, lastVisitDate: '',
     };
+  }
+
+  // Stage 2 visit-coverage outcome — inferred from schedule events, see /api/coverage-report.
+  for (const v of (coverage.mandals?.visited || [])) {
+    const key = normalizeMandalName(v.name);
+    const stat = mandalStats[key];
+    if (!stat) continue;
+    stat.visitCount = v.visit_count;
+    stat.lastVisitDate = v.last_visit_date;
   }
 
   for (const c of contacts) {
@@ -242,6 +255,7 @@ function buildMarkersAndHeat() {
   const maxCount = Math.max(1, ...entries.map(([, s]) => s.count));
   const maxPps = Math.max(1, ...entries.map(([, s]) => s.avgPps));
   const maxGrievances = Math.max(1, ...entries.map(([, s]) => s.grievanceCountLive));
+  const maxVisits = Math.max(1, ...entries.map(([, s]) => s.visitCount));
 
   const heatPoints = [];
   const markers = [];
@@ -249,8 +263,11 @@ function buildMarkersAndHeat() {
   for (const [name, stat] of entries) {
     const intensity = mode === 'pps' ? (stat.count ? stat.avgPps / maxPps : 0)
       : mode === 'grievances' ? stat.grievanceCountLive / maxGrievances
+      : mode === 'visits' ? stat.visitCount / maxVisits
       : stat.count / maxCount;
-    const hasPoint = mode === 'grievances' ? stat.grievanceCountLive > 0 : stat.count > 0;
+    const hasPoint = mode === 'grievances' ? stat.grievanceCountLive > 0
+      : mode === 'visits' ? stat.visitCount > 0
+      : stat.count > 0;
 
     if (hasPoint) {
       heatPoints.push([stat.lat, stat.lng, Math.max(intensity, 0.08)]);
@@ -277,6 +294,8 @@ function buildMarkersAndHeat() {
           <div class="pop-row"><span>Grievances (register)</span><b>${stat.grievanceCountLive}</b></div>
           <div class="pop-row"><span>Top category</span><b>${topCategoryLabel}</b></div>
           <div class="pop-row"><span>Avg. priority score (register)</span><b>${stat.avgPriorityScore.toFixed(1)}</b></div>
+          <div class="pop-row"><span>Visits logged</span><b>${stat.visitCount}</b></div>
+          <div class="pop-row"><span>Last visit</span><b>${stat.lastVisitDate ? new Date(stat.lastVisitDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Never'}</b></div>
         </div>`;
     marker.bindPopup(popupHtml);
     markers.push(marker);
@@ -327,10 +346,19 @@ function initMap() {
   render();
 }
 
+const GAP_NOTE_TEXT = {
+  count: 'Gray markers = mandal with no recorded contacts',
+  pps: 'Gray markers = mandal with no recorded contacts',
+  grievances: 'Gray markers = mandal with no open grievances in the register',
+  visits: 'Gray markers = mandal never visited (no schedule event logged)',
+};
+
 document.querySelectorAll('.mode-toggle .chip').forEach(btn => {
   btn.addEventListener('click', () => {
     mode = btn.dataset.mode;
     document.querySelectorAll('.mode-toggle .chip').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('gap-note').innerHTML = `<i data-lucide="info"></i> ${GAP_NOTE_TEXT[mode] || ''}`;
+    if (window.lucide) lucide.createIcons();
     render();
   });
 });

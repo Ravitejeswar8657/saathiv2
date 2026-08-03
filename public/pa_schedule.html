@@ -106,6 +106,13 @@
         </select>
       </div>
     </div>
+    <div class="form-row">
+      <div class="form-group"><label>Audience / Community (optional)</label>
+        <select id="sch-cohort">
+          <option value="">Not specific to a community</option>
+        </select>
+      </div>
+    </div>
     <div class="form-group"><label>Description</label><textarea id="sch-desc" placeholder="Agenda or notes..."></textarea></div>
     <button class="btn btn-primary btn-block" id="schedule-submit-btn" onclick="submitSchedule()">
       <i data-lucide="calendar-plus" style="width:16px;height:16px"></i> Save & Find Nearby Contacts
@@ -146,6 +153,7 @@
 let villagesByMandal = {};
 let allSchedule = [];
 let selectedDateFilter = null;
+let cohortLabelByKey = {};
 
 function getTodayIST() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -162,7 +170,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     pdfDateInput.value = getTodayIST();
   }
   await loadFilterOptions();
+  await loadCohortOptions();
+  if (allSchedule.length) renderList();
 });
+
+async function loadCohortOptions() {
+  try {
+    const r = await fetch('/api/schedule/cohorts');
+    const data = await r.json();
+    const sel = document.getElementById('sch-cohort');
+    const groups = {};
+    (data.cohorts || []).forEach(c => {
+      cohortLabelByKey[c.key] = c.label;
+      if (!groups[c.group]) groups[c.group] = document.createElement('optgroup');
+      groups[c.group].label = c.group;
+      const opt = document.createElement('option');
+      opt.value = c.key; opt.textContent = c.label;
+      groups[c.group].appendChild(opt);
+    });
+    Object.values(groups).forEach(g => sel.appendChild(g));
+  } catch(e) {
+    console.error('Failed to load cohort options', e);
+  }
+}
 
 async function loadFilterOptions() {
   try {
@@ -296,7 +326,7 @@ function renderList() {
       html += `
       <div class="event-card">
         <div style="flex:1">
-          <div class="event-name">${ev.event_name}${ev.event_type ? ` <span class="tag tag-t2">${ev.event_type}</span>` : ''}</div>
+          <div class="event-name">${ev.event_name}${ev.event_type ? ` <span class="tag tag-t2">${ev.event_type}</span>` : ''}${ev.audience_cohort ? ` <span class="tag tag-t3">${cohortLabelByKey[ev.audience_cohort] || ev.audience_cohort}</span>` : ''}</div>
           <div class="event-meta">${ev.time ? fmt12h(ev.time) + ' · ' : ''}${ev.mandal}</div>
           ${ev.nearby_contacts?.length ? `
             <div class="event-contacts">
@@ -413,7 +443,8 @@ async function submitSchedule() {
         time: document.getElementById('sch-time').value,
         village,
         description: document.getElementById('sch-desc').value,
-        event_type: document.getElementById('sch-event-type').value
+        event_type: document.getElementById('sch-event-type').value,
+        audience_cohort: document.getElementById('sch-cohort').value
       })
     });
     const data = await r.json();

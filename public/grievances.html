@@ -123,6 +123,12 @@
   <div class="card">
     <div class="section-title">Category</div>
     <div class="pill-strip" id="category-pills"></div>
+    <div class="section-title" style="margin-top:14px">Entry type</div>
+    <div class="status-chips" id="entrytype-chips">
+      <button class="status-chip" data-entrytype="" onclick="setEntryTypeFilter('')">All</button>
+      <button class="status-chip" data-entrytype="grievance" onclick="setEntryTypeFilter('grievance')">Grievance</button>
+      <button class="status-chip" data-entrytype="feedback" onclick="setEntryTypeFilter('feedback')">Political Feedback</button>
+    </div>
     <div class="section-title" style="margin-top:14px">Status</div>
     <div class="status-chips" id="status-chips">
       <button class="status-chip" data-status="" onclick="setStatusFilter('')">All</button>
@@ -167,7 +173,7 @@
       <table class="vf-table">
         <thead>
           <tr>
-            <th>Date</th><th>Channel</th><th>Name</th><th>Village/Mandal</th><th>Category</th>
+            <th>Date</th><th>Channel</th><th>Type</th><th>Name</th><th>Village/Mandal</th><th>Category</th>
             <th>Urgency</th><th>Status</th><th>Officer</th><th></th>
           </tr>
         </thead>
@@ -332,6 +338,7 @@ let rangeTo = '';
 let categoryFilter = '';
 let statusFilter = '';
 let channelFilter = '';
+let entryTypeFilter = '';
 // { tmp_id, filename, channel, intake_mode, extracted, priority_score,
 //   image_base64, image_mime, transcript, error,
 //   media: [{ pending_media, mime, type, label, local_url }] } — media[] only on
@@ -453,6 +460,13 @@ function setChannelFilter(channel) {
   });
   loadItems();
 }
+function setEntryTypeFilter(entryType) {
+  entryTypeFilter = entryType;
+  document.querySelectorAll('#entrytype-chips .status-chip').forEach(el => {
+    el.classList.toggle('active-progress', el.dataset.entrytype === entryType && entryType !== '');
+  });
+  loadItems();
+}
 
 async function loadItems() {
   const params = new URLSearchParams();
@@ -461,6 +475,7 @@ async function loadItems() {
   if (categoryFilter) params.set('category', categoryFilter);
   if (statusFilter) params.set('status', statusFilter);
   if (channelFilter) params.set('channel', channelFilter);
+  if (entryTypeFilter) params.set('entry_type', entryTypeFilter);
   const r = await fetch('/api/grievances' + (params.toString() ? '?' + params.toString() : ''));
   const data = await r.json();
   allItems = data.items || [];
@@ -565,6 +580,7 @@ function renderTable() {
     <tr id="row-${v.id}">
       <td>${esc(v.date_of_visit)}</td>
       <td><span class="channel-cell"><i data-lucide="${channelMeta(v.channel).icon}"></i>${esc(channelMeta(v.channel).label)}</span></td>
+      <td><span class="badge ${v.entry_type === 'feedback' ? 'badge-info' : 'badge-neutral'}">${v.entry_type === 'feedback' ? 'Feedback' : 'Grievance'}</span>${v.sentiment ? `<br><span class="badge badge-neutral" style="margin-top:4px">${esc(v.sentiment)}</span>` : ''}</td>
       <td>${esc(v.full_name)}</td>
       <td>${esc([v.village, v.mandal].filter(Boolean).join(', '))}</td>
       <td><span class="badge badge-neutral">${esc(categoryLabel(v.category))}</span> ${(v.ttd_letter_refs || []).map(ref => `<span class="badge badge-info">${esc(ref)}</span>`).join(' ')} ${(v.linked_grievance_ids || []).length ? `<span class="badge badge-accent linked-badge" title="Same phone number as: ${esc((v.linked_grievance_ids || []).join(', '))}"><i data-lucide="link"></i> ${v.linked_grievance_ids.length}</span>` : ''}</td>
@@ -585,13 +601,17 @@ function renderTable() {
       </td>
     </tr>
     <tr id="edit-${v.id}" class="edit-row" style="display:none">
-      <td colspan="9">
+      <td colspan="10">
         <div class="edit-grid">
           <input type="date" id="e-date-${v.id}" value="${esc(v.date_of_visit)}">
           <input id="e-name-${v.id}" value="${esc(v.full_name)}" placeholder="Name">
           <input id="e-village-${v.id}" value="${esc(v.village)}" placeholder="Village">
           <input id="e-mandal-${v.id}" value="${esc(v.mandal)}" placeholder="Mandal">
           <input id="e-contact-${v.id}" value="${esc(v.contact_number)}" placeholder="Contact number">
+          <select id="e-entrytype-${v.id}">
+            <option value="grievance" ${v.entry_type !== 'feedback' ? 'selected' : ''}>Grievance</option>
+            <option value="feedback" ${v.entry_type === 'feedback' ? 'selected' : ''}>Political Feedback</option>
+          </select>
           <select id="e-category-${v.id}">${catOptions}</select>
           <select id="e-urgency-${v.id}">
             <option value="High" ${v.urgency === 'High' ? 'selected' : ''}>High</option>
@@ -728,6 +748,7 @@ async function saveEdit(id) {
     village: document.getElementById(`e-village-${id}`).value.trim(),
     mandal: document.getElementById(`e-mandal-${id}`).value.trim(),
     contact_number: document.getElementById(`e-contact-${id}`).value.trim(),
+    entry_type: document.getElementById(`e-entrytype-${id}`).value,
     category: document.getElementById(`e-category-${id}`).value,
     urgency: document.getElementById(`e-urgency-${id}`).value,
     resolution_status: document.getElementById(`e-status-${id}`).value,
@@ -1136,10 +1157,17 @@ function renderPreview() {
           <span class="badge badge-neutral"><i data-lucide="${meta.icon}"></i> ${esc(meta.label)}</span>
           ${ex.ocr_confidence ? `<span class="badge badge-neutral">OCR confidence: ${esc(ex.ocr_confidence)}</span>` : ''}
           ${ex.confidence && p.intake_mode !== 'ocr' ? `<span class="badge badge-neutral">AI confidence: ${esc(ex.confidence)}</span>` : ''}
+          ${ex.sentiment ? `<span class="badge badge-neutral">Sentiment: ${esc(ex.sentiment)}</span>` : ''}
         </span>
       </div>
       ${p.error ? `<div class="preview-error-banner"><i data-lucide="triangle-alert"></i> AI extraction failed: ${esc(p.error)} — enter the details manually below.</div>` : ''}
-      ${ex.is_grievance === false ? `<div class="preview-error-banner"><i data-lucide="triangle-alert"></i> The AI didn't read this as a grievance. Check it before saving.</div>` : ''}
+      ${ex.is_grievance === false ? `<div class="preview-error-banner">
+        <i data-lucide="triangle-alert"></i> The AI didn't read this as a request the office needs to act on — likely a comment or opinion, not a grievance.
+        <select id="p-entrytype-${i}" style="margin-left:8px">
+          <option value="feedback" selected>Save as Political Feedback</option>
+          <option value="grievance">Save as Grievance anyway</option>
+        </select>
+      </div>` : ''}
       ${(p.media || []).length ? `
       <div class="attachment-gallery">
         ${p.media.filter(m => m.type !== 'audio').map(m => m.local_url ? `<img class="thumb" src="${m.local_url}">` : `<div class="thumb thumb-pdf"><i data-lucide="file-text"></i></div>`).join('')}
@@ -1247,6 +1275,8 @@ async function saveAllPreview() {
     channel: p.channel || 'walk_in',
     intake_mode: p.intake_mode || 'ocr',
     logged_by: p.logged_by || '',
+    entry_type: document.getElementById(`p-entrytype-${i}`)?.value || 'grievance',
+    sentiment: p.extracted?.sentiment || '',
     transcript: document.getElementById(`p-transcript-${i}`)?.value.trim() || p.transcript || '',
     // Merged single-grievance intake carries several attachments (media[]); the bulk
     // form-photo uploader still carries exactly one, inline as image_base64 above.

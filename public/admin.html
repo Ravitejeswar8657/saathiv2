@@ -388,6 +388,16 @@
             <div id="opposition-body"></div>
           </div>
         </div>
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header"><i data-lucide="message-circle-heart"></i> Political Feedback Pulse</div>
+            <div id="feedback-pulse-body"><div class="empty-state">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="section-header"><i data-lucide="user-x"></i> Influencers Needing Attention</div>
+            <div id="stale-influencers-body"><div class="empty-state">Loading…</div></div>
+          </div>
+        </div>
       </div>
 
       <!-- Governance Intelligence -->
@@ -409,6 +419,42 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-header"><i data-lucide="footprints"></i> Village / Mandal Visit Coverage</div>
+          <div class="pillar-caption">Inferred from logged schedule events — most-neglected mandals first.</div>
+          <div class="card card-list">
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Mandal</th><th>Visits</th><th>Last Visit</th></tr>
+                </thead>
+                <tbody id="visit-coverage-body">
+                  <tr><td colspan="3"><div class="empty-state">Loading…</div></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div id="never-visited-callout"></div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-header"><i data-lucide="users-round"></i> Cohort Engagement Coverage</div>
+          <div class="pillar-caption">Meetings tagged by audience/community — from the Schedule page's "Audience / Community" field.</div>
+          <div class="card card-list">
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Cohort</th><th>Meetings</th><th>Last Meeting</th></tr>
+                </thead>
+                <tbody id="cohort-coverage-body">
+                  <tr><td colspan="3"><div class="empty-state">Loading…</div></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div id="never-engaged-callout"></div>
           </div>
         </div>
 
@@ -802,6 +848,90 @@ function renderCategoryBreakdown() {
   }).join('');
 }
 
+// ── Village/Mandal Visit Coverage + Cohort Engagement Coverage + stale influencers ──
+async function loadCoverageReport() {
+  try {
+    const r = await fetch('/api/coverage-report');
+    const data = await r.json();
+    renderVisitCoverage(data.mandals);
+    renderCohortCoverage(data.cohorts, data.never_engaged_cohorts);
+    renderStaleInfluencers(data.stale_influencers);
+  } catch (e) {
+    console.error('Failed to load coverage report', e);
+    document.getElementById('visit-coverage-body').innerHTML = '<tr><td colspan="3"><div class="empty-state">Failed to load.</div></td></tr>';
+    document.getElementById('cohort-coverage-body').innerHTML = '<tr><td colspan="3"><div class="empty-state">Failed to load.</div></td></tr>';
+    document.getElementById('stale-influencers-body').innerHTML = '<div class="empty-state">Failed to load.</div>';
+  }
+}
+
+function fmtCoverageDate(d) {
+  return d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+}
+
+function renderVisitCoverage(mandals) {
+  const tbody = document.getElementById('visit-coverage-body');
+  const visited = (mandals && mandals.visited) || [];
+  tbody.innerHTML = visited.length
+    ? visited.map(v => `<tr><td>${esc(v.name)}</td><td>${v.visit_count}</td><td>${fmtCoverageDate(v.last_visit_date)}</td></tr>`).join('')
+    : '<tr><td colspan="3"><div class="empty-state">No schedule events logged yet.</div></td></tr>';
+  const never = (mandals && mandals.never_visited) || [];
+  document.getElementById('never-visited-callout').innerHTML = never.length
+    ? `<div class="pillar-caption" style="margin-top:10px"><strong>Never visited (${never.length}):</strong> ${never.map(esc).join(', ')}</div>`
+    : '';
+}
+
+function renderCohortCoverage(cohorts, neverEngaged) {
+  const tbody = document.getElementById('cohort-coverage-body');
+  const rows = (cohorts || []).slice()
+    .sort((a, b) => b.meeting_count - a.meeting_count || (a.last_meeting_date || '').localeCompare(b.last_meeting_date || ''));
+  tbody.innerHTML = rows.map(c => `<tr>
+    <td>${esc(c.label)}</td>
+    <td>${c.meeting_count}</td>
+    <td>${c.meeting_count ? fmtCoverageDate(c.last_meeting_date) : '—'}</td>
+  </tr>`).join('');
+  document.getElementById('never-engaged-callout').innerHTML = (neverEngaged || []).length
+    ? `<div class="pillar-caption" style="margin-top:10px"><strong>Never engaged (${neverEngaged.length}):</strong> ${neverEngaged.map(c => esc(c.label)).join(', ')}</div>`
+    : '';
+}
+
+function renderStaleInfluencers(list) {
+  const el = document.getElementById('stale-influencers-body');
+  if (!list || !list.length) {
+    el.innerHTML = '<div class="empty-state">No contacts tagged as Influencer yet.</div>';
+    return;
+  }
+  el.innerHTML = list.slice(0, 10).map(c => `<div class="cat-bar-row">
+    <span class="cat-bar-label" title="${esc([c.village, c.mandal].filter(Boolean).join(', '))}">${esc(c.name)}</span>
+    <span class="cat-bar-count">${c.days_since_contact != null ? c.days_since_contact + 'd' : '—'}</span>
+  </div>`).join('');
+}
+
+// ── Political Feedback Pulse — first real (non-illustrative) sentiment source ──
+async function loadFeedbackPulse() {
+  const el = document.getElementById('feedback-pulse-body');
+  try {
+    const r = await fetch('/api/grievances?entry_type=feedback');
+    const { items } = await r.json();
+    if (!items || !items.length) {
+      el.innerHTML = '<div class="empty-state">No political feedback logged yet — captured from "Log Grievance" entries the AI reads as non-actionable.</div>';
+      return;
+    }
+    const sentimentCounts = {};
+    items.forEach(v => { const s = v.sentiment || 'Unrated'; sentimentCounts[s] = (sentimentCounts[s] || 0) + 1; });
+    const order = ['Positive', 'Neutral', 'Mixed', 'Negative', 'Unrated'];
+    const cls = { Positive: 'pos', Neutral: 'neu', Mixed: 'neu', Negative: 'neg', Unrated: 'neu' };
+    const chips = order.filter(s => sentimentCounts[s]).map(s => `
+      <div class="sentiment-chip">
+        <div class="sentiment-chip-name">${s}</div>
+        <div class="sentiment-chip-label ${cls[s]}">${sentimentCounts[s]}</div>
+      </div>`).join('');
+    el.innerHTML = `<div class="sentiment-map-grid">${chips}</div>
+      <div class="pillar-caption" style="margin-top:10px">${items.length} feedback entries in the register.</div>`;
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">Failed to load feedback.</div>';
+  }
+}
+
 // ── Ready-to-Post Social Media ───────────────────────────────────────────
 async function loadSocialPosts() {
   const el = document.getElementById('social-posts-body');
@@ -1081,6 +1211,8 @@ loadChatMessages();
 loadStats();
 loadTodaysSchedule();
 loadIntelligenceData();
+loadCoverageReport();
+loadFeedbackPulse();
 loadSocialPosts();
 renderHealthScoreGauge();
 renderVoterSentimentMap();
