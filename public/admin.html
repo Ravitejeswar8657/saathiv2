@@ -441,6 +441,24 @@
         </div>
 
         <div class="section-block">
+          <div class="section-header"><i data-lucide="map-pin"></i> Villages</div>
+          <div class="pillar-caption">All villages with contacts — silent (never visited) villages listed first.</div>
+          <div class="card card-list">
+            <input type="text" id="village-coverage-filter" placeholder="Filter by village or mandal…" style="margin-bottom:10px;width:100%" oninput="renderVillageCoverage()">
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Village</th><th>Mandal</th><th>Visits</th><th>Last Visit</th></tr>
+                </thead>
+                <tbody id="village-coverage-body">
+                  <tr><td colspan="4"><div class="empty-state">Loading…</div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-block">
           <div class="section-header"><i data-lucide="users-round"></i> Cohort Engagement Coverage</div>
           <div class="pillar-caption">Meetings tagged by audience/community — from the Schedule page's "Audience / Community" field.</div>
           <div class="card card-list">
@@ -849,16 +867,21 @@ function renderCategoryBreakdown() {
 }
 
 // ── Village/Mandal Visit Coverage + Cohort Engagement Coverage + stale influencers ──
+let villageCoverageRows = [];
+
 async function loadCoverageReport() {
   try {
     const r = await fetch('/api/coverage-report');
     const data = await r.json();
     renderVisitCoverage(data.mandals);
+    prepareVillageCoverage(data.villages);
+    renderVillageCoverage();
     renderCohortCoverage(data.cohorts, data.never_engaged_cohorts);
     renderStaleInfluencers(data.stale_influencers);
   } catch (e) {
     console.error('Failed to load coverage report', e);
     document.getElementById('visit-coverage-body').innerHTML = '<tr><td colspan="3"><div class="empty-state">Failed to load.</div></td></tr>';
+    document.getElementById('village-coverage-body').innerHTML = '<tr><td colspan="4"><div class="empty-state">Failed to load.</div></td></tr>';
     document.getElementById('cohort-coverage-body').innerHTML = '<tr><td colspan="3"><div class="empty-state">Failed to load.</div></td></tr>';
     document.getElementById('stale-influencers-body').innerHTML = '<div class="empty-state">Failed to load.</div>';
   }
@@ -876,8 +899,38 @@ function renderVisitCoverage(mandals) {
     : '<tr><td colspan="3"><div class="empty-state">No schedule events logged yet.</div></td></tr>';
   const never = (mandals && mandals.never_visited) || [];
   document.getElementById('never-visited-callout').innerHTML = never.length
-    ? `<div class="pillar-caption" style="margin-top:10px"><strong>Never visited (${never.length}):</strong> ${never.map(esc).join(', ')}</div>`
+    ? `<div class="pillar-caption" style="margin-top:10px"><strong>Never visited (${never.length}):</strong> ${never.map(m => esc(m.name)).join(', ')}</div>`
     : '';
+}
+
+// Silent (never-visited) villages first — alphabetical within each group — then
+// visited villages oldest-last-visit-first, so the neglected ones surface at the top.
+function prepareVillageCoverage(villages) {
+  const never = ((villages && villages.never_visited) || [])
+    .map(v => ({ name: v.name, mandal: v.context, visit_count: 0, last_visit_date: '' }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const visited = ((villages && villages.visited) || [])
+    .map(v => ({ name: v.name, mandal: v.context, visit_count: v.visit_count, last_visit_date: v.last_visit_date }))
+    .sort((a, b) => (a.last_visit_date || '').localeCompare(b.last_visit_date || ''));
+  villageCoverageRows = [...never, ...visited];
+}
+
+function renderVillageCoverage() {
+  const tbody = document.getElementById('village-coverage-body');
+  const filter = (document.getElementById('village-coverage-filter')?.value || '').trim().toLowerCase();
+  const rows = filter
+    ? villageCoverageRows.filter(v => v.name.toLowerCase().includes(filter) || v.mandal.toLowerCase().includes(filter))
+    : villageCoverageRows;
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">${villageCoverageRows.length ? 'No villages match that filter.' : 'No villages found.'}</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(v => `<tr>
+    <td>${esc(v.name)}</td>
+    <td>${esc(v.mandal)}</td>
+    <td>${v.visit_count}</td>
+    <td>${v.visit_count ? fmtCoverageDate(v.last_visit_date) : 'Never'}</td>
+  </tr>`).join('');
 }
 
 function renderCohortCoverage(cohorts, neverEngaged) {

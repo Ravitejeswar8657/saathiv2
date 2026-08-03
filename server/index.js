@@ -2029,19 +2029,28 @@ app.get('/api/coverage-report', (req, res) => {
 
   // Universe = places that matter (have contacts), joined against actual visits —
   // same case-insensitive matching level already used by the nearby-contacts finder.
-  function buildPlaceCoverage(field) {
+  // contextField carries along a secondary field (e.g. a village's mandal) so a bare
+  // place name isn't ambiguous once the list runs into the hundreds (villages reuse
+  // names across mandals; mandals don't need this, so contextField is optional).
+  function buildPlaceCoverage(field, contextField) {
     const universe = new Map();
     for (const c of contacts) {
       const v = (c[field] || '').trim();
-      if (v && !universe.has(v.toLowerCase())) universe.set(v.toLowerCase(), v);
+      if (!v) continue;
+      const key = v.toLowerCase();
+      if (!universe.has(key)) {
+        universe.set(key, { name: v, context: contextField ? (c[contextField] || '').trim() : '' });
+      }
     }
     const visits = new Map();
     for (const ev of events) {
       const v = (ev[field] || '').trim();
       if (!v) continue;
       const key = v.toLowerCase();
-      const label = universe.get(key) || v;
-      const entry = visits.get(key) || { name: label, visit_count: 0, last_visit_date: '' };
+      const u = universe.get(key);
+      const name = u ? u.name : v;
+      const context = u ? u.context : (contextField ? (ev[contextField] || '').trim() : '');
+      const entry = visits.get(key) || { name, context, visit_count: 0, last_visit_date: '' };
       entry.visit_count += 1;
       if (!entry.last_visit_date || ev.date > entry.last_visit_date) entry.last_visit_date = ev.date;
       visits.set(key, entry);
@@ -2049,14 +2058,14 @@ app.get('/api/coverage-report', (req, res) => {
     const visited = [...visits.values()].sort((a, b) => (a.last_visit_date || '').localeCompare(b.last_visit_date || ''));
     const never_visited = [...universe.entries()]
       .filter(([key]) => !visits.has(key))
-      .map(([, name]) => name)
-      .sort();
+      .map(([, u]) => ({ name: u.name, context: u.context }))
+      .sort((a, b) => a.name.localeCompare(b.name));
     const stale = visited.filter(v => v.last_visit_date && v.last_visit_date < staleCutoff);
     return { visited, never_visited, stale };
   }
 
   const mandals = buildPlaceCoverage('mandal');
-  const villages = buildPlaceCoverage('village');
+  const villages = buildPlaceCoverage('village', 'mandal');
 
   const cohortStats = new Map(COHORTS.map(c => [c.key, { ...c, meeting_count: 0, last_meeting_date: '' }]));
   for (const ev of events) {
