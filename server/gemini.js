@@ -13,8 +13,92 @@ const DEFAULT_TIMEOUT_MS = 30000;
 // transcribes before it classifies — 30s is not enough headroom for a 3-minute clip.
 const AUDIO_TIMEOUT_MS = 45000;
 
+// Chat is allowed to run longer than an extraction: it streams, so the user sees
+// progress the whole time rather than waiting on a single response.
+const CHAT_TIMEOUT_MS = 90000;
+
 function endpoint(apiKey) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+}
+
+function streamEndpoint(apiKey) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`;
+}
+
+/**
+ * Stream a chat turn, yielding text chunks as they arrive.
+ *
+ * Deliberately does NOT use the `responseSchema` JSON mode that callGemini uses
+ * for every extraction path in this file. Chat streams prose, and structured
+ * output fights incremental decoding — the model emits a JSON document, so
+ * nothing is displayable until the closing brace arrives, which is precisely the
+ * property streaming exists to avoid.
+ *
+ * `messages` is OpenAI-shaped ({role, content}); Gemini wants `contents` with
+ * `parts`, and takes the system prompt separately as `systemInstruction`.
+ */
+export async function* streamChat(messages, { signal } = {}) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+
+  const system = messages.find(m => m.role === 'system');
+  const contents = messages
+    .filter(m => m.role !== 'system')
+    // Gemini's role vocabulary is user/model, not user/assistant.
+    .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+
+  const body = {
+    contents,
+    ...(system ? { systemInstruction: { parts: [{ text: system.content }] } } : {}),
+    generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+  };
+
+  const resp = await fetch(streamEndpoint(apiKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: signal ?? AbortSignal.timeout(CHAT_TIMEOUT_MS),
+  });
+
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '');
+    throw new Error(`Gemini HTTP ${resp.status}: ${detail.slice(0, 300)}`);
+  }
+
+  // Gemini's alt=sse stream is `data: {json}\n\n` frames. The leftover buffer is
+  // carried across reads because chunk boundaries fall mid-line and mid-JSON —
+  // parsing per chunk is the bug that only shows up on a slow network, which is
+  // exactly when streaming matters.
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let split;
+      while ((split = buffer.indexOf('\n\n')) !== -1) {
+        const block = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        for (const line of block.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          let frame;
+          // A malformed frame is skipped rather than tearing the stream down;
+          // the caller's terminal frame still has to arrive.
+          try { frame = JSON.parse(payload); } catch { continue; }
+          const text = frame.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('');
+          if (text) yield text;
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 // Shared request/timeout/parse path for every call in this module.

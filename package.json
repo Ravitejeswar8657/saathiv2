@@ -9,10 +9,14 @@
     "start": "node server/index.js",
     "build": "node scripts/setup_db.js",
     "setup-db": "node scripts/setup_db.js",
+    "test": "node --test server/ public/",
+    "migrate": "node server/db/migrate.js",
+    "backfill": "node scripts/backfill_sqlite.js",
     "postinstall": "node scripts/patch-fontkit.js"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
+    "better-sqlite3": "^11.10.0",
     "cors": "^2.8.6",
     "express": "^4.22.2",
     "fuse.js": "^7.4.2",

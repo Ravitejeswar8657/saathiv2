@@ -277,6 +277,35 @@
 .chat-input-row textarea:focus { outline: none; border-color: var(--accent); }
 .chat-input-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* Threads */
+.chat-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.chat-thread-select { flex: 1; min-width: 160px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; font-family: inherit; background: #fff; color: var(--ink); }
+.chat-toolbar .btn { padding: 6px 10px; font-size: 12px; }
+.chat-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; color: var(--stone-500); cursor: pointer; }
+.chat-icon-btn:hover { color: var(--ink); border-color: var(--accent); }
+.chat-icon-btn i { width: 14px; height: 14px; }
+
+/* Streaming caret — shows the answer is still arriving, distinct from "thinking". */
+.chat-bubble.pending::after { content: '▍'; display: inline-block; margin-left: 1px; animation: chat-caret 1s steps(2) infinite; }
+@keyframes chat-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.chat-bubble.failed { border-color: var(--danger, #b91c1c); }
+
+/* Search states. Four distinct ones plus results — collapsing any two is what
+   makes a search box feel broken. */
+.chat-search-banner { font-size: 11.5px; padding: 7px 10px; border-radius: var(--radius-sm); margin-bottom: 10px; }
+.chat-search-banner.degraded { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.chat-search-banner.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.chat-search-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.chat-source-badge { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); color: var(--stone-500); }
+.chat-source-badge.hybrid { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.chat-source-badge.fts    { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.chat-source-badge.fuzzy  { background: #fdf4ff; border-color: #f0abfc; color: #a21caf; }
+.chat-source-badge.graph  { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+.chat-search-skeleton { height: 46px; border-radius: var(--radius-sm); margin-bottom: 6px; background: linear-gradient(90deg, var(--bg) 25%, #f3f1ee 50%, var(--bg) 75%); background-size: 200% 100%; animation: chat-shimmer 1.2s infinite; }
+@keyframes chat-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.chat-search-snippet { font-size: 11.5px; color: var(--stone-500); margin-top: 3px; line-height: 1.45; }
+.chat-search-snippet mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; }
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .container { padding: 16px; }
@@ -308,13 +337,21 @@
           </div>
           <div id="chat-search-results" class="chat-search-results" style="display:none"></div>
 
+          <div class="chat-toolbar">
+            <select class="chat-thread-select" id="chat-thread-select" onchange="switchThread(this.value)"
+                    title="Conversation history"></select>
+            <button class="btn btn-secondary" id="chat-new-btn" onclick="newThread()"><i data-lucide="plus"></i> New chat</button>
+            <button class="chat-icon-btn" onclick="renameThread()" title="Rename this conversation"><i data-lucide="pencil"></i></button>
+            <button class="chat-icon-btn" onclick="archiveThread()" title="Archive this conversation"><i data-lucide="archive"></i></button>
+            <button class="chat-icon-btn" onclick="deleteThread()" title="Delete this conversation"><i data-lucide="trash-2"></i></button>
+          </div>
+
           <div id="chat-messages" class="chat-messages"></div>
-          <div id="chat-thinking" class="chat-thinking" style="display:none">Thinking…</div>
+          <div id="chat-thinking" class="chat-thinking" style="display:none">Searching the records…</div>
           <div class="chat-input-row">
             <textarea id="chat-input" placeholder="Ask about contacts, grievances, schedule, campaigns…"></textarea>
             <div class="chat-input-actions">
               <button class="btn btn-accent" id="chat-send-btn" onclick="sendChatMessage()"><i data-lucide="send"></i> Send</button>
-              <button class="btn btn-secondary" id="chat-clear-btn" onclick="clearChat()"><i data-lucide="trash-2"></i> Clear</button>
             </div>
           </div>
         </div>
@@ -577,16 +614,87 @@ function fmt12h(t) {
 }
 
 // ── Ask Saathi: chat ─────────────────────────────────────────────────────
+// Streaming, thread-persisted chat over the office's own records.
+//
+// EventSource cannot be used: it only does GET, and a chat turn is a POST. So the
+// response body is read and framed by hand below.
 let chatMessages = [];
+// The active thread id is held in a plain variable, NOT in a re-derived lookup:
+// the async send loop and the thread-list refresh both read it, and re-reading it
+// from the <select> mid-stream would give whatever the user has since clicked.
+let chatConversationId = null;
+let chatThreads = [];
+let chatStreaming = false;
+
+/**
+ * Read an SSE body, yielding {event, data} frames.
+ *
+ * The leftover buffer is carried BETWEEN reads. Chunk boundaries fall mid-line
+ * and mid-JSON, so parsing each chunk on its own is the bug that only appears on
+ * a slow network — which is exactly when streaming is worth having.
+ *
+ * A malformed frame yields nothing rather than tearing the stream down, so the
+ * terminal `done` still arrives and the UI still settles.
+ */
+async function* readSSE(body) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let split;
+      while ((split = buffer.indexOf('\n\n')) !== -1) {
+        const block = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        let event = 'message';
+        let data = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        if (!data) continue;
+        try { yield { event, data: JSON.parse(data) }; } catch { /* skip malformed */ }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function loadThreads() {
+  try {
+    const r = await fetch('/api/conversations?limit=50');
+    chatThreads = (await r.json()).items || [];
+    renderThreadSelect();
+  } catch (e) {
+    console.error('Failed to load conversations', e);
+  }
+}
+
+function renderThreadSelect() {
+  const el = document.getElementById('chat-thread-select');
+  if (!chatThreads.length) {
+    el.innerHTML = '<option value="">New conversation</option>';
+    return;
+  }
+  el.innerHTML = chatThreads.map(t => {
+    const label = t.title || 'Untitled conversation';
+    const archived = t.status === 'closed' ? ' (archived)' : '';
+    return `<option value="${esc(t.id)}"${t.id === chatConversationId ? ' selected' : ''}>${esc(label)}${archived}</option>`;
+  }).join('');
+}
 
 async function loadChatMessages() {
+  if (!chatConversationId) { chatMessages = []; renderChatMessages(); return; }
   try {
-    const r = await fetch('/api/chat/messages');
-    const data = await r.json();
-    chatMessages = data.messages || [];
+    const r = await fetch(`/api/conversations/${chatConversationId}/messages`);
+    chatMessages = (await r.json()).items || [];
     renderChatMessages();
   } catch (e) {
-    console.error('Failed to load chat messages', e);
+    console.error('Failed to load messages', e);
   }
 }
 
@@ -597,10 +705,12 @@ function renderChatMessages() {
     return;
   }
   el.innerHTML = chatMessages.map(m => {
-    const groundingHtml = (m.grounding && m.grounding.length)
-      ? `<div class="chat-grounding">Based on: ${esc([...new Set(m.grounding.map(g => g.source))].join(', '))}</div>`
+    const sources = [...new Set((m.grounding || []).map(g => g.source))];
+    const grounding = sources.length
+      ? `<div class="chat-grounding">Based on: ${esc(sources.join(', ').replace(/_/g, ' '))}</div>`
       : '';
-    return `<div class="chat-bubble ${m.role}">${esc(m.body)}${groundingHtml}</div>`;
+    const cls = [m.role, m.pending ? 'pending' : '', m.failed ? 'failed' : ''].filter(Boolean).join(' ');
+    return `<div class="chat-bubble ${cls}">${esc(m.body)}${m.pending ? '' : grounding}</div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -608,90 +718,296 @@ function renderChatMessages() {
 async function sendChatMessage() {
   const input = document.getElementById('chat-input');
   const message = input.value.trim();
-  if (!message) return;
+  if (!message || chatStreaming) return;
 
   const sendBtn = document.getElementById('chat-send-btn');
   sendBtn.disabled = true;
+  chatStreaming = true;
   input.value = '';
-  chatMessages.push({ id: 'pending', role: 'user', body: message, grounding: [] });
+
+  // Optimistic echo: the user's turn plus an empty assistant turn to stream into.
+  const pendingId = `pending-${Date.now()}`;
+  chatMessages.push({ id: `${pendingId}-u`, role: 'user', body: message, grounding: [] });
+  chatMessages.push({ id: pendingId, role: 'assistant', body: '', grounding: [], pending: true });
   renderChatMessages();
   document.getElementById('chat-thinking').style.display = 'block';
+
+  // Distinguishes "never reached the server" from "died mid-answer". They need
+  // opposite recoveries: one restores the draft, the other must not, because the
+  // message really was saved.
+  let reachedServer = false;
+  const bubble = () => chatMessages.find(m => m.id === pendingId);
 
   try {
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, conversation_id: chatConversationId || undefined }),
     });
-    if (!r.ok) throw new Error(`Server returned ${r.status}`);
-    const data = await r.json();
-    chatMessages.push(data.reply);
-    renderChatMessages();
+    if (!r.ok || !r.body) throw new Error(`Server returned ${r.status}`);
+
+    let titleChanged = false;
+    for await (const frame of readSSE(r.body)) {
+      if (frame.event === 'start') {
+        reachedServer = true;
+        chatConversationId = frame.data.conversation_id;
+        titleChanged = !!frame.data.title_changed;
+        document.getElementById('chat-thinking').style.display = 'none';
+      } else if (frame.event === 'token') {
+        const b = bubble();
+        if (b) { b.body += frame.data.text; renderChatMessages(); }
+      } else if (frame.event === 'error') {
+        const b = bubble();
+        if (b) b.failed = true;
+        SaathiUI.toast(frame.data.message || 'The assistant could not answer.', 'danger');
+      } else if (frame.event === 'done') {
+        const b = bubble();
+        if (b) {
+          b.pending = false;
+          b.id = frame.data.message_id;
+          b.grounding = frame.data.grounding || [];
+        }
+        renderChatMessages();
+      }
+    }
+
+    // The thread list only changes when the first message named the thread —
+    // refetching after every turn would be a request per message for nothing.
+    if (titleChanged) await loadThreads();
   } catch (e) {
-    SaathiUI.toast('Could not reach the server. Please try again.', 'danger');
-    await loadChatMessages();
+    if (reachedServer) {
+      // The turn was persisted server-side; the connection died mid-answer.
+      const b = bubble();
+      if (b) { b.pending = false; b.failed = true; b.body = b.body || '(the answer was interrupted)'; }
+      renderChatMessages();
+      SaathiUI.toast('The connection dropped mid-answer. Your message was saved.', 'danger');
+    } else {
+      // Nothing was written. Give the draft back rather than silently eating it.
+      chatMessages = chatMessages.filter(m => m.id !== pendingId && m.id !== `${pendingId}-u`);
+      renderChatMessages();
+      input.value = message;
+      SaathiUI.toast('Could not reach the server — your message was not sent.', 'danger');
+    }
   } finally {
+    chatStreaming = false;
     document.getElementById('chat-thinking').style.display = 'none';
     sendBtn.disabled = false;
     input.focus();
   }
 }
 
-async function clearChat() {
-  const ok = await SaathiUI.confirm('Clear the entire chat history? This cannot be undone.', { confirmLabel: 'Clear' });
+// ── Ask Saathi: threads ──────────────────────────────────────────────────
+async function switchThread(id) {
+  chatConversationId = id || null;
+  await loadChatMessages();
+}
+
+async function newThread() {
+  try {
+    const r = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel: 'web' }),
+    });
+    const conversation = await r.json();
+    chatConversationId = conversation.id;
+    chatMessages = [];
+    renderChatMessages();
+    await loadThreads();
+    document.getElementById('chat-input').focus();
+  } catch (e) {
+    SaathiUI.toast('Could not start a new conversation.', 'danger');
+  }
+}
+
+async function renameThread() {
+  if (!chatConversationId) return SaathiUI.toast('No conversation selected.', 'danger');
+  const current = chatThreads.find(t => t.id === chatConversationId);
+  const title = window.prompt('Rename this conversation', current?.title || '');
+  if (title === null) return;
+  await fetch(`/api/conversations/${chatConversationId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: title.trim() }),
+  });
+  await loadThreads();
+}
+
+async function archiveThread() {
+  if (!chatConversationId) return SaathiUI.toast('No conversation selected.', 'danger');
+  // Archive closes the thread: still listed, still readable, just not where the
+  // next message goes. Distinct from delete, which hides it.
+  await fetch(`/api/conversations/${chatConversationId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'closed' }),
+  });
+  await loadThreads();
+  SaathiUI.toast('Conversation archived.');
+}
+
+async function deleteThread() {
+  if (!chatConversationId) return SaathiUI.toast('No conversation selected.', 'danger');
+  const ok = await SaathiUI.confirm('Delete this conversation? You can restore it for 30 days.',
+    { confirmLabel: 'Delete' });
   if (!ok) return;
-  await fetch('/api/chat/messages', { method: 'DELETE' });
+
+  const deletedId = chatConversationId;
+  await fetch(`/api/conversations/${deletedId}`, { method: 'DELETE' });
+  chatConversationId = null;
   chatMessages = [];
   renderChatMessages();
+  await loadThreads();
+
+  // Undo lives in the toast, not in a separate screen.
+  SaathiUI.toast('Conversation deleted. Undo?', 'info', {
+    actionLabel: 'Undo',
+    onAction: async () => {
+      await fetch(`/api/conversations/${deletedId}/restore`, { method: 'POST' });
+      chatConversationId = deletedId;
+      await loadThreads();
+      await loadChatMessages();
+    },
+  });
 }
 
 // ── Ask Saathi: search ───────────────────────────────────────────────────
+// Five distinct render states — loading, error, empty query, no results, results.
+// Collapsing any two of them is what makes a search box feel broken.
 let chatSearchDebounce;
+let chatSearchSeq = 0;
 
 function onChatSearchInput() {
   clearTimeout(chatSearchDebounce);
   const q = document.getElementById('chat-search-input').value.trim();
   const resultsEl = document.getElementById('chat-search-results');
   if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
-  chatSearchDebounce = setTimeout(() => runChatSearch(q), 300);
+  chatSearchDebounce = setTimeout(() => runChatSearch(q), 250);
+}
+
+function renderSearchSkeleton() {
+  const el = document.getElementById('chat-search-results');
+  el.style.display = 'block';
+  el.innerHTML = '<div class="chat-search-skeleton"></div>'.repeat(3);
 }
 
 async function runChatSearch(q) {
   const resultsEl = document.getElementById('chat-search-results');
+  // Every keystroke can outrun the one before it; only the newest may render.
+  const seq = ++chatSearchSeq;
+  renderSearchSkeleton();
+
   try {
-    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const r = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, k: 20 }),
+    });
+    if (!r.ok) throw new Error(`Server returned ${r.status}`);
     const data = await r.json();
+    if (seq !== chatSearchSeq) return;
+
     const results = data.results || [];
+    // `sources` is SPARSE — a retriever that contributed nothing is omitted, and
+    // `hybrid` is a key like any other. Reading it with a fallback is the shape
+    // that matches what the API actually sends.
+    const sources = data.sources || {};
+
+    // Degraded is a BANNER, not an error: half of retrieval being down still
+    // returns usable results, and calling that an error hides them.
+    const banner = data.degraded
+      ? '<div class="chat-search-banner degraded">Showing partial results — one of the search indexes is unavailable.</div>'
+      : '';
+
     if (results.length === 0) {
       resultsEl.style.display = 'block';
-      resultsEl.innerHTML = '<div class="empty-state">No matching records.</div>';
+      resultsEl.innerHTML = `${banner}<div class="empty-state">No records match “${esc(q)}”.</div>`;
       return;
     }
+
+    const badges = ['hybrid', 'fts', 'fuzzy', 'graph']
+      .filter(k => (sources[k] || 0) > 0)
+      .map(k => `<span class="chat-source-badge ${k}" title="${esc(SOURCE_LABELS[k])}">${esc(k)} ${sources[k]}</span>`)
+      .join('');
+
     const groups = {};
     results.forEach(res => { (groups[res.source] = groups[res.source] || []).push(res); });
-    resultsEl.innerHTML = Object.keys(groups).map(source => {
-      const rows = groups[source].map(res => `
-        <a class="mini-list-card" href="javascript:void(0)" onclick="askAboutResult('${esc(res.title).replace(/'/g, "\\'")}')">
-          <div class="mini-list-name">${esc(res.title)}</div>
-          <div class="mini-list-meta">${esc(res.subtitle || '')}</div>
-        </a>`).join('');
-      return `<div class="chat-search-group-label">${esc(source.replace(/_/g, ' '))}</div>${rows}`;
-    }).join('');
+
+    resultsEl.innerHTML = banner
+      + `<div class="chat-search-meta"><span class="chat-search-group-label" style="margin:0">${results.length} result${results.length === 1 ? '' : 's'}</span>${badges}</div>`
+      + Object.keys(groups).map(source => {
+        const rows = groups[source].map(res => `
+          <a class="mini-list-card" href="${esc(recordHref(res))}">
+            <div class="mini-list-name">${esc(res.title)}</div>
+            <div class="mini-list-meta">${esc(res.subtitle || '')}</div>
+            ${res.body ? `<div class="chat-search-snippet">${snippet(res.body, q)}</div>` : ''}
+          </a>`).join('');
+        return `<div class="chat-search-group-label">${esc(source.replace(/_/g, ' '))}</div>${rows}`;
+      }).join('');
     resultsEl.style.display = 'block';
   } catch (e) {
+    if (seq !== chatSearchSeq) return;
     resultsEl.style.display = 'block';
-    resultsEl.innerHTML = '<div class="empty-state">Search failed.</div>';
+    resultsEl.innerHTML = `<div class="chat-search-banner error"><span>Search failed.</span>
+      <button class="btn btn-secondary" style="padding:4px 10px;font-size:11.5px" onclick="runChatSearch(${JSON.stringify(q).replace(/"/g, '&quot;')})">Retry</button></div>`;
   }
 }
 
-function askAboutResult(title) {
-  document.getElementById('chat-search-input').value = '';
-  document.getElementById('chat-search-results').style.display = 'none';
-  document.getElementById('chat-search-results').innerHTML = '';
-  const input = document.getElementById('chat-input');
-  input.value = `Tell me about ${title}`;
-  input.focus();
+// Open on whichever thread the next message would land in, so the page reflects
+// the same "active conversation" the server would resolve.
+async function initChat() {
+  try {
+    const r = await fetch('/api/conversations/active?channel=web');
+    if (r.ok) chatConversationId = (await r.json()).id;
+  } catch (e) {
+    console.error('Failed to resolve the active conversation', e);
+  }
+  await loadThreads();
+  await loadChatMessages();
 }
+
+const SOURCE_LABELS = {
+  hybrid: 'Found by both keyword and fuzzy matching',
+  fts: 'Found by keyword (BM25) matching',
+  fuzzy: 'Found by fuzzy matching — tolerant of spelling variants',
+  graph: 'Related record, found through a shared place or person',
+};
+
+// Where a hit links through to. These used to be dead javascript:void(0) links —
+// a search result you cannot open is a result you have to go and find by hand.
+function recordHref(res) {
+  switch (res.source) {
+    case 'contacts':         return `/contacts.html?id=${encodeURIComponent(res.id)}`;
+    case 'grievances':       return `/grievances.html?id=${encodeURIComponent(res.id)}`;
+    case 'schedule':         return `/pa_schedule.html?id=${encodeURIComponent(res.id)}`;
+    case 'campaign_reports': return `/campaign_reports.html?id=${encodeURIComponent(res.id)}`;
+    case 'social_posts':     return `/social_calendar.html?id=${encodeURIComponent(res.id)}`;
+    case 'ttd_letters':      return `/ttd_letters.html?id=${encodeURIComponent(res.id)}`;
+    case 'news':             return `/news.html?id=${encodeURIComponent(res.id)}`;
+    default:                 return '#';
+  }
+}
+
+// A short window of the matching text, with the query terms marked. Escaped
+// first, then marked, so the highlighting cannot introduce markup.
+function snippet(body, query, width = 150) {
+  const text = String(body).replace(/\s+/g, ' ').trim();
+  const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+  let at = -1;
+  for (const t of terms) {
+    const i = text.toLowerCase().indexOf(t);
+    if (i !== -1 && (at === -1 || i < at)) at = i;
+  }
+  const start = at === -1 ? 0 : Math.max(0, at - 40);
+  const cut = (start > 0 ? '…' : '') + text.slice(start, start + width) + (text.length > start + width ? '…' : '');
+
+  let html = esc(cut);
+  for (const t of terms) {
+    html = html.replace(new RegExp(`(${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>');
+  }
+  return html;
+}
+
 
 // ── Summary strip ────────────────────────────────────────────────────────
 async function loadStats() {
@@ -1286,7 +1602,7 @@ lucide.createIcons();
 document.getElementById('chat-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
 });
-loadChatMessages();
+initChat();
 loadStats();
 loadTodaysSchedule();
 loadIntelligenceData();

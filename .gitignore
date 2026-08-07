@@ -2,3 +2,10 @@ node_modules/
 data/wa_auth/
 *.log
 .env
+
+# SQLite runtime data. The schema is in server/db/migrations/; the database is
+# built from those plus the db.json import, so committing it would ship one
+# machine's rows as if they were source.
+data/*.db
+data/*.db-shm
+data/*.db-wal

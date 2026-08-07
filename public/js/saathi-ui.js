@@ -31,19 +31,50 @@
 
   const TOAST_ICONS = { info: 'info', success: 'check-circle', danger: 'alert-circle' };
 
-  SaathiUI.toast = function (message, type = 'info', duration = 4000) {
+  // The third argument accepts either a duration in ms (the original signature,
+  // still used by every existing caller) or an options object. An `actionLabel`
+  // + `onAction` pair renders an inline button — which is where an Undo belongs,
+  // rather than on a separate screen the user has to go and find.
+  SaathiUI.toast = function (message, type = 'info', options = 4000) {
+    const opts = typeof options === 'number' ? { duration: options } : (options || {});
+    const { duration = 4000, actionLabel, onAction } = opts;
+
     const container = ensureToastContainer();
     const el = document.createElement('div');
     el.className = `saathi-toast${type !== 'info' ? ' toast-' + type : ''}`;
     el.innerHTML = `<i data-lucide="${TOAST_ICONS[type] || 'info'}"></i><span></span>`;
     el.querySelector('span').textContent = message;
+
+    let dismissed = false;
+    const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 250);
+    };
+
+    if (actionLabel && typeof onAction === 'function') {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'saathi-toast-action';
+      btn.textContent = actionLabel;
+      btn.addEventListener('click', async () => {
+        // Dismiss first: the action may be slow, and a toast that lingers after
+        // the click reads as a button that did nothing.
+        dismiss();
+        try {
+          await onAction();
+        } catch (e) {
+          SaathiUI.toast('That could not be undone.', 'danger');
+        }
+      });
+      el.appendChild(btn);
+    }
+
     container.appendChild(el);
     if (window.lucide) lucide.createIcons({ nodes: [el] });
     requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => {
-      el.classList.remove('show');
-      setTimeout(() => el.remove(), 250);
-    }, duration);
+    setTimeout(dismiss, duration);
   };
 
   SaathiUI.confirm = function (message, opts = {}) {
