@@ -9,7 +9,49 @@ import { createRequire } from 'module';
 import Fuse from 'fuse.js';
 import PDFDocument from 'pdfkit';
 import XLSX from 'xlsx';
-import { searchAll } from './search.js';
+import { search as searchService, status as searchStatus, searchAll } from './search.js';
+
+// ── Persistence ────────────────────────────────────────────────────────────
+// Every SQL statement in this app lives behind one of these modules. No route
+// handler opens a connection or writes a query; see server/db/connection.js.
+import { migrate } from './db/migrate.js';
+import { getDb } from './db/connection.js';
+import { ulid } from './db/ids.js';
+import { seedReference, canonicalMandal, listMandals } from './db/reference.js';
+import * as rawEvents from './db/raw_events.js';
+import { getSetting, setSetting, allSettings, logTimeline, rebuildFts } from './db/records.js';
+import {
+  getConversation, listConversations, listMessages, resolveConversation,
+  createConversation, updateConversation, deleteConversation, restoreConversation,
+  listTrash, purgeExpiredTrash, appendMessage, titleIfUntitled,
+} from './db/conversations.js';
+import { buildContext, FALLBACK_REPLY } from './chat.js';
+import {
+  listContacts, getContact, countContacts, findNearby, distinctValues,
+  upsertContact, updateContact, replaceAllContacts,
+} from './db/contacts.js';
+import {
+  listGrievances, getGrievance, insertGrievance, updateGrievance,
+  softDeleteGrievance, replaceAllGrievances, linkDuplicates, linkTtdLetter,
+  countOpenGrievances, countFeedback, findByPhone,
+} from './db/grievances.js';
+import {
+  listEvents, getEvent, insertEvent, updateEvent, softDeleteEvent,
+  replaceAllEvents, setEventContactBrief, countUpcomingEvents,
+} from './db/events.js';
+import {
+  listNews, getNewsItem, insertNews, updateNews, softDeleteNews, replaceAllNews, countNews,
+} from './db/news.js';
+import {
+  listReports, getReport, insertReport, updateReport, softDeleteReport, replaceAllReports,
+} from './db/campaign_reports.js';
+import {
+  listPosts, getPost, insertPost, updatePost, softDeletePost, replaceAllPosts, countPostsBetween,
+} from './db/social_posts.js';
+import {
+  listLetters, getLetter, insertLetter, updateLetter, softDeleteLetter,
+  replaceAllLetters, findByAadhar, normalizeAadhar as normalizeAadharDb,
+} from './db/ttd_letters.js';
 
 const require = createRequire(import.meta.url);
 
@@ -54,30 +96,40 @@ function sweepPendingMedia(dir) {
 sweepPendingMedia(GRIEVANCE_MEDIA_PATH);
 sweepPendingMedia(CAMPAIGN_MEDIA_PATH);
 
-// Seed db.json from bundled snapshot if volume is empty
-const SEED_PATH = path.join(ROOT, 'data', 'db.json');
-if (!fs.existsSync(DB_PATH) && fs.existsSync(SEED_PATH)) {
-  fs.copyFileSync(SEED_PATH, DB_PATH);
-  console.log('✓ Database seeded from bundled snapshot');
-}
+// ── Schema ─────────────────────────────────────────────────────────────────
+// Migrations run at boot, before the first request. They are numbered, checksummed
+// and applied inside a transaction with their ledger row (server/db/migrate.js), so
+// this is safe to run on every start: a fully-migrated database is a no-op.
+//
+// This replaces the boot-time `migratePensionWelfareCategory()` IIFE, which read,
+// rewrote and re-saved the entire 3 MB JSON file on every single start inside a
+// try/catch that swallowed the failure. Its work now lives in 004_data_fixups.sql,
+// where it runs once and is recorded as having run.
+migrate({ log: line => console.log(line) });
 
-// One-time migration: 'pension_welfare' category was merged into the broader
-// 'social_welfare_bc' ("Social Welfare & BC/Minority Welfare") category.
-(function migratePensionWelfareCategory() {
-  try {
-    const db = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-    let changed = false;
-    for (const g of db.grievances || []) {
-      if (g.category === 'pension_welfare') { g.category = 'social_welfare_bc'; changed = true; }
-    }
-    if (changed) {
-      fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
-      console.log('✓ Migrated pension_welfare grievances to social_welfare_bc');
-    }
-  } catch (e) {
-    console.error('pension_welfare migration skipped:', e.message);
+// First boot on a volume that only has db.json: import it. The backfill is
+// idempotent and asserts its own row counts, and it never modifies db.json, so
+// there is always a way back until Phase F deletes it.
+if (countContacts() === 0) {
+  const seedJson = fs.existsSync(DB_PATH) ? DB_PATH
+    : (fs.existsSync(path.join(ROOT, 'data', 'db.json')) ? path.join(ROOT, 'data', 'db.json') : null);
+  if (seedJson) {
+    console.log('Empty database — importing from', seedJson);
+    seedReference();
+    const json = JSON.parse(fs.readFileSync(seedJson, 'utf8'));
+    replaceAllContacts(json.contacts || []);
+    replaceAllGrievances(json.grievances || []);
+    replaceAllLetters(json.ttd_letters || []);
+    replaceAllEvents(json.schedule || []);
+    replaceAllNews(json.news || []);
+    replaceAllReports(json.campaign_reports || []);
+    replaceAllPosts(json.social_posts || []);
+    console.log(`✓ Imported ${countContacts()} contacts`);
   }
-})();
+}
+// Reference data is cheap and idempotent; re-seeding every boot means a newly
+// added mandal alias ships with a deploy rather than needing a manual script.
+seedReference();
 
 const app = express();
 app.use(cors());
@@ -105,11 +157,57 @@ const logCampaignReportMedia = uploadCampaignReportMedia.fields([
 ]);
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
+// `readDB()` used to parse the whole 3 MB db.json on every one of ~70 routes.
+// It now returns a lazy VIEW over SQLite with the same key names, so every
+// existing read site works unchanged while the storage underneath is a real
+// database. Each collection is loaded on first access and memoized for the life
+// of the call, which reproduces the old semantics exactly: one snapshot per
+// request.
+//
+// There is deliberately no `writeDB`. Writes go through the repositories in
+// server/db/, which is what makes "the schema is owned by one module" enforceable
+// rather than aspirational. The properties below are getters with no setters, so
+// a leftover `db.grievances = [...]` throws a TypeError in module scope instead of
+// silently doing nothing — every write site had to be converted, and this is what
+// guaranteed none was missed.
 function readDB() {
-  return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  const cache = {};
+  const lazy = load => ({
+    enumerable: true,
+    get() {
+      if (!(load.name in cache)) cache[load.name] = load();
+      return cache[load.name];
+    },
+  });
+  return Object.defineProperties({}, {
+    contacts:         lazy(function contacts() { return listContacts(); }),
+    grievances:       lazy(function grievances() { return listGrievances(); }),
+    schedule:         lazy(function schedule() { return listEvents(); }),
+    news:             lazy(function news() { return listNews(); }),
+    campaign_reports: lazy(function campaign_reports() { return listReports(); }),
+    social_posts:     lazy(function social_posts() { return listPosts(); }),
+    ttd_letters:      lazy(function ttd_letters() { return listLetters(); }),
+    // Derived rather than stored. db.json kept `coverage` as a precomputed 26-row
+    // rollup that went stale the moment a contact was added, and `metadata`
+    // cached a contact count beside the contacts themselves.
+    coverage:         lazy(function coverage() { return coverageRollup(); }),
+    metadata:         lazy(function metadata() {
+      return { total_contacts: countContacts(), constituency: 'Palnadu' };
+    }),
+  });
 }
-function writeDB(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+
+// The mandal rollup db.json stored as a frozen array. Computed from the contacts
+// themselves so it cannot disagree with them.
+function coverageRollup() {
+  return getDb().prepare(`
+    SELECT mandal, constituency, COUNT(*) contacts,
+           CAST(AVG(days_since_contact) AS INTEGER) last_touch_days
+      FROM contacts
+     WHERE deleted_at IS NULL AND mandal <> ''
+     GROUP BY mandal, constituency
+     ORDER BY contacts DESC`).all()
+    .map(r => ({ ...r, health: r.last_touch_days <= 30 ? 'good' : r.last_touch_days <= 90 ? 'fair' : 'poor' }));
 }
 
 // ── IST date helper ─────────────────────────────────────────────────────────
@@ -302,9 +400,11 @@ async function fetchGoogleNews() {
 app.get('/api/dashboard', (req, res) => {
   const db = readDB();
   res.json({
-    metadata: db.metadata,
+    metadata: { ...db.metadata, ...allSettings() },
     all_contacts: db.contacts,
-    issue_radar: db.issue_radar,
+    // `issue_radar` was an empty array in db.json that nothing ever wrote to.
+    // Kept as a key so the dashboard's destructuring is unchanged.
+    issue_radar: [],
     coverage: db.coverage,
     news: (db.news || []).slice(0, 20),
     schedule: db.schedule || [],
@@ -313,11 +413,8 @@ app.get('/api/dashboard', (req, res) => {
 
 app.patch('/api/metadata', (req, res) => {
   const { mp_name } = req.body;
-  const db = readDB();
-  db.metadata = db.metadata || {};
-  if (mp_name !== undefined) db.metadata.mp_name = mp_name;
-  writeDB(db);
-  res.json({ ok: true, metadata: db.metadata });
+  if (mp_name !== undefined) setSetting('mp_name', mp_name);
+  res.json({ ok: true, metadata: { ...readDB().metadata, ...allSettings() } });
 });
 
 app.get('/api/contacts', (req, res) => {
@@ -347,11 +444,39 @@ app.get('/api/contacts', (req, res) => {
 // ── Cross-collection search (contacts/grievances/schedule/news/campaign_reports/
 // social_posts) — powers both the admin.html search box and the chat assistant's
 // grounding step. Fuse.js only; no SQL/vector DB in this app.
+// ── Search ─────────────────────────────────────────────────────────────────
+// Hybrid retrieval over the app's own records: SQLite FTS5 (BM25) and Fuse.js
+// fuzzy matching, fanned out concurrently, fused with reciprocal rank fusion, then
+// widened by a bounded one-hop expansion over the entity graph. See server/search.js.
+
+// The full contract. `filters.sources` narrows to named collections.
+app.post('/api/search', (req, res) => {
+  const { query, k, filters } = req.body || {};
+  res.json(searchService(query, { k: Math.min(parseInt(k) || 10, 100), filters: filters || {} }));
+});
+
+// The flat-list form the current widget calls. Kept so the page keeps working
+// while it moves to POST; the ranking underneath is the new pipeline either way.
 app.get('/api/search', (req, res) => {
   const { q, limit } = req.query;
   if (!q) return res.json({ results: [] });
-  const results = searchAll(readDB(), q, { limit: Math.min(parseInt(limit) || 30, 100) });
-  res.json({ results });
+  const { results, degraded, sources } = searchService(q, {
+    k: Math.min(parseInt(limit) || 30, 100),
+  });
+  res.json({ results, degraded, sources });
+});
+
+// Exists because "search isn't answering" has several very different causes and
+// an operator cannot act until they know which one it is.
+app.get('/api/search/status', (req, res) => {
+  res.json(searchStatus());
+});
+
+// Rebuild the FTS index from `records`. External-content FTS5 keeps no copy of
+// the text, so this re-derives every entry — the repair path for an index
+// restored from a backup taken mid-write.
+app.post('/api/search/reindex', (req, res) => {
+  res.json({ ok: true, records: rebuildFts() });
 });
 
 app.get('/api/filter-options', (req, res) => {
@@ -383,20 +508,20 @@ app.get('/api/filter-options', (req, res) => {
 });
 
 app.get('/api/contact/:id', (req, res) => {
-  const c = readDB().contacts.find(x => x.id === req.params.id);
+  const c = getContact(req.params.id);
   if (!c) return res.status(404).json({ error: 'Not found' });
   res.json(c);
 });
 
 app.post('/api/log-interaction', (req, res) => {
   const { contact_id, type } = req.body;
-  const db = readDB();
-  const idx = db.contacts.findIndex(c => c.id === contact_id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  db.contacts[idx].days_since_contact = 0;
-  db.contacts[idx].pps_score = Math.max((db.contacts[idx].pps_score || 50) - 15, 10);
-  db.contacts[idx].last_log = { type, at: new Date().toISOString() };
-  writeDB(db);
+  const contact = getContact(contact_id);
+  if (!contact) return res.status(404).json({ error: 'Not found' });
+  updateContact(contact_id, {
+    days_since_contact: 0,
+    pps_score: Math.max((contact.pps_score || 50) - 15, 10),
+    last_log: { type, at: new Date().toISOString() },
+  });
   res.json({ ok: true });
 });
 
@@ -457,33 +582,19 @@ app.post('/api/schedule', (req, res) => {
       .slice(0, 20);
   }
 
-  const event = {
-    id: `SCH${Date.now()}`,
+  // The contact list is stored as a join, not as embedded copies. Everything the
+  // old `nearby_contacts` objects carried (name, phone, role, tier, pps_score) is
+  // read back live from `contacts`, so a contact who moves village or changes
+  // tier is no longer wrong on every event already scheduled. Only the
+  // occasion-specific, PA-written brief lives on the join row.
+  const event = insertEvent({
     event_name, date, time: time || '',
     address: address || '', village: village || '',
     mandal, description: description || '',
     event_type: event_type || '',
     audience_cohort: COHORT_KEYS.has(audience_cohort) ? audience_cohort : '',
-    nearby_contacts: nearby.map(c => ({
-      id: c.id, name: c.name, phone: c.phone,
-      village: c.village, role: c.role, tier: c.tier,
-      pps_score: c.pps_score, open_grievance: c.open_grievance || '',
-      // Occasion-specific, PA-written brief for this contact at this event — starts empty.
-      // (The reusable "draft seed" — ai_reason/manual_brief — is looked up live from the
-      // contact record at prep time, not frozen here, so edits to a contact stay fresh.)
-      event_brief: '', brief_reviewed: false,
-    })),
-    nearby_count: nearby.length,
-    // Manual-first content layers — see GET/PATCH /api/schedule/:id/prep. All start empty/
-    // unreviewed; the PA fills these in, the system only ever offers a draft suggestion.
-    contacts_approved: false, contacts_approved_at: null,
-    speech_points: '', speech_points_reviewed: false, speech_skipped: false,
-    creative_touches: { selected: [], custom: [], reviewed: false },
-    news_selected: [],
-    created_at: new Date().toISOString(),
-  };
-  db.schedule = [event, ...(db.schedule || [])];
-  writeDB(db);
+  }, { contactIds: nearby.map(c => c.id) });
+
   res.json({ ok: true, event_id: event.id, nearby_count: event.nearby_count, nearby_contacts: event.nearby_contacts });
 });
 
@@ -492,9 +603,7 @@ app.get('/api/schedule', (req, res) => {
 });
 
 app.delete('/api/schedule/:id', (req, res) => {
-  const db = readDB();
-  db.schedule = (db.schedule || []).filter(s => s.id !== req.params.id);
-  writeDB(db);
+  softDeleteEvent(req.params.id);
   res.json({ ok: true });
 });
 
@@ -693,42 +802,47 @@ app.patch('/api/daily-prep', (req, res) => {
 
   const { contacts, news_selected, event_updates } = req.body;
 
+  // A contact without an event_id applies to every event on the date — the PA
+  // wrote one note for a person they will meet more than once that day.
   if (contacts) {
-    contacts.forEach(c => {
-      if (c.event_id) {
-        const ev = events.find(e => e.id === c.event_id);
-        if (!ev) return;
-        const nc = (ev.nearby_contacts || []).find(nc => nc.id === c.id);
-        if (nc) { nc.event_brief = c.note; nc.brief_reviewed = true; }
-      } else {
-        events.forEach(event => {
-          const nc = (event.nearby_contacts || []).find(nc => nc.id === c.id);
-          if (nc) { nc.event_brief = c.note; nc.brief_reviewed = true; }
-        });
+    for (const c of contacts) {
+      const targets = c.event_id ? events.filter(e => e.id === c.event_id) : events;
+      for (const ev of targets) {
+        if ((ev.nearby_contacts || []).some(nc => nc.id === c.id)) {
+          setEventContactBrief(ev.id, c.id, { event_brief: c.note, brief_reviewed: true });
+        }
       }
-    });
+    }
   }
 
-  if (news_selected) {
-    events.forEach(ev => { ev.news_selected = news_selected; });
-  }
+  const patches = new Map();
+  const patch = (id, fields) => patches.set(id, { ...(patches.get(id) || {}), ...fields });
+
+  if (news_selected) for (const ev of events) patch(ev.id, { news_selected });
 
   if (event_updates) {
-    event_updates.forEach(u => {
-      const ev = events.find(e => e.id === u.id);
-      if (!ev) return;
-      if (u.speech_points !== undefined) { ev.speech_points = u.speech_points; ev.speech_points_reviewed = !!u.speech_points.trim(); }
-      if (u.creative_touches !== undefined) ev.creative_touches = u.creative_touches;
-    });
+    for (const u of event_updates) {
+      if (!events.some(e => e.id === u.id)) continue;
+      const fields = {};
+      if (u.speech_points !== undefined) {
+        fields.speech_points = u.speech_points;
+        fields.speech_points_reviewed = !!u.speech_points.trim();
+      }
+      if (u.creative_touches !== undefined) fields.creative_touches = u.creative_touches;
+      patch(u.id, fields);
+    }
   }
 
-  writeDB(db);
+  // One write per event rather than one rewrite of the whole file, and each is a
+  // transaction — a failure part-way leaves the other events untouched instead of
+  // half-applying a 3 MB overwrite.
+  for (const [id, fields] of patches) updateEvent(id, fields);
   res.json({ ok: true });
 });
 
 app.get('/api/schedule/:id/prep', async (req, res) => {
   const db = readDB();
-  const event = (db.schedule || []).find(s => s.id === req.params.id);
+  const event = getEvent(req.params.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
   const contactsById = new Map(db.contacts.map(c => [c.id, c]));
@@ -776,7 +890,7 @@ app.get('/api/schedule/:id/prep', async (req, res) => {
 // back in (it happened twice already across rounds 1-2).
 app.get('/api/schedule/:id/suggestions', (req, res) => {
   const db = readDB();
-  const event = (db.schedule || []).find(s => s.id === req.params.id);
+  const event = getEvent(req.params.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
   const kind = req.query.kind;
   const allContacts = event.nearby_contacts || [];
@@ -805,19 +919,18 @@ app.patch('/api/schedule/:id/prep', (req, res) => {
   if (event_type !== undefined) event.event_type = event_type;
 
   if (contact_briefs) {
-    event.nearby_contacts = (event.nearby_contacts || []).map(nc => {
+    for (const nc of event.nearby_contacts || []) {
       const update = contact_briefs[nc.id];
-      if (!update) return nc;
-      if (update.save_to_contact) {
-        const cIdx = db.contacts.findIndex(c => c.id === nc.id);
-        if (cIdx !== -1) db.contacts[cIdx].manual_brief = update.event_brief || '';
-      }
-      return {
-        ...nc,
-        event_brief: update.event_brief !== undefined ? update.event_brief : nc.event_brief,
-        brief_reviewed: update.brief_reviewed !== undefined ? !!update.brief_reviewed : nc.brief_reviewed,
-      };
-    });
+      if (!update) continue;
+      // "Save to contact" promotes the occasion-specific brief into the contact's
+      // reusable draft seed. Two different records, deliberately: the event brief
+      // is about this occasion, manual_brief is about the person.
+      if (update.save_to_contact) updateContact(nc.id, { manual_brief: update.event_brief || '' });
+      setEventContactBrief(event.id, nc.id, {
+        event_brief: update.event_brief,
+        brief_reviewed: update.brief_reviewed,
+      });
+    }
   }
 
   // The review-and-approve gate: a deliberate event-level flag, separate from the per-contact
@@ -841,26 +954,27 @@ app.patch('/api/schedule/:id/prep', (req, res) => {
 
   if (Array.isArray(news_selected)) event.news_selected = news_selected;
 
-  db.schedule[idx] = event;
-  writeDB(db);
-  res.json({ ok: true, event: { ...event, speech_applicable: isSpeechApplicable(event.event_type) } });
+  // nearby_contacts is a join, not a column — updateEvent ignores it, and
+  // setEventContactBrief above has already written the only part a human edited.
+  const saved = updateEvent(event.id, event);
+  res.json({ ok: true, event: { ...saved, speech_applicable: isSpeechApplicable(saved.event_type) } });
 });
 
 app.post('/api/contact', (req, res) => {
   const { name, phone, village, mandal, role, tier, constituency } = req.body;
   if (!name || !phone || !mandal) return res.status(400).json({ error: 'name, phone, and mandal required' });
   
-  const db = readDB();
-  const newContact = {
-    id: `C${Date.now()}`,
+  // `C${Date.now()}` collided for two contacts added in the same millisecond and
+  // sorted as a string. ULIDs are unique and time-ordered; the imported C0001-style
+  // ids are left alone, since other records reference them.
+  const newContact = upsertContact({
+    id: `C${ulid()}`,
     name, phone, village: village || '', mandal, constituency: constituency || '',
     role: role || 'Other', tier: tier || 'T3',
     pps_score: 50, days_since_contact: 0,
     created_at: new Date().toISOString(),
-    issues: []
-  };
-  db.contacts.push(newContact);
-  writeDB(db);
+    issues: [],
+  });
   res.json({ ok: true, contact: newContact });
 });
 
@@ -868,24 +982,22 @@ app.post('/api/issue', (req, res) => {
   const { contact_id, type, description } = req.body;
   if (!contact_id || !type) return res.status(400).json({ error: 'contact_id and type required' });
   
-  const db = readDB();
-  const idx = db.contacts.findIndex(c => c.id === contact_id);
-  if (idx === -1) return res.status(404).json({ error: 'Contact not found' });
-  
+  const contact = getContact(contact_id);
+  if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
   const issue = {
-    id: `ISS${Date.now()}`,
+    id: `ISS${ulid()}`,
     type, // 'General', 'Recommendation Letter', 'TTD Darshan'
     description: description || '',
     status: (type === 'General') ? 'none' : 'pending',
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   };
-  
-  if (!db.contacts[idx].issues) db.contacts[idx].issues = [];
-  db.contacts[idx].issues.push(issue);
-  // Also update open_grievance for backward compatibility
-  db.contacts[idx].open_grievance = description;
-  
-  writeDB(db);
+
+  updateContact(contact_id, {
+    issues: [...(contact.issues || []), issue],
+    // Also update open_grievance for backward compatibility
+    open_grievance: description,
+  });
   res.json({ ok: true, issue });
 });
 
@@ -903,9 +1015,10 @@ app.get('/api/news', (req, res) => {
 app.post('/api/news', upload.single('attachment'), (req, res) => {
   const { headline, body, source, mandal, priority, link } = req.body;
   if (!headline) return res.status(400).json({ error: 'headline required' });
-  const db = readDB();
-  const item = {
-    id: `NEWS${Date.now()}`,
+  // The old `.slice(0, 50)` cap is gone: it existed because every submission
+  // rewrote the whole collection and the file had to stay small. An indexed table
+  // does not need to forget last month's news.
+  const item = insertNews({
     headline, body: body || '',
     source: source || 'Field correspondent',
     mandal: mandal || 'General',
@@ -914,31 +1027,22 @@ app.post('/api/news', upload.single('attachment'), (req, res) => {
     submitted_at: new Date().toISOString(),
     has_attachment: !!req.file,
     attachment_name: req.file?.originalname || null,
-  };
-  db.news = [item, ...(db.news || [])].slice(0, 50);
-  writeDB(db);
+  });
   res.json({ ok: true, id: item.id, message: 'Submitted. Appearing in today\'s brief now.' });
 });
 
 app.patch('/api/news/:id', (req, res) => {
-  const db = readDB();
-  const item = (db.news || []).find(n => n.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'News item not found' });
+  if (!getNewsItem(req.params.id)) return res.status(404).json({ error: 'News item not found' });
   const { headline, link, source, body, mandal, priority } = req.body;
-  if (headline !== undefined) item.headline = headline;
-  if (link !== undefined) item.link = link;
-  if (source !== undefined) item.source = source;
-  if (body !== undefined) item.body = body;
-  if (mandal !== undefined) item.mandal = mandal;
-  if (priority !== undefined) item.priority = priority;
-  writeDB(db);
-  res.json({ ok: true, item });
+  const patch = {};
+  for (const [k, v] of Object.entries({ headline, link, source, body, mandal, priority })) {
+    if (v !== undefined) patch[k] = v;
+  }
+  res.json({ ok: true, item: updateNews(req.params.id, patch) });
 });
 
 app.delete('/api/news/:id', (req, res) => {
-  const db = readDB();
-  db.news = (db.news || []).filter(n => n.id !== req.params.id);
-  writeDB(db);
+  softDeleteNews(req.params.id);
   res.json({ ok: true });
 });
 
@@ -953,35 +1057,18 @@ function validatePartySize(darshan_type, party_size) {
   if (limit && n > limit) return `${darshan_type} is limited to ${limit} people (got ${n})`;
   return null;
 }
-function buildTtdLetterItem(db, { date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size, review_status, source_visitor_form_id }) {
-  return {
-    id: `TTD${Date.now()}`,
-    reference: computeTtdReference(db, date),
-    date, name,
-    darshan_type: darshan_type || '',
-    phone: phone || '',
-    aadhar: aadhar || '',
-    referred_by: referred_by || '',
-    remarks: remarks || '',
-    party_size: party_size ?? null,
-    review_status: review_status || 'Confirmed',
-    source_visitor_form_id: source_visitor_form_id || null,
-    created_at: new Date().toISOString(),
-  };
-}
-function computeTtdReference(db, dateStr) {
-  const year = (dateStr || getISTDateStr()).slice(0, 4);
-  const count = (db.ttd_letters || []).filter(l => (l.reference || '').includes(`/${year}/`)).length;
-  return `TTD/${year}/${String(count + 1).padStart(3, '0')}`;
-}
-function normalizeAadhar(a) {
-  return String(a || '').replace(/[\s-]/g, '');
-}
-function findTtdDuplicates(db, aadhar, excludeId) {
-  const norm = normalizeAadhar(aadhar);
-  if (!norm) return [];
-  return (db.ttd_letters || [])
-    .filter(l => l.id !== excludeId && normalizeAadhar(l.aadhar) === norm)
+// The letter's reference (TTD/<year>/<seq>) is minted inside insertLetter's
+// transaction now. It used to be a COUNT over a JSON array, so two requests in
+// flight at once both read the same number and both minted TTD/2026/007 — and
+// that number is quoted to the temple, which makes the collision a real-world
+// problem rather than a data one. `reference` is UNIQUE as a backstop.
+const normalizeAadhar = normalizeAadharDb;
+
+// The duplicate check the register's headline feature runs on. Aadhar is stored
+// normalized (digits only), so this is an indexed equality rather than a scan
+// that rewrote both sides of every comparison.
+function ttdDuplicateMatches(aadhar, excludeId = null) {
+  return findByAadhar(aadhar, excludeId)
     .map(l => ({ id: l.id, date: l.date, reference: l.reference, name: l.name, darshan_type: l.darshan_type }));
 }
 function ttdStatus(dateStr) {
@@ -999,8 +1086,7 @@ app.get('/api/ttd-letters', (req, res) => {
 });
 
 app.get('/api/ttd-letters/check-duplicate', (req, res) => {
-  const db = readDB();
-  res.json({ matches: findTtdDuplicates(db, req.query.aadhar) });
+  res.json({ matches: ttdDuplicateMatches(req.query.aadhar) });
 });
 
 app.post('/api/ttd-letters', (req, res) => {
@@ -1010,17 +1096,21 @@ app.post('/api/ttd-letters', (req, res) => {
   const partySizeError = validatePartySize(darshan_type, party_size);
   if (partySizeError) return res.status(400).json({ error: partySizeError });
 
-  const db = readDB();
-  const duplicate_warning = findTtdDuplicates(db, aadhar);
-  const item = buildTtdLetterItem(db, { date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size, review_status: 'Confirmed' });
-  db.ttd_letters = [item, ...(db.ttd_letters || [])];
-  writeDB(db);
+  // The duplicate check runs BEFORE the insert, so the new letter cannot match
+  // itself. The reference itself is minted inside insertLetter's transaction —
+  // it used to be a COUNT over a JSON array, which two concurrent requests both
+  // read as the same number and both used.
+  const duplicate_warning = ttdDuplicateMatches(aadhar);
+  const item = insertLetter({
+    date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size,
+    review_status: 'Confirmed',
+  });
   res.json({ ok: true, item, duplicate_warning });
 });
 
 app.patch('/api/ttd-letters/:id', (req, res) => {
   const db = readDB();
-  const item = (db.ttd_letters || []).find(l => l.id === req.params.id);
+  const item = getLetter(req.params.id);
   if (!item) return res.status(404).json({ error: 'Letter not found' });
   const { date, name, phone, aadhar, referred_by, remarks, darshan_type, party_size, review_status } = req.body;
   if (darshan_type !== undefined && !TTD_DARSHAN_TYPES.includes(darshan_type))
@@ -1042,24 +1132,18 @@ app.patch('/api/ttd-letters/:id', (req, res) => {
     if (partySizeError) return res.status(400).json({ error: partySizeError });
   }
 
-  if (date !== undefined) item.date = date;
-  if (name !== undefined) item.name = name;
-  if (phone !== undefined) item.phone = phone;
-  if (aadhar !== undefined) item.aadhar = aadhar;
-  if (referred_by !== undefined) item.referred_by = referred_by;
-  if (remarks !== undefined) item.remarks = remarks;
-  if (darshan_type !== undefined) item.darshan_type = darshan_type;
-  if (party_size !== undefined) item.party_size = party_size;
-  if (review_status !== undefined) item.review_status = review_status;
-  writeDB(db);
-  const duplicate_warning = aadhar !== undefined ? findTtdDuplicates(db, aadhar, item.id) : [];
-  res.json({ ok: true, item, duplicate_warning });
+  const patch = {};
+  for (const [k, v] of Object.entries({ date, name, phone, aadhar, referred_by,
+    remarks, darshan_type, party_size, review_status })) {
+    if (v !== undefined) patch[k] = v;
+  }
+  const saved = updateLetter(item.id, patch);
+  const duplicate_warning = aadhar !== undefined ? ttdDuplicateMatches(aadhar, item.id) : [];
+  res.json({ ok: true, item: saved, duplicate_warning });
 });
 
 app.delete('/api/ttd-letters/:id', (req, res) => {
-  const db = readDB();
-  db.ttd_letters = (db.ttd_letters || []).filter(l => l.id !== req.params.id);
-  writeDB(db);
+  softDeleteLetter(req.params.id);
   res.json({ ok: true });
 });
 
@@ -1395,13 +1479,15 @@ function findGrievanceDuplicates(db, { contact_number, full_name, village, issue
   return results;
 }
 
-// The single write path into db.grievances. Every channel goes through this — the
-// staff-reviewed commit below, and the WhatsApp inbox promote path — so id format,
-// media handling, TTD auto-linking and duplicate detection can't drift between them.
-// Mutates db.ttd_letters/other grievances' linked_grievance_ids; the caller is
-// responsible for writeDB(). Returns { record, duplicate_warnings } — warnings are
-// the non-phone matches, for the caller to show staff; phone matches are already
-// linked into the record and don't need a warning.
+// The single write path into the grievance register. Every channel goes through
+// this — the staff-reviewed commit below and the universal /log intake — so media
+// handling, TTD auto-linking and duplicate detection can't drift between them.
+//
+// It BUILDS but no longer persists: it returns the record, its adopted media, the
+// duplicates to link and the warnings to show staff. persistGrievance() below
+// writes all of that in one transaction. Splitting the two is what lets the
+// duplicate links be created after both rows exist, instead of writing an id into
+// a JSON array and hoping the other side gets written too.
 function buildGrievanceRecord(db, it, id) {
   const category = ISSUE_CATEGORY_KEYS.has(it.category) ? it.category : 'others';
   const resolution_status = RESOLUTION_STATUSES.has(it.resolution_status) ? it.resolution_status : 'Pending';
@@ -1521,37 +1607,46 @@ function buildGrievanceRecord(db, it, id) {
     created_at: new Date().toISOString(),
   };
 
-  // A TTD request logged as a grievance opens the letter record straight away,
-  // whatever channel it came in on.
-  if (record.category === 'ttd_letter') {
-    const ttdItem = buildTtdLetterItem(db, {
-      date: record.date_of_visit,
-      name: record.full_name,
-      phone: record.contact_number,
-      referred_by: record.reference_name,
-      remarks: record.issue_description,
-      review_status: 'Pending Review',
-      source_visitor_form_id: record.id,
-    });
-    db.ttd_letters = [ttdItem, ...(db.ttd_letters || [])];
-    record.ttd_letter_refs.push(ttdItem.reference);
-  }
-
   const duplicates = findGrievanceDuplicates(db, {
     contact_number: record.contact_number, full_name: record.full_name,
     village: record.village, issue_description: record.issue_description,
   }, record.id);
-  const duplicate_warnings = [];
-  for (const dup of duplicates) {
-    if (dup.match_type !== 'phone') { duplicate_warnings.push(dup); continue; }
-    record.linked_grievance_ids.push(dup.id);
-    const existing = (db.grievances || []).find(g => g.id === dup.id);
-    if (existing) {
-      existing.linked_grievance_ids = [...new Set([...(existing.linked_grievance_ids || []), record.id])];
-    }
+
+  // A phone match is an exact-match signal and is linked automatically; the fuzzy
+  // matches are only ever shown to staff as "possible duplicate" hints.
+  return {
+    record,
+    media,
+    linkTo: duplicates.filter(d => d.match_type === 'phone').map(d => d.id),
+    duplicate_warnings: duplicates.filter(d => d.match_type !== 'phone'),
+  };
+}
+
+// Write one built grievance and everything that hangs off it, in one transaction.
+function persistGrievance(built) {
+  const { record, media, linkTo } = built;
+  const saved = insertGrievance(record, { media });
+
+  for (const otherId of linkTo) linkDuplicates(saved.id, otherId);
+
+  // A TTD request logged as a grievance opens the letter record straight away,
+  // whatever channel it came in on.
+  if (saved.category === 'ttd_letter') {
+    const letter = insertLetter({
+      date: saved.date_of_visit,
+      name: saved.full_name,
+      phone: saved.contact_number,
+      referred_by: saved.reference_name,
+      remarks: saved.issue_description,
+      review_status: 'Pending Review',
+      source_visitor_form_id: saved.id,
+    });
+    linkTtdLetter(saved.id, letter.id);
   }
 
-  return { record, duplicate_warnings };
+  // Re-read so linked_grievance_ids and ttd_letter_refs come back populated —
+  // both are derived from links now, not stored on the row.
+  return getGrievance(saved.id);
 }
 
 app.post('/api/grievances', (req, res) => {
@@ -1559,12 +1654,12 @@ app.post('/api/grievances', (req, res) => {
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
 
   const db = readDB();
-  const ts = Date.now();
-  const built = items.map((it, idx) => buildGrievanceRecord(db, it, `VF${ts}_${idx}`));
-  const saved = built.map(b => b.record);
+  // `VF${ts}_${idx}` existed because `VF${Date.now()}` collided inside a batch —
+  // the workaround was the tell that the single-record paths had the same bug and
+  // no workaround. ULIDs are unique and ordered without an index suffix.
+  const built = items.map(it => buildGrievanceRecord(db, it, ulid()));
+  const saved = built.map(persistGrievance);
 
-  db.grievances = [...saved, ...(db.grievances || [])];
-  writeDB(db);
   res.json({
     ok: true, count: saved.length, items: saved,
     duplicate_warnings: built.map(b => b.duplicate_warnings),
@@ -1640,7 +1735,7 @@ app.get('/api/grievances/export-pdf', (req, res) => {
 
 app.patch('/api/grievances/:id', (req, res) => {
   const db = readDB();
-  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  const item = getGrievance(req.params.id);
   if (!item) return res.status(404).json({ error: 'Grievance not found' });
 
   const fields = [
@@ -1664,8 +1759,10 @@ app.patch('/api/grievances/:id', (req, res) => {
     item.sentiment = SENTIMENTS.has(req.body.sentiment) ? req.body.sentiment : item.sentiment;
 
   item.priority_score = computePriorityScore(item.category, item.urgency);
-  writeDB(db);
-  res.json({ ok: true, item });
+  // updateGrievance snapshots the previous state into record_versions first, so a
+  // re-triaged category or a reassigned officer is recoverable — every correction
+  // used to overwrite the previous value with no way back.
+  res.json({ ok: true, item: updateGrievance(item.id, item) });
 });
 
 // On-demand only — never called automatically on save. Writes only the two
@@ -1673,17 +1770,18 @@ app.patch('/api/grievances/:id', (req, res) => {
 // untouched here, so nothing "acted on" changes until staff explicitly copy it over.
 app.post('/api/grievances/:id/suggest-response', async (req, res) => {
   const db = readDB();
-  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  const item = getGrievance(req.params.id);
   if (!item) return res.status(404).json({ error: 'Grievance not found' });
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
 
   try {
     const gemini = await import('./gemini.js');
     const suggestion = await gemini.suggestGrievanceResponse(item);
-    item.suggested_response = suggestion.suggested_response || '';
-    item.suggested_next_action = suggestion.suggested_next_action || '';
-    writeDB(db);
-    res.json({ ok: true, item });
+    const saved = updateGrievance(item.id, {
+      suggested_response: suggestion.suggested_response || '',
+      suggested_next_action: suggestion.suggested_next_action || '',
+    });
+    res.json({ ok: true, item: saved });
   } catch (e) {
     res.status(502).json({ error: `AI suggestion failed: ${e.message}` });
   }
@@ -1694,18 +1792,19 @@ app.post('/api/grievances/:id/suggest-response', async (req, res) => {
 // still hand-edit the text afterwards via PATCH.
 app.post('/api/grievances/:id/draft-letter', async (req, res) => {
   const db = readDB();
-  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  const item = getGrievance(req.params.id);
   if (!item) return res.status(404).json({ error: 'Grievance not found' });
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
 
   try {
     const gemini = await import('./gemini.js');
     const dept = categoryDepartmentInfo(item.category);
-    const draft = await gemini.draftDepartmentLetter(item, dept, db.metadata?.mp_name);
-    item.drafted_letter_subject = draft.subject || '';
-    item.drafted_letter_body = draft.body || '';
-    writeDB(db);
-    res.json({ ok: true, item });
+    const draft = await gemini.draftDepartmentLetter(item, dept, getSetting('mp_name'));
+    const saved = updateGrievance(item.id, {
+      drafted_letter_subject: draft.subject || '',
+      drafted_letter_body: draft.body || '',
+    });
+    res.json({ ok: true, item: saved });
   } catch (e) {
     res.status(502).json({ error: `AI letter draft failed: ${e.message}` });
   }
@@ -1713,7 +1812,7 @@ app.post('/api/grievances/:id/draft-letter', async (req, res) => {
 
 app.get('/api/grievances/:id/department-letter-pdf', (req, res) => {
   const db = readDB();
-  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  const item = getGrievance(req.params.id);
   if (!item) return res.status(404).json({ error: 'Grievance not found' });
   if (!item.drafted_letter_subject && !item.drafted_letter_body)
     return res.status(400).json({ error: 'Draft a letter first.' });
@@ -1734,7 +1833,7 @@ app.get('/api/grievances/:id/department-letter-pdf', (req, res) => {
 
 app.post('/api/grievances/:id/create-ttd-letter', (req, res) => {
   const db = readDB();
-  const visitorForm = (db.grievances || []).find(v => v.id === req.params.id);
+  const visitorForm = getGrievance(req.params.id);
   if (!visitorForm) return res.status(404).json({ error: 'Grievance not found' });
 
   const { date, darshan_type, phone, aadhar, referred_by, remarks, party_size } = req.body;
@@ -1743,27 +1842,24 @@ app.post('/api/grievances/:id/create-ttd-letter', (req, res) => {
   const partySizeError = validatePartySize(darshan_type, party_size);
   if (partySizeError) return res.status(400).json({ error: partySizeError });
 
-  const duplicate_warning = findTtdDuplicates(db, aadhar);
-  const item = buildTtdLetterItem(db, {
+  const duplicate_warning = ttdDuplicateMatches(aadhar);
+  const item = insertLetter({
     date, name: visitorForm.full_name, phone, aadhar, referred_by, remarks, darshan_type, party_size,
     review_status: 'Confirmed', source_visitor_form_id: visitorForm.id,
   });
-  db.ttd_letters = [item, ...(db.ttd_letters || [])];
-  visitorForm.ttd_letter_refs = [...(visitorForm.ttd_letter_refs || []), item.reference];
-  writeDB(db);
-  res.json({ ok: true, item, duplicate_warning, visitor_form: visitorForm });
+  // ttd_letter_refs is derived from the link, not stored on the grievance, so
+  // deleting the letter can no longer leave a dangling reference behind.
+  linkTtdLetter(visitorForm.id, item.id);
+  res.json({ ok: true, item, duplicate_warning, visitor_form: getGrievance(visitorForm.id) });
 });
 
 app.delete('/api/grievances/:id', (req, res) => {
-  const db = readDB();
-  const item = (db.grievances || []).find(v => v.id === req.params.id);
-  const mediaList = item?.media?.length ? item.media : (item?.image_path ? [{ path: item.image_path }] : []);
-  for (const m of mediaList) {
-    const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(m.path));
+  // The DB drops the media rows by cascade; the bytes on the volume are ours to
+  // clean, so softDeleteGrievance hands back the paths it just detached.
+  for (const filePath of softDeleteGrievance(req.params.id)) {
+    const p = path.join(GRIEVANCE_MEDIA_PATH, path.basename(filePath));
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
-  db.grievances = (db.grievances || []).filter(v => v.id !== req.params.id);
-  writeDB(db);
   res.json({ ok: true });
 });
 
@@ -1777,7 +1873,7 @@ const GRIEVANCE_MEDIA_CONTENT_TYPES = {
 
 app.get('/api/grievances/:id/media/:index?', (req, res) => {
   const db = readDB();
-  const item = (db.grievances || []).find(v => v.id === req.params.id);
+  const item = getGrievance(req.params.id);
   if (!item) return res.status(404).json({ error: 'Grievance not found' });
   const mediaList = item.media?.length ? item.media
     : (item.image_path ? [{ path: item.image_path, mime: '', type: item.media_type || 'image' }] : []);
@@ -1816,7 +1912,7 @@ app.post('/api/social-calendar', uploadSocialMedia.array('media', 10), (req, res
   if (!date) return res.status(400).json({ error: 'date is required' });
   if (!req.files || !req.files.length) return res.status(400).json({ error: 'At least one media file is required' });
 
-  const id = `SM${Date.now()}`;
+  const id = ulid();
   const media = [];
   for (let i = 0; i < req.files.length; i++) {
     const file = req.files[i];
@@ -1827,35 +1923,24 @@ app.post('/api/social-calendar', uploadSocialMedia.array('media', 10), (req, res
     media.push({ filename, mime: file.mimetype, type: info.type });
   }
 
-  const item = { id, date, caption: caption || '', media, created_at: new Date().toISOString() };
-  const db = readDB();
-  db.social_posts = [item, ...(db.social_posts || [])];
-  writeDB(db);
+  const item = insertPost({ id, date, caption: caption || '' }, { media });
   res.json({ ok: true, item });
 });
 
 app.patch('/api/social-calendar/:id', (req, res) => {
-  const db = readDB();
-  const item = (db.social_posts || []).find(p => p.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'Post not found' });
+  if (!getPost(req.params.id)) return res.status(404).json({ error: 'Post not found' });
   const { date, caption } = req.body;
-  if (date !== undefined) item.date = date;
-  if (caption !== undefined) item.caption = caption;
-  writeDB(db);
-  res.json({ ok: true, item });
+  const patch = {};
+  if (date !== undefined) patch.date = date;
+  if (caption !== undefined) patch.caption = caption;
+  res.json({ ok: true, item: updatePost(req.params.id, patch) });
 });
 
 app.delete('/api/social-calendar/:id', (req, res) => {
-  const db = readDB();
-  const item = (db.social_posts || []).find(p => p.id === req.params.id);
-  if (item) {
-    (item.media || []).forEach(m => {
-      const p = path.join(SOCIAL_MEDIA_PATH, m.filename);
-      fs.existsSync(p) && fs.unlinkSync(p);
-    });
+  for (const filePath of softDeletePost(req.params.id)) {
+    const p = path.join(SOCIAL_MEDIA_PATH, path.basename(filePath));
+    if (fs.existsSync(p)) fs.unlinkSync(p);
   }
-  db.social_posts = (db.social_posts || []).filter(p => p.id !== req.params.id);
-  writeDB(db);
   res.json({ ok: true });
 });
 
@@ -2083,48 +2168,37 @@ function buildCampaignReportRecord(it, id) {
 app.post('/api/campaign-reports', (req, res) => {
   const { items } = req.body;
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
-  const db = readDB();
-  const ts = Date.now();
-  const saved = items.map((it, idx) => buildCampaignReportRecord(it, `CR${ts}_${idx}`));
-  db.campaign_reports = [...saved, ...(db.campaign_reports || [])];
-  writeDB(db);
+  const saved = items.map(it => {
+    const built = buildCampaignReportRecord(it, ulid());
+    return insertReport(built, { media: built.media });
+  });
   res.json({ ok: true, count: saved.length, items: saved });
 });
 
 app.patch('/api/campaign-reports/:id', (req, res) => {
-  const db = readDB();
-  const item = (db.campaign_reports || []).find(r => r.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'Report not found' });
+  if (!getReport(req.params.id)) return res.status(404).json({ error: 'Report not found' });
   const { title, type, mandal, village, status, description } = req.body;
-  if (title !== undefined) item.title = title.trim();
-  if (type !== undefined && CAMPAIGN_REPORT_TYPES.has(type)) item.type = type;
-  if (mandal !== undefined) item.mandal = mandal.trim();
-  if (village !== undefined) item.village = village.trim();
-  if (status !== undefined && CAMPAIGN_REPORT_STATUSES.has(status)) item.status = status;
-  if (description !== undefined) item.description = description.trim();
-  writeDB(db);
-  res.json({ ok: true, item });
+  const patch = {};
+  if (title !== undefined) patch.title = title.trim();
+  if (type !== undefined && CAMPAIGN_REPORT_TYPES.has(type)) patch.type = type;
+  if (mandal !== undefined) patch.mandal = mandal.trim();
+  if (village !== undefined) patch.village = village.trim();
+  if (status !== undefined && CAMPAIGN_REPORT_STATUSES.has(status)) patch.status = status;
+  if (description !== undefined) patch.description = description.trim();
+  res.json({ ok: true, item: updateReport(req.params.id, patch) });
 });
 
 app.delete('/api/campaign-reports/:id', (req, res) => {
-  const db = readDB();
-  const item = (db.campaign_reports || []).find(r => r.id === req.params.id);
-  if (item?.attachment) {
-    const p = path.join(CAMPAIGN_MEDIA_PATH, item.attachment.filename);
+  for (const filePath of softDeleteReport(req.params.id)) {
+    const p = path.join(CAMPAIGN_MEDIA_PATH, path.basename(filePath));
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
-  (item?.media || []).forEach(m => {
-    const p = path.join(CAMPAIGN_MEDIA_PATH, m.path);
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-  });
-  db.campaign_reports = (db.campaign_reports || []).filter(r => r.id !== req.params.id);
-  writeDB(db);
   res.json({ ok: true });
 });
 
 app.get('/api/campaign-reports/:id/media/:index?', (req, res) => {
   const db = readDB();
-  const item = (db.campaign_reports || []).find(r => r.id === req.params.id);
+  const item = getReport(req.params.id);
   if (!item) return res.status(404).json({ error: 'Report not found' });
   const idx = parseInt(req.params.index || '0', 10) || 0;
   if (item.media?.length) {
@@ -2144,59 +2218,218 @@ app.get('/api/campaign-reports/:id/media/:index?', (req, res) => {
   res.status(404).json({ error: 'No attachment on file' });
 });
 
-// ── Ask Saathi (read-only chat assistant, admin.html) ──────────────────────
-// One continuous conversation — no multi-thread/rename/trash, this is a single
-// MP-facing page. The load-bearing property (kept from the design brief this was
-// adapted from): the user's message is persisted BEFORE the model is called, and
-// an assistant reply is always persisted and returned — even a graceful failure
-// message — so history never shows a question with no answer.
-const CHAT_FALLBACK_REPLY = "I couldn't reach the AI assistant just now. Please try again in a moment.";
+// ── Ask Saathi (read-only streaming chat, admin.html) ──────────────────────
+// Ported from brain's orchestrator (services/core/modules/orchestrator/router.py).
+//
+// The load-bearing property is not the streaming: it is that THE USER'S MESSAGE IS
+// WRITTEN TO THE DATABASE BEFORE ANY MODEL IS CALLED, and that a terminal frame is
+// always emitted even when the model never answered. Everything else — thread
+// history, rename, archive, a bounded trash — is layered on that.
+//
+// Read-only by design. No tools, so the assistant can describe the register but
+// can never write to it.
 
-app.get('/api/chat/messages', (req, res) => {
-  res.json({ messages: readDB().chat_messages || [] });
-});
+// Frame helper. SSE is `event: <name>\ndata: <json>\n\n`.
+function sse(res, event, data) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
 
-app.delete('/api/chat/messages', (req, res) => {
-  const db = readDB();
-  db.chat_messages = [];
-  writeDB(db);
-  res.json({ ok: true });
-});
+// Detached writes, held at module scope. When a client disconnects mid-stream the
+// request scope is torn down, so the partial reply has to be persisted outside it —
+// and a reference has to be kept, or the write can be collected before it lands.
+const pendingWrites = new Set();
+function persistDetached(fn) {
+  const task = Promise.resolve().then(fn).catch(e => console.error('chat: detached write failed:', e.message));
+  pendingWrites.add(task);
+  task.finally(() => pendingWrites.delete(task));
+}
 
 app.post('/api/chat', async (req, res) => {
-  const message = req.body.message?.trim();
+  const message = String(req.body?.message || '').trim();
   if (!message) return res.status(400).json({ error: 'message required' });
+  const channel = req.body?.channel || 'web';
 
-  const db = readDB();
-  if (!db.chat_messages) db.chat_messages = [];
+  // Resolve the thread and PERSIST FIRST. A Gemini timeout, a killed process or a
+  // closed tab can lose the answer from here on; it can no longer lose the question.
+  const conversation = req.body?.conversation_id
+    ? getConversation(req.body.conversation_id)
+    : resolveConversation(channel);
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
 
-  const userMsg = { id: `CHAT${Date.now()}`, role: 'user', body: message, created_at: new Date().toISOString(), grounding: [] };
-  db.chat_messages.push(userMsg);
-  writeDB(db);
+  const rawEventId = rawEvents.record({
+    source: 'chat', kind: 'text', sender: channel, body: message,
+  });
+  const userMessage = appendMessage(conversation.id, {
+    role: 'user', body: message, rawEventId,
+  });
+  rawEvents.markStatus(rawEventId, 'compiled', { recordId: userMessage.id });
 
-  const results = searchAll(db, message, { limit: 15 });
-  const priorMessages = db.chat_messages.slice(0, -1);
+  // The thread names itself from its first message, in code — free, deterministic,
+  // never a hallucination, and no latency before the first token.
+  const titled = titleIfUntitled(conversation.id, message);
 
-  let replyBody;
+  // X-Accel-Buffering is not optional: nginx buffers proxied responses by default,
+  // which holds every token until completion and silently defeats streaming.
+  res.status(200).set({
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+
+  sse(res, 'start', {
+    conversation_id: conversation.id,
+    message_id: userMessage.id,
+    raw_event_id: rawEventId,
+    title_changed: titled,
+  });
+
+  const parts = [];
   let grounding = [];
+  let clientGone = false;
+  let settled = false;
+  // Bound before the first await, so a client that disconnects during context
+  // building is still handled.
+  res.on('close', () => {
+    clientGone = true;
+    // The reply must survive a closed tab. Without this, history keeps a question
+    // with no answer, and the next turn asks the model to answer both at once.
+    if (!settled && parts.length) {
+      const partial = parts.join('').trim();
+      if (partial) {
+        persistDetached(() => appendMessage(conversation.id, {
+          role: 'assistant', body: partial, model: 'gemini-flash-latest', grounding,
+        }));
+      }
+    }
+  });
+
   try {
+    const context = buildContext(conversation.id, message, { istDate: getISTDateStr() });
+    grounding = context.grounding;
+
     if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
     const gemini = await import('./gemini.js');
-    const result = await gemini.chatWithData(message, results, priorMessages);
-    replyBody = result.reply || CHAT_FALLBACK_REPLY;
-    grounding = results.map(r => ({ source: r.source, id: r.id, label: r.title }));
+
+    for await (const chunk of gemini.streamChat(context.messages)) {
+      if (clientGone) break;
+      parts.push(chunk);
+      sse(res, 'token', { text: chunk });
+    }
+
+    const body = parts.join('').trim() || FALLBACK_REPLY;
+    settled = true;
+    const reply = appendMessage(conversation.id, {
+      role: 'assistant', body, model: 'gemini-flash-latest', grounding,
+    });
+    if (!clientGone) {
+      sse(res, 'done', {
+        conversation_id: conversation.id, message_id: reply.id,
+        model: 'gemini-flash-latest', degraded: false, grounding,
+      });
+      res.end();
+    }
   } catch (e) {
-    replyBody = CHAT_FALLBACK_REPLY;
+    console.error('chat: turn failed:', e.message);
+    // The normal error envelope cannot be used — status and headers are already
+    // sent — so a mid-stream failure is reported INSIDE the stream. A UI that only
+    // stops its spinner on success would otherwise hang forever on exactly the
+    // path where the user most needs to be told something broke.
+    settled = true;
+    const body = parts.join('').trim() || FALLBACK_REPLY;
+    const reply = appendMessage(conversation.id, {
+      role: 'assistant', body, model: null, grounding,
+    });
+    if (!clientGone) {
+      sse(res, 'error', {
+        code: 'chat_failed',
+        message: 'The assistant could not answer. Your message was saved.',
+        conversation_id: conversation.id, message_id: reply.id,
+      });
+      // `done` always arrives, error or not, so the client settles on one path.
+      sse(res, 'done', {
+        conversation_id: conversation.id, message_id: reply.id,
+        model: null, degraded: true, grounding,
+      });
+      res.end();
+    }
   }
-
-  const db2 = readDB();
-  if (!db2.chat_messages) db2.chat_messages = [];
-  const assistantMsg = { id: `CHAT${Date.now()}_a`, role: 'assistant', body: replyBody, created_at: new Date().toISOString(), grounding };
-  db2.chat_messages.push(assistantMsg);
-  writeDB(db2);
-
-  res.json({ ok: true, reply: assistantMsg });
 });
+
+// ── Conversations ──────────────────────────────────────────────────────────
+// ROUTE ORDER IS LOAD-BEARING: /active and /trash must be registered BEFORE
+// /:id, or the path parameter swallows them and both return "not found" for a
+// conversation whose id is literally "active".
+
+app.get('/api/conversations/active', (req, res) => {
+  res.json(resolveConversation(req.query.channel || 'web'));
+});
+
+app.get('/api/conversations/trash', (req, res) => {
+  res.json(listTrash({ channel: req.query.channel || 'web' }));
+});
+
+app.get('/api/conversations', (req, res) => {
+  const { channel = 'web', status, limit, cursor } = req.query;
+  res.json(listConversations({
+    channel, status,
+    limit: Math.min(parseInt(limit) || 30, 100),
+    cursor,
+  }));
+});
+
+app.post('/api/conversations', (req, res) => {
+  const { conversation, created } = createConversation(req.body?.channel || 'web');
+  // 200 rather than 201 when an unused thread was reused, so the client can tell
+  // that "New chat" did not actually write a row.
+  res.status(created ? 201 : 200).json(conversation);
+});
+
+app.get('/api/conversations/:id/messages', (req, res) => {
+  if (!getConversation(req.params.id)) return res.status(404).json({ error: 'Conversation not found' });
+  res.json(listMessages(req.params.id, {
+    limit: Math.min(parseInt(req.query.limit) || 200, 500),
+    cursor: req.query.cursor,
+  }));
+});
+
+app.patch('/api/conversations/:id', (req, res) => {
+  const { title, status } = req.body || {};
+  if (status !== undefined && !['active', 'closed'].includes(status)) {
+    return res.status(400).json({ error: 'status must be active or closed' });
+  }
+  // Only title and status are accepted. `meta` is deliberately not exposed: it is
+  // server-side state, and a client that can PATCH it can set things the user
+  // never saw.
+  const updated = updateConversation(req.params.id, { title, status });
+  if (!updated) return res.status(404).json({ error: 'Conversation not found' });
+  res.json(updated);
+});
+
+app.delete('/api/conversations/:id', (req, res) => {
+  if (!deleteConversation(req.params.id)) return res.status(404).json({ error: 'Conversation not found' });
+  res.status(204).end();
+});
+
+app.post('/api/conversations/:id/restore', (req, res) => {
+  const restored = restoreConversation(req.params.id);
+  if (!restored) return res.status(404).json({ error: 'Conversation not found' });
+  res.json(restored);
+});
+
+// The purge sweep runs DAILY, not on the retention cadence. A 30-day window swept
+// every 30 days lets a thread live 60 — "deleted after 30 days" would be wrong by
+// a factor of two.
+setInterval(() => {
+  try {
+    const purged = purgeExpiredTrash();
+    if (purged) console.log(`Purged ${purged} expired conversation(s) from the trash`);
+  } catch (e) {
+    console.error('Conversation trash sweep failed:', e.message);
+  }
+}, 24 * 60 * 60 * 1000).unref();
+
 
 app.get('/api/stats', (req, res) => {
   const db = readDB();
@@ -2498,25 +2731,23 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
 
     // Commit to DB
     const db = readDB();
-    const ts = Date.now();
-    const saved = items.map((item, idx) => {
+    const saved = items.map(item => {
       const dateLabel = item.briefDate || briefDate;
       const sourceParts = ['Brief', item.category, dateLabel].filter(Boolean);
-      return {
-        id: `NEWS${ts}_${idx}`,
+      return insertNews({
         headline: item.headline,
         body: item.body,
         source: sourceParts.join(' · '),
-        mandal: item.category,   // 'National' or 'International' when known
-        category: item.category || 'National',
+        // `category` held 'National'/'International' and was ALSO written into
+        // `mandal`, which is the overload the `scope` column now replaces.
+        scope: String(item.category || 'National').toLowerCase(),
+        mandal: 'General',
         priority: 'high',
         link: item.link || '',
         submitted_at: new Date().toISOString(),
-      };
+      });
     });
 
-    db.news = [...saved, ...(db.news || [])].slice(0, 100);
-    writeDB(db);
     res.json({ ok: true, count: saved.length, briefDate });
   } catch (e) {
     res.status(500).json({ error: 'PDF parse failed: ' + e.message });
@@ -2572,22 +2803,17 @@ app.post('/api/upload-news-excel', upload.single('excel'), (req, res) => {
       return res.json({ ok: true, items, count: items.length });
 
     // Commit to DB
-    const db = readDB();
-    const ts = Date.now();
-    const saved = items.map((item, idx) => ({
-      id: `NEWS${ts}_${idx}`,
+    const saved = items.map(item => insertNews({
       headline: item.headline,
       body: item.body || '',
       source: item.source || 'Excel import',
+      scope: String(item.category || 'national').toLowerCase(),
       mandal: 'General',
-      category: item.category,
       priority: 'medium',
       link: item.link || '',
       submitted_at: new Date().toISOString(),
     }));
 
-    db.news = [...saved, ...(db.news || [])].slice(0, 100);
-    writeDB(db);
     res.json({ ok: true, count: saved.length });
   } catch (e) {
     res.status(500).json({ error: 'Excel parse failed: ' + e.message });
@@ -3101,7 +3327,7 @@ app.get('/api/ttd-letters/export-pdf', (req, res) => {
 
 app.get('/api/ttd-letters/:id/letter-pdf', (req, res) => {
   const db = readDB();
-  const letter = (db.ttd_letters || []).find(l => l.id === req.params.id);
+  const letter = getLetter(req.params.id);
   if (!letter) return res.status(404).json({ error: 'Letter not found' });
 
   res.setHeader('Content-Type', 'application/pdf');

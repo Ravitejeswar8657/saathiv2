@@ -6,21 +6,68 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm install                          # install dependencies
-EXCEL_PATH=./combined_clean.xlsx node scripts/setup_db.js   # seed data/db.json from Excel
+node server/db/migrate.js            # apply schema migrations (idempotent)
+npm run backfill                     # import data/db.json into SQLite (idempotent, asserts row counts)
+EXCEL_PATH=./combined_clean.xlsx npm run setup-db   # re-import contacts from Excel into SQLite
+npm test                             # node --test server/ public/
 node server/index.js                 # start server on port 3000 (or $PORT)
 ```
 
-There is no test suite. Verification is manual via browser and API calls.
+`npm test` is the gate. Migrations also run at boot, and a database with no
+contacts imports `db.json` on first start, so a fresh clone needs only
+`npm install && node server/index.js`.
 
 ## Architecture
 
-Saathi v2 is a political contact management system for an MP's team in the Palanadu constituency (AP). It has one main server file (plus a lazily-imported Gemini integration module) and several static HTML pages — no build step for the frontend. There is no WhatsApp integration in this codebase — it was fully removed (see "Removed features" below).
+Saathi v2 is a political contact management system for an MP's team in the Palanadu constituency (AP). It has one main server file, a `server/db/` persistence layer, lazily-imported Gemini/chat/search modules, and several static HTML pages — no build step for the frontend. There is no WhatsApp integration in this codebase — it was fully removed (see "Removed features" below).
 
 ### Data flow
 
-- `scripts/setup_db.js` reads an Excel file (`combined_clean.xlsx`) and writes `data/db.json` — the single source of truth. This script is run once to seed the database; all subsequent reads/writes go through `server/index.js` helpers (`readDB()` / `writeDB()`).
-- On Railway, `RAILWAY_VOLUME_MOUNT_PATH` redirects `db.json` to a persistent volume. Locally it lives in `data/`.
-- If `db.json` is absent on startup (e.g., fresh Railway deploy before a volume write), the server copies the bundled `data/db.json` snapshot.
+Storage is **SQLite** (`better-sqlite3`), modelled on the design in `/root/brain` —
+see `brain/docs/03-database-design.md` and `brain/docs/integration-brief-chat-search.md`.
+
+- `server/db/` owns every SQL statement. Route handlers call repository functions; none of them opens a connection or writes a query. `connection.js` is the only place a handle is created (WAL, `foreign_keys=ON`, `busy_timeout=5000`).
+- Migrations are numbered `.sql` files under `server/db/migrations/`, applied in order by `server/db/migrate.js`. Each is checksummed and commits together with its ledger row, and the runner refuses to start on a gap, a duplicate version, or an edited migration that already ran. **Never edit an applied migration — add a new one.**
+- `data/db.json` is no longer read or written at runtime. It survives as the first-boot import source and a rollback snapshot; the server imports it automatically when the database has no contacts.
+- On Railway, `RAILWAY_VOLUME_MOUNT_PATH` points at the persistent volume; `saathi.db` and the media directories live there.
+- `readDB()` in `server/index.js` is a **lazy view over SQLite** carrying db.json's old key names, so the ~60 existing read sites work unchanged. Each collection loads on first access and is memoized for the life of the request. There is deliberately no `writeDB`: the view's properties are getters with no setters, so a leftover write throws rather than silently doing nothing.
+
+### Schema (`server/db/migrations/`)
+
+| Migration | Contents |
+|---|---|
+| `001_core.sql` | `raw_events` (the ingest inbox), `records` + `records_fts` (the retrieval corpus — external-content FTS5 kept current by triggers), `record_versions`, `entities` + `entity_links` (the graph), `timeline`, `settings` |
+| `002_domain.sql` | `contacts`, `grievances`, `events`, `event_contacts`, `news`, `campaign_reports`, `social_posts`, `ttd_letters`, plus three media child tables |
+| `003_chat.sql` | `conversations`, `messages` |
+| `004_data_fixups.sql` | One-off data corrections (replaces a boot-time IIFE that re-ran on every start) |
+
+Every typed row projects a companion row into `records` — that is what retrieval ranks and what the chat assistant is grounded on. `idx_records_source` keeps the projection one-to-one, and `records` can always be rebuilt from the typed tables.
+
+Conventions: ULID ids (`server/db/ids.js`), so lexical order is chronological order; UTC ISO-8601 timestamps; `meta` JSON columns; `deleted_at` soft deletes; a `CHECK` constraint on every enum.
+
+### Retrieval (`server/search.js`)
+
+Hybrid, ported from `brain/services/core/modules/search/service.py`:
+
+1. FTS5/BM25 over `records_fts` and Fuse.js fuzzy matching over a cached projection of `records`, both fanned out at `max(2k, 16)`, filters applied *inside* each retriever.
+2. Fused with reciprocal rank fusion (k=60); each hit tagged `fts` / `fuzzy` / `hybrid`.
+3. Widened by a bounded one-hop expansion over `entity_links`, only when there are already ≥3 results, scored strictly below the worst direct hit.
+
+Response is `{query, k, degraded, sources, results[]}`. `sources` is **sparse** — an origin that contributed nothing is omitted. A retriever that fails sets `degraded`; search never 500s. `GET /api/search/status` distinguishes an empty corpus from a broken index from an absent retriever.
+
+FTS matching requires every term first, then relaxes to any term with stopwords removed. Without that relaxation the chat assistant retrieves nothing, because it feeds the user's whole sentence in as the query.
+
+The vector retriever is a declared no-op (`vectorSearch()`). Adding embeddings later means implementing that one function; fusion, expansion, hydration, response shape and UI are unchanged.
+
+### Ask Saathi (`server/chat.js`, `server/db/conversations.js`)
+
+Streaming, thread-persisted, **read-only** — no tools, so the assistant can describe the register but never write to it.
+
+- `POST /api/chat` returns SSE: exactly one `start`, zero or more `token`, exactly one `done` (or `error` then `done`). Headers include `X-Accel-Buffering: no`, without which a proxy buffers every token until completion and silently defeats streaming.
+- The user's message is written to the database **before any model call**, and a terminal frame is always emitted. A closed tab persists the partial reply through a detached write held at module scope.
+- The prompt is a versioned template on disk (`server/prompts/chat_v1.md`). Retrieved records render inside `<<<DATA:…>>>` blocks and the prompt states they are data, never instructions. The system message is exempt from trimming, because a provider truncating from the front would remove exactly that rule.
+- One `active` conversation per channel; `POST /api/conversations` reuses an untitled empty thread (200) rather than writing a row (201). Titles derive from the first user message in code, not from a model. Delete is a soft delete with a capped, restorable trash swept daily.
+- Route order is load-bearing: `/api/conversations/active` and `/trash` register **before** `/:id`. Cursors are base64 and must be decoded before reaching SQL.
 
 ### Server (`server/index.js`)
 
@@ -108,6 +155,19 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | PATCH | `/api/campaign-reports/:id` | Edit a report's fields |
 | DELETE | `/api/campaign-reports/:id` | Remove a report and its stored attachment |
 | GET | `/api/campaign-reports/:id/media` | Retrieve a report's stored attachment |
+| POST | `/api/search` | Hybrid retrieval (`{query, k, filters}`) → `{query, k, degraded, sources, results[]}` |
+| GET | `/api/search` | Flat-list form of the above (`?q=`), kept for existing callers |
+| GET | `/api/search/status` | Corpus size, per-retriever health, fusion settings |
+| POST | `/api/search/reindex` | Rebuild `records_fts` from `records` |
+| POST | `/api/chat` | Streaming chat turn (SSE: `start` / `token`* / `done` \| `error`) |
+| GET | `/api/conversations` | List threads (`?channel=&status=&limit=&cursor=`) |
+| GET | `/api/conversations/active` | The thread the next message lands in |
+| GET | `/api/conversations/trash` | Deleted threads, with the cap and retention window |
+| POST | `/api/conversations` | Open a thread — 201 new, 200 if it reused an empty one |
+| PATCH | `/api/conversations/:id` | Rename (`title`) or archive (`status`); `meta` is never exposed |
+| DELETE | `/api/conversations/:id` | Soft delete (204) |
+| POST | `/api/conversations/:id/restore` | Restore from trash, always as `closed` |
+| GET | `/api/conversations/:id/messages` | Thread history, oldest first (`?limit=&cursor=`) |
 | GET | `/health` | Railway health check |
 
 ## Environment variables
@@ -115,7 +175,12 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | Server listen port |
-| `RAILWAY_VOLUME_MOUNT_PATH` | `./data` | Path for `db.json` and stored media (`grievance_media/`, `social_calendar_media/`, `campaign_media/`) |
+| `RAILWAY_VOLUME_MOUNT_PATH` | `./data` | Path for `saathi.db`, `db.json` and stored media (`grievance_media/`, `social_calendar_media/`, `campaign_media/`) |
+| `SQLITE_PATH` | `<volume>/saathi.db` | Override the database file location |
+| `CHAT_MAX_TOKENS` | `6000` | Context budget for a chat turn |
+| `CONVERSATION_IDLE_MINUTES` | `120` | Idle time after which a thread auto-closes (resolved lazily) |
+| `CONVERSATION_TRASH_LIMIT` | `10` | Deleted threads retained per channel |
+| `CONVERSATION_TRASH_DAYS` | `30` | Retention window before a deleted thread is purged |
 | `EXCEL_PATH` | `./combined_clean.xlsx` | Input file for `setup_db.js` |
 | `GEMINI_API_KEY` | (none) | Google Gemini API key for the grievance extraction paths — form-photo OCR, typed-summary triage and audio transcription (`server/gemini.js`). If unset, those endpoints fail fast with a clear error rather than crashing — staff can still use the register manually. |
 

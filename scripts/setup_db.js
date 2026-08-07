@@ -216,30 +216,36 @@ const coverage = Object.values(mandalCoverage).map(m => ({
   health: 'moderate',
 })).sort((a, b) => b.contacts - a.contacts);
 
-// ── Issue radar (empty — no grievance data in source) ─────────────────────
+// ── Load into SQLite ───────────────────────────────────────────────────────
+// The importer writes to the database, not to a JSON file. `coverage` is no
+// longer stored: it was a precomputed mandal rollup that went stale the moment a
+// contact was added, and readDB()'s view derives it with a GROUP BY instead.
+// `issue_radar` was always an empty array nothing ever wrote to.
 
-const issueRadar = [];
+const { migrate } = await import('../server/db/migrate.js');
+const { seedReference } = await import('../server/db/reference.js');
+const { replaceAllContacts } = await import('../server/db/contacts.js');
+const { setSetting } = await import('../server/db/records.js');
+const { SQLITE_PATH } = await import('../server/db/connection.js');
 
-// ── Assemble DB ────────────────────────────────────────────────────────────
+migrate({ log: line => console.log(line) });
+// Canonical mandals FIRST: entity resolution matches a canonical name before its
+// aliases, so a contact whose mandal reads "Ipur" only lands on the "Ipuru" node
+// if that node already exists carrying the alias.
+seedReference();
 
-const db = {
-  metadata: {
-    total_contacts: contacts.length,
-    generated_at: new Date().toISOString(),
-    constituency: 'Palanadu (AP)',
-    source: 'Excel import - combined_clean.xlsx',
-  },
-  contacts,
-  issue_radar: issueRadar,
-  coverage,
-  news: [],
-  schedule: [],
-};
+const written = replaceAllContacts(contacts);
+setSetting('constituency', 'Palanadu (AP)');
+setSetting('import_source', 'Excel import - combined_clean.xlsx');
+setSetting('imported_at', new Date().toISOString());
 
-const OUTPUT_PATH = path.join(process.cwd(), 'data', 'db.json');
-fs.writeFileSync(OUTPUT_PATH, JSON.stringify(db, null, 2));
-console.log(`✓ DB created: ${contacts.length} contacts`);
-console.log(`✓ Coverage: ${db.coverage.length} mandals`);
+if (written !== contacts.length) {
+  console.error(`FAIL: expected ${contacts.length} contacts, wrote ${written}.`);
+  process.exit(1);
+}
+
+console.log(`✓ DB created: ${written} contacts -> ${SQLITE_PATH}`);
+console.log(`✓ Coverage is derived on read (${coverage.length} mandals seen in this import)`);
 console.log('\nTop 5 by PPS:');
 contacts.slice(0, 5).forEach((c, idx) => {
   console.log(`  ${idx + 1}. ${c.name} (${c.village}, ${c.mandal}) PPS:${c.pps_score} ${c.tier} — ${c.top_drivers.join(', ')}`);
