@@ -17,6 +17,36 @@ node server/index.js                 # start server on port 3000 (or $PORT)
 contacts imports `db.json` on first start, so a fresh clone needs only
 `npm install && node server/index.js`.
 
+### The Node version is pinned, deliberately
+
+`engines.node` is `>=20.0.0 <23.0.0` and `.nvmrc` says `22`. **Do not widen this
+without checking prebuilt binaries first.**
+
+`better-sqlite3` is the only native addon in the tree. It installs a prebuilt
+binary when one exists for the running Node ABI, and falls back to compiling with
+node-gyp when one does not — and the Railway Nixpacks image has no Python, so that
+fallback fails the build outright:
+
+```
+prebuild-install warn install No prebuilt binaries found (target=24.10.0 ...)
+gyp ERR! find Python  Could not find any Python installation to use
+```
+
+That is what `engines: ">=18.0.0"` caused: the range let Railway pick whatever the
+newest Node was, it moved to 24, and 11.10.0 publishes no `node-v137` binary.
+Confirmed available for 11.10.0: `node-v115` (Node 20) and `node-v127` (Node 22);
+`node-v137` (Node 24) returns 404. Upgrading is not an escape — as of 13.0.3 the
+release carries no linux-x64 prebuilds at all.
+
+When bumping Node or `better-sqlite3`, check the release assets first:
+
+```bash
+curl -sIL -o /dev/null -w '%{http_code}\n' \
+  https://github.com/WiseLibs/better-sqlite3/releases/download/v<VER>/better-sqlite3-v<VER>-node-v<ABI>-linux-x64.tar.gz
+```
+
+Node 20 = ABI 115, Node 22 = 127, Node 24 = 137.
+
 ## Architecture
 
 Saathi v2 is a political contact management system for an MP's team in the Palanadu constituency (AP). It has one main server file, a `server/db/` persistence layer, lazily-imported Gemini/chat/search modules, and several static HTML pages — no build step for the frontend. There is no WhatsApp integration in this codebase — it was fully removed (see "Removed features" below).
