@@ -15,7 +15,7 @@ import { search as searchService, status as searchStatus, searchAll } from './se
 // Every SQL statement in this app lives behind one of these modules. No route
 // handler opens a connection or writes a query; see server/db/connection.js.
 import { migrate } from './db/migrate.js';
-import { getDb } from './db/connection.js';
+import { getDb, SQLITE_PATH } from './db/connection.js';
 import { ulid } from './db/ids.js';
 import { seedReference, canonicalMandal, listMandals } from './db/reference.js';
 import * as rawEvents from './db/raw_events.js';
@@ -105,7 +105,7 @@ sweepPendingMedia(CAMPAIGN_MEDIA_PATH);
 // rewrote and re-saved the entire 3 MB JSON file on every single start inside a
 // try/catch that swallowed the failure. Its work now lives in 004_data_fixups.sql,
 // where it runs once and is recorded as having run.
-migrate({ log: line => console.log(line) });
+const migrationsApplied = migrate({ log: line => console.log(line) }).current;
 
 // First boot on a volume that only has db.json: import it. The backfill is
 // idempotent and asserts its own row counts, and it never modifies db.json, so
@@ -3431,12 +3431,37 @@ function buildGrievancesRegisterPDF(doc, items, from, to) {
 }
 
 // Health check for Railway
+// Reports the SQLITE database, not db.json. It used to stat the JSON file, which
+// after the migration is absent on a perfectly healthy volume — so the platform's
+// health probe answered `db_size: "MISSING"` on a working deploy, which is the
+// kind of signal that sends someone chasing a problem that is not there.
+//
+// `status` is degraded rather than ok when the database cannot be queried at all:
+// the process is up but cannot serve a single page, and a health check that
+// cannot tell those apart is not doing its job.
 app.get('/health', (req, res) => {
-  const dbExists = fs.existsSync(DB_PATH);
-  const dbSize = dbExists ? (fs.statSync(DB_PATH).size / 1024).toFixed(0) + ' KB' : 'MISSING';
-  res.json({
-    status: 'ok', uptime: process.uptime(),
-    volume: VOLUME, db_path: DB_PATH, db_size: dbSize,
+  let db_size = 'MISSING';
+  let contacts = null;
+  let status = 'ok';
+
+  try {
+    if (fs.existsSync(SQLITE_PATH)) {
+      db_size = `${(fs.statSync(SQLITE_PATH).size / 1024).toFixed(0)} KB`;
+    }
+    contacts = countContacts();
+  } catch (e) {
+    status = 'degraded';
+    console.error('health: database unreachable:', e.message);
+  }
+
+  res.status(status === 'ok' ? 200 : 503).json({
+    status,
+    uptime: process.uptime(),
+    volume: VOLUME,
+    db_path: SQLITE_PATH,
+    db_size,
+    contacts,
+    migrations: migrationsApplied,
     env_volume: process.env.RAILWAY_VOLUME_MOUNT_PATH || 'not set',
     volume_exists: fs.existsSync(RAILWAY_VOLUME),
   });

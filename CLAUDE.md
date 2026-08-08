@@ -17,6 +17,41 @@ node server/index.js                 # start server on port 3000 (or $PORT)
 contacts imports `db.json` on first start, so a fresh clone needs only
 `npm install && node server/index.js`.
 
+### Deployment
+
+Railway builds from `./Dockerfile` (`builder = "DOCKERFILE"` in `railway.toml`), not
+Nixpacks. The reason is `better-sqlite3`: it is a native addon, it installs a
+prebuilt binary when one exists for the running Node ABI and compiles with node-gyp
+when one does not, and the Nixpacks image has no Python — so the first Node major
+without a published prebuild failed the build outright rather than falling back.
+
+The image is multi-stage. The build stage carries `python3 make g++` so a missing
+prebuild is a slower build instead of a failed deploy; the runtime stage carries
+none of them. Two ordering constraints in there are load-bearing:
+
+- `scripts/patch-fontkit.js` is copied **before** `npm ci`, because `postinstall`
+  runs it and the install exits non-zero if the file is absent. The patch guards a
+  null-anchor crash in fontkit's GPOS handling — it is what lets the daily-brief
+  PDF render Telugu at all.
+- `.dockerignore` excludes `node_modules`, so the `COPY . .` in the runtime stage
+  cannot overwrite the native binary copied from the build stage with a host build
+  for a different ABI or libc.
+
+The base is `bookworm-slim` (glibc) and deliberately not alpine: better-sqlite3's
+prebuilds are built against glibc, so musl would force a source build every time.
+
+Local:
+
+```bash
+docker build -t saathi .
+docker run -p 3000:3000 -v "$PWD/data:/data" -e RAILWAY_VOLUME_MOUNT_PATH=/data saathi
+```
+
+The container runs as root, deliberately — the app writes `saathi.db` and three
+media directories into a volume whose ownership the platform decides, and a
+permission failure there is a hard outage. Worth revisiting with an entrypoint that
+chowns the mount.
+
 ### The Node version is pinned, deliberately
 
 `engines.node` is `>=20.0.0 <23.0.0` and `.nvmrc` says `22`. **Do not widen this

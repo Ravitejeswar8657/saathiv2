@@ -1,6 +1,9 @@
+# DOCKERFILE rather than NIXPACKS: better-sqlite3 is a native addon, and the
+# Nixpacks image has no Python for node-gyp's fallback, so a Node version without
+# a published prebuilt binary failed the build outright. See ./Dockerfile.
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "node server/index.js"
