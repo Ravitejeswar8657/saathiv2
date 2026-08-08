@@ -17,6 +17,71 @@ node server/index.js                 # start server on port 3000 (or $PORT)
 contacts imports `db.json` on first start, so a fresh clone needs only
 `npm install && node server/index.js`.
 
+### Deployment
+
+Railway builds from `./Dockerfile` (`builder = "DOCKERFILE"` in `railway.toml`), not
+Nixpacks. The reason is `better-sqlite3`: it is a native addon, it installs a
+prebuilt binary when one exists for the running Node ABI and compiles with node-gyp
+when one does not, and the Nixpacks image has no Python — so the first Node major
+without a published prebuild failed the build outright rather than falling back.
+
+The image is multi-stage. The build stage carries `python3 make g++` so a missing
+prebuild is a slower build instead of a failed deploy; the runtime stage carries
+none of them. Two ordering constraints in there are load-bearing:
+
+- `scripts/patch-fontkit.js` is copied **before** `npm ci`, because `postinstall`
+  runs it and the install exits non-zero if the file is absent. The patch guards a
+  null-anchor crash in fontkit's GPOS handling — it is what lets the daily-brief
+  PDF render Telugu at all.
+- `.dockerignore` excludes `node_modules`, so the `COPY . .` in the runtime stage
+  cannot overwrite the native binary copied from the build stage with a host build
+  for a different ABI or libc.
+
+The base is `bookworm-slim` (glibc) and deliberately not alpine: better-sqlite3's
+prebuilds are built against glibc, so musl would force a source build every time.
+
+Local:
+
+```bash
+docker build -t saathi .
+docker run -p 3000:3000 -v "$PWD/data:/data" -e RAILWAY_VOLUME_MOUNT_PATH=/data saathi
+```
+
+The container runs as root, deliberately — the app writes `saathi.db` and three
+media directories into a volume whose ownership the platform decides, and a
+permission failure there is a hard outage. Worth revisiting with an entrypoint that
+chowns the mount.
+
+### The Node version is pinned, deliberately
+
+`engines.node` is `>=20.0.0 <23.0.0` and `.nvmrc` says `22`. **Do not widen this
+without checking prebuilt binaries first.**
+
+`better-sqlite3` is the only native addon in the tree. It installs a prebuilt
+binary when one exists for the running Node ABI, and falls back to compiling with
+node-gyp when one does not — and the Railway Nixpacks image has no Python, so that
+fallback fails the build outright:
+
+```
+prebuild-install warn install No prebuilt binaries found (target=24.10.0 ...)
+gyp ERR! find Python  Could not find any Python installation to use
+```
+
+That is what `engines: ">=18.0.0"` caused: the range let Railway pick whatever the
+newest Node was, it moved to 24, and 11.10.0 publishes no `node-v137` binary.
+Confirmed available for 11.10.0: `node-v115` (Node 20) and `node-v127` (Node 22);
+`node-v137` (Node 24) returns 404. Upgrading is not an escape — as of 13.0.3 the
+release carries no linux-x64 prebuilds at all.
+
+When bumping Node or `better-sqlite3`, check the release assets first:
+
+```bash
+curl -sIL -o /dev/null -w '%{http_code}\n' \
+  https://github.com/WiseLibs/better-sqlite3/releases/download/v<VER>/better-sqlite3-v<VER>-node-v<ABI>-linux-x64.tar.gz
+```
+
+Node 20 = ABI 115, Node 22 = 127, Node 24 = 137.
+
 ## Architecture
 
 Saathi v2 is a political contact management system for an MP's team in the Palanadu constituency (AP). It has one main server file, a `server/db/` persistence layer, lazily-imported Gemini/chat/search modules, and several static HTML pages — no build step for the frontend. There is no WhatsApp integration in this codebase — it was fully removed (see "Removed features" below).

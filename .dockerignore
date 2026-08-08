@@ -1,0 +1,35 @@
+# Keep the host's node_modules out of the image. This one matters more than the
+# rest: the runtime stage copies a native binary from the build stage and then
+# copies the source over it, so a host-built better-sqlite3 landing here would
+# silently replace a correct binary with one built for another ABI or libc.
+node_modules
+
+.git
+.gitignore
+.github
+
+# Runtime data. The schema lives in server/db/migrations/ and the database is
+# built from those plus the db.json import, so baking one machine's rows into the
+# image would ship stale data that then loses to the volume anyway.
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/grievance_media
+data/social_calendar_media
+data/campaign_media
+
+# data/db.json is deliberately NOT ignored: it is the first-boot import source,
+# and the server reads it when the database has no contacts.
+
+*.log
+.env
+.env.*
+
+# Import source for scripts/setup_db.js, not needed at runtime.
+combined_clean.xlsx
+
+# Agent/editor scratch.
+.claude
+.opencode
+*.md
+!CLAUDE.md
