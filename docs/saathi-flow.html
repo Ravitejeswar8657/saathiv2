@@ -1,0 +1,820 @@
+<title>Saathi — Intake, Dashboard, Outputs</title>
+
+<style>
+  :root {
+    --paper:      #EBEEF0;
+    --grid:       rgba(22, 32, 42, 0.045);
+    --surface:    #FBFCFC;
+    --surface-2:  #F2F5F6;
+    --ink:        #16202A;
+    --ink-soft:   #56656F;
+    --rule:       #C2CBD1;
+    --rule-soft:  #DCE2E6;
+    --gap:        #A5322A;
+    --gap-wash:   rgba(165, 50, 42, 0.065);
+    --part:       #86620A;
+    --part-wash:  rgba(134, 98, 10, 0.075);
+    --live:       #1D6A4E;
+    --band:       rgba(22, 32, 42, 0.05);
+
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --serif: "Iowan Old Style", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0E161E;
+      --grid:       rgba(220, 228, 234, 0.045);
+      --surface:    #16202A;
+      --surface-2:  #1D2934;
+      --ink:        #DCE4EA;
+      --ink-soft:   #90A0AC;
+      --rule:       #2F3E4C;
+      --rule-soft:  #24313D;
+      --gap:        #E9857C;
+      --gap-wash:   rgba(233, 133, 124, 0.10);
+      --part:       #D5A64C;
+      --part-wash:  rgba(213, 166, 76, 0.10);
+      --live:       #62BE96;
+      --band:       rgba(220, 228, 234, 0.055);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0E161E;
+    --grid:       rgba(220, 228, 234, 0.045);
+    --surface:    #16202A;
+    --surface-2:  #1D2934;
+    --ink:        #DCE4EA;
+    --ink-soft:   #90A0AC;
+    --rule:       #2F3E4C;
+    --rule-soft:  #24313D;
+    --gap:        #E9857C;
+    --gap-wash:   rgba(233, 133, 124, 0.10);
+    --part:       #D5A64C;
+    --part-wash:  rgba(213, 166, 76, 0.10);
+    --live:       #62BE96;
+    --band:       rgba(220, 228, 234, 0.055);
+  }
+
+  body {
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 28px 20px 80px;
+  }
+
+  .sheet {
+    max-width: 1220px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 0;
+  }
+
+  /* ---- title block ---- */
+  .titleblock {
+    border-bottom: 1px solid var(--rule);
+    padding: 30px 40px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .titleblock h1 {
+    font-family: var(--mono);
+    font-size: 27px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .titleblock .sub {
+    color: var(--ink-soft);
+    font-size: 16px;
+    margin: 8px 0 0;
+    max-width: 54ch;
+  }
+  .meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 4px 16px;
+    align-content: end;
+  }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  /* ---- body ---- */
+  .body { padding: 0 40px 44px; }
+
+  section { padding-top: 40px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 10px;
+  }
+  .eyebrow::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--rule-soft);
+  }
+  h2 {
+    font-family: var(--mono);
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 26px 0 8px;
+  }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  p.wide { max-width: 90ch; }
+  .lede { font-size: 18.5px; }
+
+  /* ---- legend ---- */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    padding: 14px 18px;
+    border: 1px solid var(--rule-soft);
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.03em;
+  }
+  .key { display: flex; align-items: center; gap: 9px; }
+  .swatch { width: 22px; height: 13px; flex: none; }
+  .sw-live { border: 1px solid var(--ink); background: var(--surface); }
+  .sw-part { border: 1px dashed var(--part); background: var(--part-wash); }
+  .sw-gap  { border: 1px dashed var(--gap);  background: var(--gap-wash); }
+
+  /* ---- figures ---- */
+  figure { margin: 22px 0 0; }
+  .scroll {
+    overflow-x: auto;
+    border: 1px solid var(--rule-soft);
+    background: var(--surface-2);
+    padding: 14px;
+  }
+  .scroll svg { display: block; width: 100%; min-width: 720px; height: auto; }
+  figcaption {
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-top: 10px;
+    max-width: 88ch;
+  }
+  figcaption b { color: var(--ink); font-weight: 600; }
+
+  /* ---- svg classes ---- */
+  .n     { fill: var(--surface); stroke: currentColor; stroke-width: 1; }
+  .n-part{ fill: var(--part-wash); stroke: var(--part); stroke-width: 1; stroke-dasharray: 5 3; }
+  .n-gap { fill: var(--gap-wash);  stroke: var(--gap);  stroke-width: 1; stroke-dasharray: 5 3; }
+  .n-hold{ fill: none; stroke: currentColor; stroke-width: 1; opacity: 0.55; }
+  .band  { fill: var(--band); stroke: none; }
+
+  .hd  { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.13em; fill: currentColor; }
+  .t   { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; fill: currentColor; }
+  .t-gap  { fill: var(--gap); }
+  .t-part { fill: var(--part); }
+  .d   { font-family: var(--serif); font-size: 11.5px; fill: var(--ink-soft); }
+  .d-gap  { fill: var(--gap); }
+  .d-part { fill: var(--part); }
+  .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; fill: var(--ink-soft); }
+  .note{ font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; fill: var(--gap); }
+
+  .ln   { stroke: currentColor; stroke-width: 1; fill: none; opacity: 0.75; }
+  .ln-b { stroke: currentColor; stroke-width: 1.6; fill: none; }
+  .ln-gap { stroke: var(--gap); stroke-width: 1.3; fill: none; stroke-dasharray: 5 4; }
+  .rule-l { stroke: currentColor; stroke-width: 1; opacity: 0.35; }
+
+  /* ---- tables ---- */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14.5px;
+    margin-top: 6px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 14px 9px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  td.code { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+  td.name { font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+  td.st { white-space: nowrap; }
+
+  .chip {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+  }
+  .c-live { border: 1px solid var(--live); color: var(--live); }
+  .c-part { border: 1px dashed var(--part); color: var(--part); background: var(--part-wash); }
+  .c-gap  { border: 1px dashed var(--gap);  color: var(--gap);  background: var(--gap-wash); }
+
+  /* ---- build list ---- */
+  ol.build { padding-left: 0; list-style: none; counter-reset: b; margin: 10px 0 0; }
+  ol.build li {
+    counter-increment: b;
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 0 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    max-width: 92ch;
+  }
+  ol.build li::before {
+    content: counter(b, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gap);
+    padding-top: 3px;
+  }
+  ol.build b { font-family: var(--mono); font-size: 13px; letter-spacing: 0.03em; display: block; }
+  ol.build span { color: var(--ink-soft); font-size: 15.5px; }
+
+  .footer {
+    border-top: 1px solid var(--rule);
+    padding: 20px 40px 26px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--ink-soft);
+  }
+
+  a { color: var(--ink); text-underline-offset: 2px; }
+  a:focus-visible, .scroll:focus-visible { outline: 2px solid var(--gap); outline-offset: 3px; }
+
+  @media (max-width: 720px) {
+    body { padding: 12px 8px 50px; }
+    .titleblock, .footer { padding-left: 22px; padding-right: 22px; }
+    .body { padding: 0 22px 34px; }
+    .titleblock h1 { font-size: 22px; }
+  }
+</style>
+
+<div class="sheet">
+
+  <div class="titleblock">
+    <div>
+      <h1>Saathi — intake, dashboard, outputs</h1>
+      <p class="sub">What goes in, what the team looks at, what comes out — and which parts of the sketch the code does not do yet.</p>
+    </div>
+    <div class="meta">
+      <span>System</span><b>Saathi v2 · Palanadu</b>
+      <span>Drawn from</span><b>server/index.js · public/</b>
+      <span>Revision</span><b>2026-08-09</b>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <section>
+      <p class="lede wide">Saathi already runs the left half of this drawing well: many kinds of paper, voice and photo come in through five intake pages, an AI pass turns each one into structured fields, a staff member corrects it, and it lands in one searchable corpus. The right half — the outputs the office actually wants to hand to the MP — is where the thin parts are. Three intake sources in the sketch have no way in at all, and two of the outputs have nothing behind them.</p>
+
+      <div class="legend">
+        <span class="key"><span class="swatch sw-live"></span> Built and running</span>
+        <span class="key"><span class="swatch sw-part"></span> Partly there — shape exists, substance doesn't</span>
+        <span class="key"><span class="swatch sw-gap"></span> In the sketch, not in the code</span>
+      </div>
+    </section>
+
+    <section>
+      <p class="eyebrow">Sheet 1 — the whole flow</p>
+      <h2>Nine ways in, one corpus, three pillars, seven ways out</h2>
+      <p class="wide">Everything funnels through the same five-stage spine, whatever format it arrived in. The stage that matters most is the third one: no AI extraction reaches the register without a person editing it first, which is why the register can be trusted as a record rather than as a transcript.</p>
+
+      <figure>
+        <div class="scroll" tabindex="0">
+          <svg viewBox="0 0 1440 700" role="img" aria-label="Saathi end-to-end flow: nine intake sources feed one inbox, an AI extraction pass, a staff review gate, a searchable corpus and retrieval layer; the corpus feeds a three-pillar dashboard filtered by constituency, mandal and village, which composes seven outputs. Speeches, press meets and a scheme master are missing from intake; development and tone snapshots are missing from outputs.">
+            <defs>
+              <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+              </marker>
+              <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--gap)"></path>
+              </marker>
+            </defs>
+
+            <!-- column headers -->
+            <text class="hd" x="16" y="40">INTAKE</text>
+            <line class="rule-l" x1="16" y1="52" x2="252" y2="52"></line>
+            <text class="hd" x="330" y="40">PIPELINE</text>
+            <line class="rule-l" x1="330" y1="52" x2="566" y2="52"></line>
+            <text class="hd" x="612" y="40">DASHBOARD</text>
+            <line class="rule-l" x1="612" y1="52" x2="1008" y2="52"></line>
+            <text class="hd" x="1076" y="40">OUTPUTS</text>
+            <line class="rule-l" x1="1076" y1="52" x2="1424" y2="52"></line>
+
+            <!-- intake nodes -->
+            <rect class="n" x="16" y="76" width="236" height="52"></rect>
+            <text class="t" x="28" y="97">SCHEDULE</text>
+            <text class="d" x="28" y="114">PA uploads the day — date, mandal, type</text>
+
+            <rect class="n" x="16" y="140" width="236" height="52"></rect>
+            <text class="t" x="28" y="161">GRIEVANCES</text>
+            <text class="d" x="28" y="178">walk-in + phone: text, photo, PDF, audio</text>
+
+            <rect class="n" x="16" y="204" width="236" height="52"></rect>
+            <text class="t" x="28" y="225">NEWS</text>
+            <text class="d" x="28" y="242">journalist form · Excel brief · Google RSS</text>
+
+            <rect class="n" x="16" y="268" width="236" height="52"></rect>
+            <text class="t" x="28" y="289">CAMPAIGN + SCHEME REPORTS</text>
+            <text class="d" x="28" y="306">field form + photo/PDF/audio, cluster-wise</text>
+
+            <rect class="n" x="16" y="332" width="236" height="52"></rect>
+            <text class="t" x="28" y="353">CONTACTS</text>
+            <text class="d" x="28" y="370">Excel master, PPS-scored at import</text>
+
+            <rect class="n" x="16" y="396" width="236" height="52"></rect>
+            <text class="t" x="28" y="417">TTD LETTERS</text>
+            <text class="d" x="28" y="434">Aadhar-checked reference register</text>
+
+            <rect class="n-gap" x="16" y="460" width="236" height="52"></rect>
+            <text class="t t-gap" x="28" y="481">SPEECHES</text>
+            <text class="d d-gap" x="28" y="498">Parliament + Assembly text — no way in</text>
+
+            <rect class="n-gap" x="16" y="524" width="236" height="52"></rect>
+            <text class="t t-gap" x="28" y="545">PRESS MEETS</text>
+            <text class="d d-gap" x="28" y="562">transcripts, clips — no way in</text>
+
+            <rect class="n-gap" x="16" y="588" width="236" height="52"></rect>
+            <text class="t t-gap" x="28" y="609">SCHEME MASTER</text>
+            <text class="d d-gap" x="28" y="626">arrear / settled / pending — not modelled</text>
+
+            <!-- intake bus -->
+            <line class="ln" x1="252" y1="102" x2="286" y2="102"></line>
+            <line class="ln" x1="252" y1="166" x2="286" y2="166"></line>
+            <line class="ln" x1="252" y1="230" x2="286" y2="230"></line>
+            <line class="ln" x1="252" y1="294" x2="286" y2="294"></line>
+            <line class="ln" x1="252" y1="358" x2="286" y2="358"></line>
+            <line class="ln" x1="252" y1="422" x2="286" y2="422"></line>
+            <line class="ln-gap" x1="252" y1="486" x2="286" y2="486"></line>
+            <line class="ln-gap" x1="252" y1="550" x2="286" y2="550"></line>
+            <line class="ln-gap" x1="252" y1="614" x2="286" y2="614"></line>
+            <line class="ln-b" x1="286" y1="102" x2="286" y2="422"></line>
+            <line class="ln-gap" x1="286" y1="422" x2="286" y2="614"></line>
+            <polyline class="ln-b" points="286,140 302,140 302,120 330,120" marker-end="url(#a1)"></polyline>
+            <text class="lbl" x="296" y="98">ANY FORMAT</text>
+
+            <!-- spine -->
+            <rect class="n" x="330" y="94" width="236" height="74"></rect>
+            <text class="t" x="342" y="117">1 · ONE INBOX</text>
+            <text class="d" x="342" y="136">every submission lands in raw_events</text>
+            <text class="d" x="342" y="152">first, before anything judges it</text>
+
+            <line class="ln-b" x1="448" y1="168" x2="448" y2="196" marker-end="url(#a1)"></line>
+            <text class="lbl" x="456" y="186">RAW</text>
+
+            <rect class="n" x="330" y="196" width="236" height="74"></rect>
+            <text class="t" x="342" y="219">2 · AI EXTRACT (GEMINI)</text>
+            <text class="d" x="342" y="238">OCR · transcribe · triage, merged into</text>
+            <text class="d" x="342" y="254">one record — category + urgency</text>
+
+            <line class="ln-b" x1="448" y1="270" x2="448" y2="298" marker-end="url(#a1)"></line>
+            <text class="lbl" x="456" y="288">DRAFT</text>
+
+            <rect class="n" x="330" y="298" width="236" height="74"></rect>
+            <text class="t" x="342" y="321">3 · STAFF REVIEW</text>
+            <text class="d" x="342" y="340">nothing saves un-reviewed; the human</text>
+            <text class="d" x="342" y="356">correction is what becomes the record</text>
+
+            <line class="ln-b" x1="448" y1="372" x2="448" y2="400" marker-end="url(#a1)"></line>
+            <text class="lbl" x="456" y="390">APPROVED</text>
+
+            <rect class="n" x="330" y="400" width="236" height="74"></rect>
+            <text class="t" x="342" y="423">4 · ONE CORPUS</text>
+            <text class="d" x="342" y="442">typed tables project into records +</text>
+            <text class="d" x="342" y="458">FTS5 + an entity graph</text>
+
+            <line class="ln-b" x1="448" y1="474" x2="448" y2="502" marker-end="url(#a1)"></line>
+            <text class="lbl" x="456" y="492">INDEXED</text>
+
+            <rect class="n" x="330" y="502" width="236" height="74"></rect>
+            <text class="t" x="342" y="525">5 · RETRIEVAL → ASK SAATHI</text>
+            <text class="d" x="342" y="544">BM25 + fuzzy, fused; grounded Q&amp;A</text>
+            <text class="d" x="342" y="560">over everything — read-only</text>
+
+            <!-- corpus to dashboard -->
+            <polyline class="ln-b" points="566,437 589,437 589,379 612,379" marker-end="url(#a1)"></polyline>
+            <text class="lbl" x="570" y="372">READS</text>
+
+            <!-- dashboard container -->
+            <rect class="n-hold" x="612" y="84" width="396" height="590"></rect>
+
+            <rect class="n" x="628" y="104" width="364" height="164"></rect>
+            <text class="t" x="642" y="127">I · PERSONAL</text>
+            <text class="d" x="642" y="149">today's schedule, hour by hour</text>
+            <text class="d" x="642" y="167">nearby contacts auto-matched by mandal</text>
+            <text class="d" x="642" y="185">per-contact brief + standing notes</text>
+            <text class="d" x="642" y="203">leader summaries, where we hold them</text>
+            <text class="d d-part" x="642" y="227">— summaries are typed, not synthesised</text>
+            <text class="lbl" x="642" y="252">SOURCE: SCHEDULE × CONTACTS</text>
+
+            <rect class="n" x="628" y="284" width="364" height="164"></rect>
+            <text class="t" x="642" y="307">II · POLITICAL</text>
+            <text class="d" x="642" y="329">news pulse, tagged by mandal</text>
+            <text class="d" x="642" y="347">campaign + cluster reports from the field</text>
+            <text class="d" x="642" y="365">frequency of representation per contact</text>
+            <text class="d d-part" x="642" y="389">— insights · opposition · sentiment: mock</text>
+            <text class="d d-gap" x="642" y="407">— speech + press-meet history: absent</text>
+            <text class="lbl" x="642" y="432">SOURCE: NEWS × CAMPAIGN REPORTS</text>
+
+            <rect class="n" x="628" y="464" width="364" height="164"></rect>
+            <text class="t" x="642" y="487">III · GOVERNANCE</text>
+            <text class="d" x="642" y="509">grievance register: category × status</text>
+            <text class="d" x="642" y="527">mandal coverage heatmap, hotspots</text>
+            <text class="d" x="642" y="545">linked duplicates, department routing</text>
+            <text class="d d-gap" x="642" y="569">— scheme delivery mapping: not built</text>
+            <text class="d d-gap" x="642" y="587">— arrear / settled / pending: not built</text>
+            <text class="lbl" x="642" y="612">SOURCE: GRIEVANCES</text>
+
+            <rect class="band" x="628" y="640" width="364" height="24"></rect>
+            <text class="t" x="642" y="656">FILTER AXIS · AC › MANDAL › VILLAGE</text>
+
+            <!-- dashboard to outputs -->
+            <line class="ln-b" x1="1008" y1="379" x2="1042" y2="379"></line>
+            <text class="lbl" x="1012" y="372">COMPOSE</text>
+            <line class="ln-b" x1="1042" y1="114" x2="1042" y2="418"></line>
+            <line class="ln-gap" x1="1042" y1="418" x2="1042" y2="570"></line>
+            <line class="ln-b" x1="1042" y1="114" x2="1076" y2="114" marker-end="url(#a1)"></line>
+            <line class="ln-b" x1="1042" y1="190" x2="1076" y2="190" marker-end="url(#a1)"></line>
+            <line class="ln-b" x1="1042" y1="266" x2="1076" y2="266" marker-end="url(#a1)"></line>
+            <line class="ln-b" x1="1042" y1="342" x2="1076" y2="342" marker-end="url(#a1)"></line>
+            <line class="ln-b" x1="1042" y1="418" x2="1076" y2="418" marker-end="url(#a1)"></line>
+            <line class="ln-gap" x1="1042" y1="494" x2="1076" y2="494" marker-end="url(#a2)"></line>
+            <line class="ln-gap" x1="1042" y1="570" x2="1076" y2="570" marker-end="url(#a2)"></line>
+
+            <!-- outputs -->
+            <rect class="n" x="1076" y="84" width="348" height="60"></rect>
+            <text class="t" x="1088" y="107">DAILY BRIEF PDF</text>
+            <text class="d" x="1088" y="126">per-date, renders Telugu correctly</text>
+
+            <rect class="n-part" x="1076" y="160" width="348" height="60"></rect>
+            <text class="t t-part" x="1088" y="183">SPEECH POINTS</text>
+            <text class="d d-part" x="1088" y="202">per-event draft, template-built not written</text>
+
+            <rect class="n-part" x="1076" y="236" width="348" height="60"></rect>
+            <text class="t t-part" x="1088" y="259">SOCIAL CONTENT</text>
+            <text class="d d-part" x="1088" y="278">calendar schedules posts; nothing drafts them</text>
+
+            <rect class="n-part" x="1076" y="312" width="348" height="60"></rect>
+            <text class="t t-part" x="1088" y="335">CAMPAIGN REPORTS</text>
+            <text class="d d-part" x="1088" y="354">logged + editable; no rollup, no export</text>
+
+            <rect class="n" x="1076" y="388" width="348" height="60"></rect>
+            <text class="t" x="1088" y="411">REGISTERS + LETTERS</text>
+            <text class="d" x="1088" y="430">grievance xlsx/PDF · dept letter · TTD letter</text>
+
+            <rect class="n-gap" x="1076" y="464" width="348" height="60"></rect>
+            <text class="t t-gap" x="1088" y="487">DEVELOPMENT SNAPSHOT</text>
+            <text class="d d-gap" x="1088" y="506">village-level delivery report — nothing behind it</text>
+
+            <rect class="n-gap" x="1076" y="540" width="348" height="60"></rect>
+            <text class="t t-gap" x="1088" y="563">TONE SNAPSHOT</text>
+            <text class="d d-gap" x="1088" y="582">press-meet + village mood — nothing behind it</text>
+          </svg>
+        </div>
+        <figcaption><b>The spine is the asset.</b> Any format — a photographed paper form, a dictated Telugu voice note, a PDF, a typed line — takes the same five steps, so adding a new intake source means adding a form, not a pipeline. The red marks are where the sketch asks for something the code has no table, route or page for.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <p class="eyebrow">Sheet 2 — intake</p>
+      <h2>Six live channels, three missing ones</h2>
+      <p class="wide">The live six all accept mixed media in a single submission and merge it into one record rather than one record per attachment — that is the design decision that makes paper-heavy field intake workable. The three missing ones are the sketch's political-content sources, and none of them has a table today.</p>
+
+      <div class="scroll" tabindex="0">
+      <table>
+        <thead>
+          <tr><th>Source</th><th>Formats accepted</th><th>Lands in</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Schedule</td>
+            <td>typed form; PA uploads the day's events</td>
+            <td class="code">events · POST /api/schedule</td>
+            <td class="st"><span class="chip c-live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="name">Grievances</td>
+            <td>text + photo/PDF (camera or file) + audio, any combination, in one submission; plus bulk form-photo upload</td>
+            <td class="code">grievances · POST /api/grievances/log</td>
+            <td class="st"><span class="chip c-live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="name">News</td>
+            <td>journalist form with attachment; Excel/brief upload; Google News RSS scraped and mandal-tagged</td>
+            <td class="code">news · POST /api/news</td>
+            <td class="st"><span class="chip c-live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="name">Campaign, scheme &amp; cluster reports</td>
+            <td>form + photo/PDF/audio; typed Campaign / Government Scheme / Cluster Report</td>
+            <td class="code">campaign_reports · POST /api/campaign-reports/log</td>
+            <td class="st"><span class="chip c-live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="name">Contacts</td>
+            <td>Excel master import, scored on the way in (influence, affinity, priority)</td>
+            <td class="code">contacts · scripts/setup_db.js</td>
+            <td class="st"><span class="chip c-live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="name">TTD letters</td>
+            <td>typed form, Aadhar duplicate-checked</td>
+            <td class="code">ttd_letters · POST /api/ttd-letters</td>
+            <td class="st"><span class="chip c-live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="name">Parliament / Assembly speeches</td>
+            <td>would need: PDF or Word upload, text extraction, date + subject + constituency tagging</td>
+            <td class="code">— no table, no route</td>
+            <td class="st"><span class="chip c-gap">Missing</span></td>
+          </tr>
+          <tr>
+            <td class="name">Press meets</td>
+            <td>would need: audio or transcript upload, speaker + topic extraction</td>
+            <td class="code">— no table, no route</td>
+            <td class="st"><span class="chip c-gap">Missing</span></td>
+          </tr>
+          <tr>
+            <td class="name">Scheme master</td>
+            <td>would need: scheme list with per-village applied / sanctioned / pending / settled counts</td>
+            <td class="code">— only free-text reports typed "Government Scheme"</td>
+            <td class="st"><span class="chip c-gap">Missing</span></td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section>
+      <p class="eyebrow">Sheet 3 — dashboard</p>
+      <h2>Three pillars over one geography</h2>
+      <p class="wide">The pillars are already the right shape: <b>Personal</b> is the day, <b>Political</b> is the standing, <b>Governance</b> is the delivery. Two of them are honest today. The third — Political — is mostly illustrative placeholder tiles on the admin page, and it will stay that way until speeches, press meets and scheme data have a way in, because there is nothing real to compute an insight from.</p>
+
+      <h3>What each pillar reads, and what it's missing</h3>
+      <p class="wide"><b>I · Personal.</b> Today's schedule with contacts auto-matched by mandal, a per-contact brief the PA can edit, standing notes carried forward, and speech points for event types where the MP actually addresses a room. This is the most complete pillar. The gap is small: leader summaries exist only where a staff member typed one — nothing synthesises a person's history into a line before a meeting.</p>
+      <p class="wide"><b>II · Political.</b> Live news tagged by mandal, campaign and cluster reports from the field, and how often each contact has been represented. The Constituency Health Score, Voter Sentiment Map, Media Sentiment and Opposition Activity tiles are labelled placeholders — real numbers there depend on intake that does not exist.</p>
+      <p class="wide"><b>III · Governance.</b> The grievance register filtered by mandal, village, category, status and channel; a coverage heatmap showing where grievances cluster; duplicate linking; and department routing per category. Scheme mapping — the arrear / settled / pending columns in the sketch — is the one real hole.</p>
+
+      <figure>
+        <div class="scroll" tabindex="0">
+          <svg viewBox="0 0 1180 360" role="img" aria-label="Three hierarchies over the same ground: the administrative one — assembly constituency, mandal, village — is stored in the database; the party organisation and elected-body hierarchies are not. Mandal is the only rung all three share, and below it the three disagree on what the unit is.">
+            <defs>
+              <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+              </marker>
+            </defs>
+
+            <rect class="band" x="24" y="196" width="860" height="58"></rect>
+
+            <text class="hd" x="40" y="34">ADMINISTRATIVE · STORED</text>
+            <line class="rule-l" x1="40" y1="46" x2="290" y2="46"></line>
+            <text class="hd t-gap" x="330" y="34">PARTY ORG · NOT STORED</text>
+            <line class="rule-l" x1="330" y1="46" x2="580" y2="46"></line>
+            <text class="hd t-gap" x="620" y="34">ELECTED BODIES · NOT STORED</text>
+            <line class="rule-l" x1="620" y1="46" x2="870" y2="46"></line>
+
+            <!-- row 1: parliamentary -->
+            <rect class="n-gap" x="330" y="66" width="250" height="50"></rect>
+            <text class="t t-gap" x="344" y="96">PARLIAMENTARY CONSTITUENCY</text>
+
+            <!-- row 2: assembly -->
+            <rect class="n" x="40" y="131" width="250" height="50"></rect>
+            <text class="t" x="54" y="161">ASSEMBLY CONSTITUENCY</text>
+            <rect class="n-gap" x="330" y="131" width="250" height="50"></rect>
+            <text class="t t-gap" x="344" y="161">ASSEMBLY CONSTITUENCY</text>
+            <rect class="n-gap" x="620" y="131" width="250" height="50"></rect>
+            <text class="t t-gap" x="634" y="161">CHAIRMAN</text>
+
+            <!-- row 3: mandal -->
+            <rect class="n" x="40" y="205" width="250" height="40"></rect>
+            <text class="t" x="54" y="230">MANDAL</text>
+            <rect class="n-gap" x="330" y="205" width="250" height="40"></rect>
+            <text class="t t-gap" x="344" y="230">MANDAL</text>
+            <rect class="n-gap" x="620" y="205" width="250" height="40"></rect>
+            <text class="t t-gap" x="634" y="230">UNIT</text>
+
+            <!-- row 4: bottom units -->
+            <rect class="n" x="40" y="270" width="250" height="50"></rect>
+            <text class="t" x="54" y="300">VILLAGE</text>
+            <rect class="n-gap" x="330" y="270" width="250" height="50"></rect>
+            <text class="t t-gap" x="344" y="300">PANCHAYAT COMMITTEE</text>
+            <rect class="n-gap" x="620" y="270" width="250" height="50"></rect>
+            <text class="t t-gap" x="634" y="300">BOOTH</text>
+
+            <!-- connectors -->
+            <line class="ln" x1="165" y1="181" x2="165" y2="205" marker-end="url(#a3)"></line>
+            <line class="ln" x1="165" y1="245" x2="165" y2="270" marker-end="url(#a3)"></line>
+            <line class="ln-gap" x1="455" y1="116" x2="455" y2="131"></line>
+            <line class="ln-gap" x1="455" y1="181" x2="455" y2="205"></line>
+            <line class="ln-gap" x1="455" y1="245" x2="455" y2="270"></line>
+            <line class="ln-gap" x1="745" y1="181" x2="745" y2="205"></line>
+            <line class="ln-gap" x1="745" y1="245" x2="745" y2="270"></line>
+
+            <!-- annotations -->
+            <text class="lbl" x="900" y="219">THE ONLY RUNG ALL THREE SHARE —</text>
+            <text class="lbl" x="900" y="234">EVERY FILTER TODAY IS MANDAL-LEVEL</text>
+            <text class="note" x="900" y="292">THREE DIFFERENT BOTTOM UNITS;</text>
+            <text class="note" x="900" y="307">NO COMMON KEY BELOW MANDAL</text>
+          </svg>
+        </div>
+        <figcaption><b>Why filters stop at mandal.</b> Contacts and grievances carry constituency, mandal and village, so those three filter cleanly. The party ladder and the elected-body ladder from the sketch exist nowhere in the schema — and because their bottom rungs are a panchayat committee and a booth rather than a village, adding them later means choosing a join key, not just adding columns.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <p class="eyebrow">Sheet 4 — the grievance loop</p>
+      <h2>One grievance feeds five surfaces and comes back empty</h2>
+      <p class="wide">You asked whether the governance dashboard should sync with grievance tracking. It already does, in one direction — a single grievance record is the atom behind the register, the heatmap, the department letter and the TTD letter. What is missing is the return path: nothing captures what the department actually did, so resolution status is whatever a staff member last typed.</p>
+
+      <figure>
+        <div class="scroll" tabindex="0">
+          <svg viewBox="0 0 1140 400" role="img" aria-label="A single grievance record fans out to the governance pillar, the coverage heatmap, a department letter and a TTD letter; no outcome or department reply flows back, so resolution status stays manual and scheme delivery cannot be measured.">
+            <defs>
+              <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+              </marker>
+              <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--gap)"></path>
+              </marker>
+            </defs>
+
+            <rect class="n" x="30" y="128" width="250" height="128"></rect>
+            <text class="t" x="44" y="152">GRIEVANCE RECORD</text>
+            <text class="d" x="44" y="174">category · urgency · priority score</text>
+            <text class="d" x="44" y="192">mandal · village · phone</text>
+            <text class="d" x="44" y="210">channel · linked duplicates</text>
+            <text class="d" x="44" y="228">source photo / audio kept</text>
+            <text class="d" x="44" y="246">status ← set by hand</text>
+
+            <line class="ln-b" x1="280" y1="192" x2="330" y2="192"></line>
+            <line class="ln-b" x1="330" y1="55" x2="330" y2="330"></line>
+            <line class="ln-b" x1="330" y1="55" x2="400" y2="55" marker-end="url(#a4)"></line>
+            <line class="ln-b" x1="330" y1="147" x2="400" y2="147" marker-end="url(#a4)"></line>
+            <line class="ln-b" x1="330" y1="239" x2="400" y2="239" marker-end="url(#a4)"></line>
+            <line class="ln-b" x1="330" y1="330" x2="400" y2="330" marker-end="url(#a4)"></line>
+
+            <rect class="n" x="400" y="26" width="290" height="58"></rect>
+            <text class="t" x="414" y="49">GOVERNANCE PILLAR</text>
+            <text class="d" x="414" y="68">counts by mandal × category × status</text>
+
+            <rect class="n" x="400" y="118" width="290" height="58"></rect>
+            <text class="t" x="414" y="141">COVERAGE HEATMAP</text>
+            <text class="d" x="414" y="160">hotspots, top category per mandal</text>
+
+            <rect class="n" x="400" y="210" width="290" height="58"></rect>
+            <text class="t" x="414" y="233">DEPARTMENT LETTER</text>
+            <text class="d" x="414" y="252">category → department head → PDF</text>
+
+            <rect class="n" x="400" y="301" width="290" height="58"></rect>
+            <text class="t" x="414" y="324">TTD REFERENCE LETTER</text>
+            <text class="d" x="414" y="343">created by hand from the record</text>
+
+            <line class="ln-gap" x1="690" y1="239" x2="770" y2="239" marker-end="url(#a5)"></line>
+            <text class="lbl" x="700" y="232">SENT</text>
+
+            <rect class="n-gap" x="770" y="184" width="330" height="110"></rect>
+            <text class="t t-gap" x="784" y="208">OUTCOME</text>
+            <text class="d d-gap" x="784" y="230">no department reply is captured</text>
+            <text class="d d-gap" x="784" y="248">no scheme sanction / settlement state</text>
+            <text class="d d-gap" x="784" y="266">no resolution date, no SLA clock</text>
+            <text class="d d-gap" x="784" y="284">so nothing rolls up to a delivery report</text>
+
+            <polyline class="ln-gap" points="935,294 935,375 155,375 155,256" marker-end="url(#a5)"></polyline>
+            <text class="note" x="420" y="369">THE LOOP THAT ISN'T CLOSED — STATUS STAYS MANUAL</text>
+          </svg>
+        </div>
+        <figcaption><b>Close this and two outputs become possible.</b> A development snapshot and any honest scheme-progress tile both need the same missing thing: an outcome row against the grievance — who it went to, what came back, and when — rather than a status field a person remembers to change.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <p class="eyebrow">Sheet 5 — outputs</p>
+      <h2>What the office should be able to hand over</h2>
+      <p class="wide">Every output should take the same filter axis — constituency, mandal, village, date range — so the same generator produces a village sheet and a constituency sheet. Today only the daily brief and the registers do that properly.</p>
+
+      <div class="scroll" tabindex="0">
+      <table>
+        <thead>
+          <tr><th>Output</th><th>Built from</th><th>Where it stands</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Daily brief PDF</td>
+            <td>schedule + matched contacts + briefs + speech points + news</td>
+            <td>Live and used; renders Telugu. The strongest output in the system.</td>
+            <td class="st"><span class="chip c-live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="name">Registers &amp; letters</td>
+            <td>grievances, TTD letters, category → department map</td>
+            <td>Excel and PDF exports, per-letter PDFs, AI-drafted department letters (advisory, staff-editable).</td>
+            <td class="st"><span class="chip c-live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="name">Speeches</td>
+            <td>event type + venue + nearby contacts</td>
+            <td>Per-event speech points exist, but they are assembled from templates. No past-speech corpus to draw on, no constituency-specific material.</td>
+            <td class="st"><span class="chip c-part">Partial</span></td>
+          </tr>
+          <tr>
+            <td class="name">Social media content</td>
+            <td>manual entry today</td>
+            <td>The calendar schedules and stores posts. Nothing turns an event, a grievance resolution or a campaign report into a draft caption.</td>
+            <td class="st"><span class="chip c-part">Partial</span></td>
+          </tr>
+          <tr>
+            <td class="name">Campaign reports</td>
+            <td>field reports typed Campaign / Scheme / Cluster</td>
+            <td>Logged, listed, editable, filterable. No rollup into a period report, no export, and not wired into the admin summary tiles.</td>
+            <td class="st"><span class="chip c-part">Partial</span></td>
+          </tr>
+          <tr>
+            <td class="name">Development snapshot</td>
+            <td>would need: scheme master + grievance outcomes, per village</td>
+            <td>Nothing behind it. This is the output that most needs the two missing intake sources.</td>
+            <td class="st"><span class="chip c-gap">Missing</span></td>
+          </tr>
+          <tr>
+            <td class="name">Tone snapshot</td>
+            <td>would need: press-meet + speech corpus, news sentiment</td>
+            <td>Nothing behind it. The admin sentiment tiles are placeholders, not a computed read.</td>
+            <td class="st"><span class="chip c-gap">Missing</span></td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section>
+      <p class="eyebrow">Sheet 6 — to close the sketch</p>
+      <h2>The shortest path from here to the whole drawing</h2>
+      <p class="wide">Ordered by what unblocks the most downstream. The first three are intake or schema; the outputs mostly fall out once the data behind them exists, because the pipeline, the filters and the PDF machinery are already built.</p>
+
+      <ol class="build">
+        <li><b>Grievance outcome rows</b><span>A child table recording who a grievance went to, what came back and when. Closes the loop in Sheet 4 and turns resolution status from a manual field into a derived one.</span></li>
+        <li><b>Scheme master + per-village status</b><span>A scheme list with applied / sanctioned / pending / settled counts per village. Without it the Governance pillar's scheme mapping and the development snapshot are both unbuildable.</span></li>
+        <li><b>Speech &amp; press-meet intake</b><span>One more intake page on the existing spine: upload a PDF, Word file or audio, extract the text, tag date, venue, subject and constituency. It reuses the whole pipeline — this is a form, not new infrastructure.</span></li>
+        <li><b>Village as a first-class filter everywhere</b><span>Constituency and mandal filter well; village is inconsistent across pages. Every dashboard widget and every export should take the same three-level scope.</span></li>
+        <li><b>Retire the placeholder tiles</b><span>Once speeches, press meets and scheme data land, replace the Political pillar's illustrative tiles with computed ones — or remove them. A mock number on an MP-facing screen is worse than an empty panel.</span></li>
+        <li><b>Generators for the remaining outputs</b><span>Development snapshot and tone snapshot, plus a period rollup for campaign reports and draft captions for the social calendar. All of them reuse the brief-PDF machinery and the filter axis.</span></li>
+      </ol>
+    </section>
+
+  </div>
+
+  <div class="footer">SAATHI V2 · PALANADU · DRAWN FROM THE CODEBASE AT REVISION 2026-08-09</div>
+
+</div>
