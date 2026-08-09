@@ -318,7 +318,7 @@
   <div class="body">
 
     <section>
-      <p class="lede wide">Saathi already runs the left half of this drawing well: many kinds of paper, voice and photo come in through five intake pages, an AI pass turns each one into structured fields, a staff member corrects it, and it lands in one searchable corpus. The right half — the outputs the office actually wants to hand to the MP — is where the thin parts are. Three intake sources in the sketch have no way in at all, and two of the outputs have nothing behind them.</p>
+      <p class="lede wide">Saathi already runs the left half of this drawing well: many kinds of paper, voice and photo come in through four intake pages and an Excel import, an AI pass turns each one into structured fields, a staff member corrects it, and it lands in one searchable corpus. The right half — the outputs the office actually wants to hand to the MP — is where the thin parts are. Three intake sources in the sketch have no way in at all, and two of the outputs have nothing behind them.</p>
 
       <div class="legend">
         <span class="key"><span class="swatch sw-live"></span> Built and running</span>
@@ -334,7 +334,7 @@
 
       <figure>
         <div class="scroll" tabindex="0">
-          <svg viewBox="0 0 1440 700" role="img" aria-label="Saathi end-to-end flow: nine intake sources feed one inbox, an AI extraction pass, a staff review gate, a searchable corpus and retrieval layer; the corpus feeds a three-pillar dashboard filtered by constituency, mandal and village, which composes seven outputs. Speeches, press meets and a scheme master are missing from intake; development and tone snapshots are missing from outputs.">
+          <svg viewBox="0 0 1440 700" role="img" aria-label="Saathi end-to-end flow: eight intake sources — schedule, grievances, political intake, news and contacts live, speeches, press meets and a scheme master missing — feed one inbox, an AI extraction pass, a staff review gate, a searchable corpus and retrieval layer; the corpus feeds a three-pillar dashboard filtered by constituency, mandal and village, which composes seven outputs. Development and tone snapshots are missing from outputs.">
             <defs>
               <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
@@ -364,32 +364,28 @@
             <text class="d" x="28" y="178">walk-in + phone: text, photo, PDF, audio</text>
 
             <rect class="n" x="16" y="204" width="236" height="52"></rect>
-            <text class="t" x="28" y="225">NEWS</text>
-            <text class="d" x="28" y="242">journalist form · Excel brief · Google RSS</text>
+            <text class="t" x="28" y="225">POLITICAL INTAKE</text>
+            <text class="d" x="28" y="242">campaigns · schemes · cluster reports</text>
 
             <rect class="n" x="16" y="268" width="236" height="52"></rect>
-            <text class="t" x="28" y="289">CAMPAIGN + SCHEME REPORTS</text>
-            <text class="d" x="28" y="306">field form + photo/PDF/audio, cluster-wise</text>
+            <text class="t" x="28" y="289">NEWS</text>
+            <text class="d" x="28" y="306">journalist form · Excel brief · Google RSS</text>
 
             <rect class="n" x="16" y="332" width="236" height="52"></rect>
             <text class="t" x="28" y="353">CONTACTS</text>
             <text class="d" x="28" y="370">Excel master, PPS-scored at import</text>
 
-            <rect class="n" x="16" y="396" width="236" height="52"></rect>
-            <text class="t" x="28" y="417">TTD LETTERS</text>
-            <text class="d" x="28" y="434">Aadhar-checked reference register</text>
+            <rect class="n-gap" x="16" y="396" width="236" height="52"></rect>
+            <text class="t t-gap" x="28" y="417">SPEECHES</text>
+            <text class="d d-gap" x="28" y="434">Parliament + Assembly text — no way in</text>
 
             <rect class="n-gap" x="16" y="460" width="236" height="52"></rect>
-            <text class="t t-gap" x="28" y="481">SPEECHES</text>
-            <text class="d d-gap" x="28" y="498">Parliament + Assembly text — no way in</text>
+            <text class="t t-gap" x="28" y="481">PRESS MEETS</text>
+            <text class="d d-gap" x="28" y="498">transcripts, clips — no way in</text>
 
             <rect class="n-gap" x="16" y="524" width="236" height="52"></rect>
-            <text class="t t-gap" x="28" y="545">PRESS MEETS</text>
-            <text class="d d-gap" x="28" y="562">transcripts, clips — no way in</text>
-
-            <rect class="n-gap" x="16" y="588" width="236" height="52"></rect>
-            <text class="t t-gap" x="28" y="609">SCHEME MASTER</text>
-            <text class="d d-gap" x="28" y="626">arrear / settled / pending — not modelled</text>
+            <text class="t t-gap" x="28" y="545">SCHEME MASTER</text>
+            <text class="d d-gap" x="28" y="562">arrear / settled / pending — not modelled</text>
 
             <!-- intake bus -->
             <line class="ln" x1="252" y1="102" x2="286" y2="102"></line>
@@ -397,12 +393,11 @@
             <line class="ln" x1="252" y1="230" x2="286" y2="230"></line>
             <line class="ln" x1="252" y1="294" x2="286" y2="294"></line>
             <line class="ln" x1="252" y1="358" x2="286" y2="358"></line>
-            <line class="ln" x1="252" y1="422" x2="286" y2="422"></line>
+            <line class="ln-gap" x1="252" y1="422" x2="286" y2="422"></line>
             <line class="ln-gap" x1="252" y1="486" x2="286" y2="486"></line>
             <line class="ln-gap" x1="252" y1="550" x2="286" y2="550"></line>
-            <line class="ln-gap" x1="252" y1="614" x2="286" y2="614"></line>
-            <line class="ln-b" x1="286" y1="102" x2="286" y2="422"></line>
-            <line class="ln-gap" x1="286" y1="422" x2="286" y2="614"></line>
+            <line class="ln-b" x1="286" y1="102" x2="286" y2="358"></line>
+            <line class="ln-gap" x1="286" y1="358" x2="286" y2="550"></line>
             <polyline class="ln-b" points="286,140 302,140 302,120 330,120" marker-end="url(#a1)"></polyline>
             <text class="lbl" x="296" y="98">ANY FORMAT</text>
 
@@ -462,12 +457,12 @@
 
             <rect class="n" x="628" y="284" width="364" height="164"></rect>
             <text class="t" x="642" y="307">II · POLITICAL</text>
-            <text class="d" x="642" y="329">news pulse, tagged by mandal</text>
-            <text class="d" x="642" y="347">campaign + cluster reports from the field</text>
-            <text class="d" x="642" y="365">frequency of representation per contact</text>
+            <text class="d" x="642" y="329">field political reports: campaign · scheme · cluster</text>
+            <text class="d" x="642" y="347">news pulse by scope — district › state › national</text>
+            <text class="d" x="642" y="365">audience cohorts tagged on each event</text>
             <text class="d d-part" x="642" y="389">— insights · opposition · sentiment: mock</text>
             <text class="d d-gap" x="642" y="407">— speech + press-meet history: absent</text>
-            <text class="lbl" x="642" y="432">SOURCE: NEWS × CAMPAIGN REPORTS</text>
+            <text class="lbl" x="642" y="432">SOURCE: POLITICAL INTAKE × NEWS</text>
 
             <rect class="n" x="628" y="464" width="364" height="164"></rect>
             <text class="t" x="642" y="487">III · GOVERNANCE</text>
@@ -512,8 +507,8 @@
             <text class="d d-part" x="1088" y="354">logged + editable; no rollup, no export</text>
 
             <rect class="n" x="1076" y="388" width="348" height="60"></rect>
-            <text class="t" x="1088" y="411">REGISTERS + LETTERS</text>
-            <text class="d" x="1088" y="430">grievance xlsx/PDF · dept letter · TTD letter</text>
+            <text class="t" x="1088" y="411">GRIEVANCE REGISTER + LETTERS</text>
+            <text class="d" x="1088" y="430">xlsx / PDF exports · letters to departments</text>
 
             <rect class="n-gap" x="1076" y="464" width="348" height="60"></rect>
             <text class="t t-gap" x="1088" y="487">DEVELOPMENT SNAPSHOT</text>
@@ -530,8 +525,12 @@
 
     <section>
       <p class="eyebrow">Sheet 2 — intake</p>
-      <h2>Six live channels, three missing ones</h2>
-      <p class="wide">The live six all accept mixed media in a single submission and merge it into one record rather than one record per attachment — that is the design decision that makes paper-heavy field intake workable. The three missing ones are the sketch's political-content sources, and none of them has a table today.</p>
+      <h2>Five live channels, three missing ones</h2>
+      <p class="wide">The live channels accept mixed media in a single submission and merge it into one record rather than one record per attachment — that is the design decision that makes paper-heavy field intake workable. The three missing ones are the sketch's political-content sources, and none of them has a table today.</p>
+
+      <p class="wide"><b>Political intake deserves naming properly</b> — it is a first-class channel, not a sub-case of the others. A field worker logs one campaign, government scheme or cluster report the same way a grievance is logged: typed notes, photographs of a banner or a sanction letter, a dictated voice note, or any mix of the three, merged by the AI pass into one report the office reviews before it saves. Each report carries a type, a delivery status and a mandal + village, which is what makes it filterable alongside grievances. It is the only structured political signal the system currently holds, and everything real in the Political pillar comes from it and from news.</p>
+
+      <p class="wide">TTD reference letters are not listed here as their own channel. They are raised from a grievance record — the register is where they belong and where staff already work — so they appear in this drawing only as one of the things a grievance can turn into.</p>
 
       <div class="scroll" tabindex="0">
       <table>
@@ -552,27 +551,21 @@
             <td class="st"><span class="chip c-live">Live</span></td>
           </tr>
           <tr>
-            <td class="name">News</td>
-            <td>journalist form with attachment; Excel/brief upload; Google News RSS scraped and mandal-tagged</td>
-            <td class="code">news · POST /api/news</td>
+            <td class="name">Political intake</td>
+            <td>text + photo/PDF + audio in any combination, AI-extracted into one report; typed Campaign / Government Scheme / Cluster Report, with a status of Planned / Ongoing / Completed / Delayed and a mandal + village</td>
+            <td class="code">campaign_reports · POST /api/campaign-reports/log</td>
             <td class="st"><span class="chip c-live">Live</span></td>
           </tr>
           <tr>
-            <td class="name">Campaign, scheme &amp; cluster reports</td>
-            <td>form + photo/PDF/audio; typed Campaign / Government Scheme / Cluster Report</td>
-            <td class="code">campaign_reports · POST /api/campaign-reports/log</td>
+            <td class="name">News</td>
+            <td>journalist form with attachment; Excel/brief upload; Google News RSS scraped and mandal-tagged. Classified by scope — district, mandal, state, national, international</td>
+            <td class="code">news · POST /api/news</td>
             <td class="st"><span class="chip c-live">Live</span></td>
           </tr>
           <tr>
             <td class="name">Contacts</td>
             <td>Excel master import, scored on the way in (influence, affinity, priority)</td>
             <td class="code">contacts · scripts/setup_db.js</td>
-            <td class="st"><span class="chip c-live">Live</span></td>
-          </tr>
-          <tr>
-            <td class="name">TTD letters</td>
-            <td>typed form, Aadhar duplicate-checked</td>
-            <td class="code">ttd_letters · POST /api/ttd-letters</td>
             <td class="st"><span class="chip c-live">Live</span></td>
           </tr>
           <tr>
@@ -605,7 +598,7 @@
 
       <h3>What each pillar reads, and what it's missing</h3>
       <p class="wide"><b>I · Personal.</b> Today's schedule with contacts auto-matched by mandal, a per-contact brief the PA can edit, standing notes carried forward, and speech points for event types where the MP actually addresses a room. This is the most complete pillar. The gap is small: leader summaries exist only where a staff member typed one — nothing synthesises a person's history into a line before a meeting.</p>
-      <p class="wide"><b>II · Political.</b> Live news tagged by mandal, campaign and cluster reports from the field, and how often each contact has been represented. The Constituency Health Score, Voter Sentiment Map, Media Sentiment and Opposition Activity tiles are labelled placeholders — real numbers there depend on intake that does not exist.</p>
+      <p class="wide"><b>II · Political.</b> Field political reports — campaign, government scheme and cluster — filterable by type, status and mandal; live news separated by scope so district coverage no longer collapses into statewide AP politics; and the audience cohorts each scheduled event is tagged with, which is real political targeting data sitting unused by any widget. The Constituency Health Score, Voter Sentiment Map, Media Sentiment and Opposition Activity tiles are labelled placeholders — real numbers there depend on intake that does not exist. This pillar has the widest gap between what it holds and what it shows: the political reports are logged and listed on their own page but are not wired into any admin summary tile.</p>
       <p class="wide"><b>III · Governance.</b> The grievance register filtered by mandal, village, category, status and channel; a coverage heatmap showing where grievances cluster; duplicate linking; and department routing per category. Scheme mapping — the arrear / settled / pending columns in the sketch — is the one real hole.</p>
 
       <figure>
@@ -720,7 +713,7 @@
 
             <rect class="n" x="400" y="301" width="290" height="58"></rect>
             <text class="t" x="414" y="324">TTD REFERENCE LETTER</text>
-            <text class="d" x="414" y="343">created by hand from the record</text>
+            <text class="d" x="414" y="343">raised from the record, not a separate register</text>
 
             <line class="ln-gap" x1="690" y1="239" x2="770" y2="239" marker-end="url(#a5)"></line>
             <text class="lbl" x="700" y="232">SENT</text>
@@ -758,9 +751,9 @@
             <td class="st"><span class="chip c-live">Live</span></td>
           </tr>
           <tr>
-            <td class="name">Registers &amp; letters</td>
-            <td>grievances, TTD letters, category → department map</td>
-            <td>Excel and PDF exports, per-letter PDFs, AI-drafted department letters (advisory, staff-editable).</td>
+            <td class="name">Grievance register &amp; letters</td>
+            <td>grievances, category → department map</td>
+            <td>Excel and PDF exports of the register, AI-drafted letters to department heads (advisory, staff-editable), and a TTD reference letter raised from a record.</td>
             <td class="st"><span class="chip c-live">Live</span></td>
           </tr>
           <tr>
@@ -777,8 +770,8 @@
           </tr>
           <tr>
             <td class="name">Campaign reports</td>
-            <td>field reports typed Campaign / Scheme / Cluster</td>
-            <td>Logged, listed, editable, filterable. No rollup into a period report, no export, and not wired into the admin summary tiles.</td>
+            <td>political intake, typed Campaign / Scheme / Cluster</td>
+            <td>Logged, listed, editable, filterable by type, status and mandal. No rollup into a period report, no export, and not wired into the admin summary tiles.</td>
             <td class="st"><span class="chip c-part">Partial</span></td>
           </tr>
           <tr>
@@ -801,9 +794,10 @@
     <section>
       <p class="eyebrow">Sheet 6 — to close the sketch</p>
       <h2>The shortest path from here to the whole drawing</h2>
-      <p class="wide">Ordered by what unblocks the most downstream. The first three are intake or schema; the outputs mostly fall out once the data behind them exists, because the pipeline, the filters and the PDF machinery are already built.</p>
+      <p class="wide">Ordered by cost against what it unblocks. The first item needs no new data at all — only a widget reading a table that is already full. The next two are schema; after that the outputs mostly fall out, because the pipeline, the filters and the PDF machinery are already built.</p>
 
       <ol class="build">
+        <li><b>Wire political intake into the Political pillar</b><span>The cheapest item on this list, because it needs no new data. Field political reports are already logged, categorised and mandal-tagged; they just aren't read by any dashboard widget. Replace the mock Campaign Summaries and Scheme Progress tiles with counts and status rollups over what is already in the table.</span></li>
         <li><b>Grievance outcome rows</b><span>A child table recording who a grievance went to, what came back and when. Closes the loop in Sheet 4 and turns resolution status from a manual field into a derived one.</span></li>
         <li><b>Scheme master + per-village status</b><span>A scheme list with applied / sanctioned / pending / settled counts per village. Without it the Governance pillar's scheme mapping and the development snapshot are both unbuildable.</span></li>
         <li><b>Speech &amp; press-meet intake</b><span>One more intake page on the existing spine: upload a PDF, Word file or audio, extract the text, tag date, venue, subject and constituency. It reuses the whole pipeline — this is a form, not new infrastructure.</span></li>
