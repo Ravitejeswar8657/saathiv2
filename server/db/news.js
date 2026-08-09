@@ -19,7 +19,16 @@ const COLUMNS = [
   'has_attachment', 'attachment_name', 'submitted_at', 'created_at',
 ];
 
-const SCOPES = ['mandal', 'national', 'international'];
+// 'district' and 'state' were missing here until they were traced as the cause
+// of the media tracker's categories disappearing from the News Dashboard. The
+// tracker's Excel import emits four categories (District/State/National/
+// International, see normalizeCategory in server/index.js), but inferScope only
+// recognised the last two - so every District and State row fell through to the
+// 'mandal' default and the district's own coverage ended up indistinguishable
+// from statewide AP politics in the same bucket. 'mandal' stays for backward
+// compatibility: rows already in the table carry it, and it remains the
+// fallback for field-correspondent submissions that name a real place.
+const SCOPES = ['district', 'mandal', 'state', 'national', 'international'];
 const PRIORITIES = ['high', 'medium', 'low'];
 
 // db.json's magic mandal values, mapped onto the new axis. Anything else is a

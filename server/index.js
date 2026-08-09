@@ -2807,6 +2807,12 @@ app.post('/api/upload-news-excel', upload.single('excel'), (req, res) => {
       headline: item.headline,
       body: item.body || '',
       source: item.source || 'Excel import',
+      // scope is the category axis (district/state/national/international) -
+      // all four are real SCOPES values now, see server/db/news.js. mandal is
+      // the *place* axis and the tracker's spreadsheet carries no place column,
+      // so it stays 'General'. Do not read the category back off mandal: that
+      // was the old db.json overload, and the News Dashboard still filtering on
+      // it is what made these categories look like they had vanished.
       scope: String(item.category || 'national').toLowerCase(),
       mandal: 'General',
       priority: 'medium',

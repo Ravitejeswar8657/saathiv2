@@ -234,6 +234,11 @@
   font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px;
   white-space: nowrap; flex-shrink: 0; margin-top: 2px;
 }
+/* One badge per news scope. District carries the brand amber because it is the
+   MP's own constituency and the reason this dashboard exists; the others follow
+   the semantic-colour convention the national/international badges already set. */
+.cat-district { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); }
+.cat-state { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
 .cat-national { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
 .cat-international { background: var(--neutral-bg); color: var(--neutral); border: 1px solid var(--neutral-border); }
 .cat-other { background: var(--bg); color: var(--stone-500); border: 1px solid var(--border); }
@@ -554,8 +559,10 @@
             <div class="nd-toolbar">
               <input type="date" class="nd-date" id="nd-date"/>
               <button class="nd-filter active" id="nd-all" onclick="ndSetFilter('all')">All</button>
-              <button class="nd-filter" id="nd-national" onclick="ndSetFilter('National')">National</button>
-              <button class="nd-filter" id="nd-intl" onclick="ndSetFilter('International')">International</button>
+              <button class="nd-filter" id="nd-district" onclick="ndSetFilter('district')">District</button>
+              <button class="nd-filter" id="nd-state" onclick="ndSetFilter('state')">State</button>
+              <button class="nd-filter" id="nd-national" onclick="ndSetFilter('national')">National</button>
+              <button class="nd-filter" id="nd-intl" onclick="ndSetFilter('international')">International</button>
               <span class="nd-count" id="nd-count">0 reports</span>
             </div>
             <div id="nd-list"></div>
@@ -1517,9 +1524,21 @@ async function fetchFullArticle(elId, link) {
   }
 }
 
-// ── News Dashboard (unchanged logic) ─────────────────────────────────────
+// ── News Dashboard ───────────────────────────────────────────────────────
+// Filtering and the card badge both read `scope`, the dedicated column added
+// when category stopped being overloaded onto `mandal`. This code kept reading
+// `mandal` after that migration, and since the media-tracker Excel import
+// writes every row with mandal 'General', the badges all read "General" and
+// every filter but "All" came back empty - the categories looked like they had
+// vanished. `mandal` is now only ever a place name.
 let ndAllNews = [];
 let ndCategory = 'all';
+
+// scope value -> display label. Keys match SCOPES in server/db/news.js.
+const ND_SCOPE_LABELS = {
+  district: 'District', mandal: 'Mandal', state: 'State',
+  national: 'National', international: 'International',
+};
 
 function ndTodayIST() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -1534,9 +1553,15 @@ function ndFmtTime(iso) {
 function ndEsc(s) { return esc(s); }
 
 function ndRender() {
+  // 'district' covers both local scopes: the media tracker's Local Coverage
+  // sheet arrives as 'district', while field-correspondent submissions and
+  // every row predating the scope column carry 'mandal'. One button for local
+  // news, whichever path it came in by.
   const filtered = ndCategory === 'all'
     ? ndAllNews
-    : ndAllNews.filter(n => n.mandal === ndCategory);
+    : ndCategory === 'district'
+      ? ndAllNews.filter(n => n.scope === 'district' || n.scope === 'mandal')
+      : ndAllNews.filter(n => n.scope === ndCategory);
 
   document.getElementById('nd-count').textContent =
     `${filtered.length} report${filtered.length !== 1 ? 's' : ''}`;
@@ -1548,13 +1573,18 @@ function ndRender() {
   }
 
   document.getElementById('nd-list').innerHTML = filtered.map(n => {
-    const cat = n.mandal || '';
-    const badgeCls = cat === 'National' ? 'cat-national' : cat === 'International' ? 'cat-international' : 'cat-other';
+    const scope = n.scope || '';
+    const cat = ND_SCOPE_LABELS[scope] || '';
+    // Rows that carry a real place (field-correspondent submissions) show it
+    // rather than the generic "Mandal" label; the Excel import has no place
+    // column and leaves mandal as 'General'.
+    const label = scope === 'mandal' && n.mandal && n.mandal !== 'General' ? n.mandal : cat;
+    const badgeCls = ND_SCOPE_LABELS[scope] ? `cat-${scope === 'mandal' ? 'district' : scope}` : 'cat-other';
     const hasLink = n.link && n.link.startsWith('http');
     return `
     <div class="nd-card">
       <div class="nd-card-top">
-        <span class="cat-badge ${badgeCls}">${ndEsc(cat) || 'Report'}</span>
+        <span class="cat-badge ${badgeCls}">${ndEsc(label) || 'Report'}</span>
         <div class="nd-headline">${ndEsc(n.headline)}</div>
       </div>
       ${n.body ? `<div class="nd-body">${ndEsc(n.body)}</div>` : ''}
@@ -1585,12 +1615,17 @@ async function loadNewsDashboard() {
   }
 }
 
+// `cat` is a scope value (or 'all'), matching what ndRender filters on.
+const ND_FILTER_BUTTONS = {
+  all: 'nd-all', district: 'nd-district', state: 'nd-state',
+  national: 'nd-national', international: 'nd-intl',
+};
+
 function ndSetFilter(cat) {
   ndCategory = cat;
-  ['nd-all','nd-national','nd-intl'].forEach(id =>
+  Object.values(ND_FILTER_BUTTONS).forEach(id =>
     document.getElementById(id).classList.remove('active'));
-  const map = { all:'nd-all', National:'nd-national', International:'nd-intl' };
-  if (map[cat]) document.getElementById(map[cat]).classList.add('active');
+  if (ND_FILTER_BUTTONS[cat]) document.getElementById(ND_FILTER_BUTTONS[cat]).classList.add('active');
   ndRender();
 }
 
