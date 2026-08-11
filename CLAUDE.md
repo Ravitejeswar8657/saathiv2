@@ -105,6 +105,8 @@ see `brain/docs/03-database-design.md` and `brain/docs/integration-brief-chat-se
 | `002_domain.sql` | `contacts`, `grievances`, `events`, `event_contacts`, `news`, `campaign_reports`, `social_posts`, `ttd_letters`, plus three media child tables |
 | `003_chat.sql` | `conversations`, `messages` |
 | `004_data_fixups.sql` | One-off data corrections (replaces a boot-time IIFE that re-ran on every start) |
+| `005_news_scopes.sql` | Widens `news.scope` to the four categories the media tracker emits (`district`/`state` alongside `mandal`/`national`/`international`) |
+| `006_palnadu_spelling.sql` | Corrects the `constituency` setting written as `Palanadu (AP)` by an earlier `setup_db.js` |
 
 Every typed row projects a companion row into `records` — that is what retrieval ranks and what the chat assistant is grounded on. `idx_records_source` keeps the projection one-to-one, and `records` can always be rebuilt from the typed tables.
 
