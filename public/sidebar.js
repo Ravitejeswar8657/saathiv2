@@ -94,7 +94,7 @@
       </button>
       <div id="saathi-sidebar-backdrop" class="saathi-backdrop"></div>
       <nav id="saathi-sidebar" class="saathi-sidebar">
-        <div class="saathi-brand">Saathi &middot; Palanadu</div>
+        <div class="saathi-brand">Saathi &middot; Palnadu</div>
         <a class="saathi-dashboard-btn${dashActive ? ' active' : ''}" href="/">
           <i data-lucide="home"></i> Dashboard
         </a>

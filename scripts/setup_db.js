@@ -235,7 +235,7 @@ migrate({ log: line => console.log(line) });
 seedReference();
 
 const written = replaceAllContacts(contacts);
-setSetting('constituency', 'Palanadu (AP)');
+setSetting('constituency', 'Palnadu (AP)');
 setSetting('import_source', 'Excel import - combined_clean.xlsx');
 setSetting('imported_at', new Date().toISOString());
 

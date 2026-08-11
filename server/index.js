@@ -346,7 +346,7 @@ async function fetchGoogleNews() {
   }
 
   const googleQueries = [
-    { q: 'Palanadu OR Narasaraopet OR Palnadu', hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en' },
+    { q: 'Palnadu OR Narasaraopet', hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en' },
     { q: 'Andhra Pradesh News OR Guntur News', hl: 'en-IN', gl: 'IN', ceid: 'IN:en', lang: 'en' },
     { q: TELUGU_PLACE_TERMS, hl: 'te', gl: 'IN', ceid: 'IN:te', lang: 'te' },
   ];
@@ -2877,7 +2877,7 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
   // ── Header band ──────────────────────────────────────────────────────────
   doc.rect(0, 0, doc.page.width, 86).fill(C.slate);
   doc.fillColor(C.white).font(boldFont).fontSize(20).text('The morning brief', PDF_LEFT, 24);
-  doc.font(bodyFont).fontSize(11).fillColor('#FFF7ED').text('Narasaraopet Constituency · Palanadu District', PDF_LEFT, 52);
+  doc.font(bodyFont).fontSize(11).fillColor('#FFF7ED').text('Narasaraopet Constituency · Palnadu District', PDF_LEFT, 52);
   doc.y = 104;
   doc.x = PDF_LEFT;
 
@@ -3184,9 +3184,9 @@ function buildTtdLetterPDF(doc, letter, mpName) {
   const C = PDF_COLORS;
 
   doc.font(boldFont).fontSize(14).fillColor(C.ink)
-    .text(mpName || 'Member of Parliament, Palanadu', PDF_LEFT, 40, { width: PDF_WIDTH, align: 'center' });
+    .text(mpName || 'Member of Parliament, Palnadu', PDF_LEFT, 40, { width: PDF_WIDTH, align: 'center' });
   doc.font(bodyFont).fontSize(10).fillColor(C.slate)
-    .text('Narasaraopet Constituency · Palanadu District', PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'center' });
+    .text('Narasaraopet Constituency · Palnadu District', PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'center' });
   doc.moveDown(2);
   doc.x = PDF_LEFT;
 
@@ -3227,7 +3227,7 @@ function buildTtdLetterPDF(doc, letter, mpName) {
   doc.font(bodyFont).text('Thanking you,', PDF_LEFT);
   doc.moveDown(2);
   doc.font(boldFont).text(mpName || 'Member of Parliament', PDF_LEFT);
-  doc.font(bodyFont).fontSize(9).fillColor(C.slate).text('Palanadu Parliamentary Constituency', PDF_LEFT);
+  doc.font(bodyFont).fontSize(9).fillColor(C.slate).text('Palnadu Parliamentary Constituency', PDF_LEFT);
 
   doc.fontSize(8).fillColor('#9ca3af').text(
     '(Draft v1 letter format — wording to be finalized.)',
@@ -3250,9 +3250,9 @@ function buildDepartmentLetterPDF(doc, grievance, departmentInfo, mpName) {
   const C = PDF_COLORS;
 
   doc.font(boldFont).fontSize(14).fillColor(C.ink)
-    .text(mpName || 'Member of Parliament, Palanadu', PDF_LEFT, 40, { width: PDF_WIDTH, align: 'center' });
+    .text(mpName || 'Member of Parliament, Palnadu', PDF_LEFT, 40, { width: PDF_WIDTH, align: 'center' });
   doc.font(bodyFont).fontSize(10).fillColor(C.slate)
-    .text('Narasaraopet Constituency · Palanadu District', PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'center' });
+    .text('Narasaraopet Constituency · Palnadu District', PDF_LEFT, doc.y, { width: PDF_WIDTH, align: 'center' });
   doc.moveDown(2);
   doc.x = PDF_LEFT;
 
@@ -3264,7 +3264,7 @@ function buildDepartmentLetterPDF(doc, grievance, departmentInfo, mpName) {
   doc.text('To,', PDF_LEFT);
   doc.text(`${departmentInfo.department_head},`, PDF_LEFT);
   doc.text(`${departmentInfo.department},`, PDF_LEFT);
-  doc.text(`${grievance.mandal || grievance.village || 'Palanadu District'}.`, PDF_LEFT);
+  doc.text(`${grievance.mandal || grievance.village || 'Palnadu District'}.`, PDF_LEFT);
   doc.moveDown(1.5);
 
   doc.font(boldFont).text(`Sub: ${grievance.drafted_letter_subject}`, PDF_LEFT, doc.y, { underline: true, width: PDF_WIDTH });
@@ -3278,7 +3278,7 @@ function buildDepartmentLetterPDF(doc, grievance, departmentInfo, mpName) {
   doc.font(bodyFont).text('Thanking you,', PDF_LEFT);
   doc.moveDown(2);
   doc.font(boldFont).text(mpName || 'Member of Parliament', PDF_LEFT);
-  doc.font(bodyFont).fontSize(9).fillColor(C.slate).text('Palanadu Parliamentary Constituency', PDF_LEFT);
+  doc.font(bodyFont).fontSize(9).fillColor(C.slate).text('Palnadu Parliamentary Constituency', PDF_LEFT);
 
   doc.fontSize(8).fillColor('#9ca3af').text(
     '(Draft v1 letter format — wording to be finalized.)',

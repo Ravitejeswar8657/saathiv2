@@ -84,7 +84,7 @@ Node 20 = ABI 115, Node 22 = 127, Node 24 = 137.
 
 ## Architecture
 
-Saathi v2 is a political contact management system for an MP's team in the Palanadu constituency (AP). It has one main server file, a `server/db/` persistence layer, lazily-imported Gemini/chat/search modules, and several static HTML pages — no build step for the frontend. There is no WhatsApp integration in this codebase — it was fully removed (see "Removed features" below).
+Saathi v2 is a political contact management system for an MP's team in the Palnadu constituency (AP). It has one main server file, a `server/db/` persistence layer, lazily-imported Gemini/chat/search modules, and several static HTML pages — no build step for the frontend. There is no WhatsApp integration in this codebase — it was fully removed (see "Removed features" below).
 
 ### Data flow
 
@@ -184,7 +184,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | POST | `/api/issue` | Log issue against a contact (still used by `pa_issues.html`; issues logged this way stay `pending` — the admin approve/reject workflow that used to resolve them was removed) |
 | POST | `/api/news` | Submit news item (multipart, optional attachment) |
 | GET | `/api/brief-pdf` | Generate the daily brief PDF for a date (`buildBriefPDF`) |
-| GET | `/api/live-news` | Cached Google News RSS (Palanadu keywords) |
+| GET | `/api/live-news` | Cached Google News RSS (Palnadu keywords) |
 | GET | `/api/stats` | Aggregate counts, including `open_grievances_register` (unresolved `db.grievances`, distinct from the legacy `with_grievances` contact-flag count) |
 | GET | `/api/ttd-letters` | List TTD reference letters (filterable by `from`/`to`) |
 | GET | `/api/ttd-letters/check-duplicate` | Check for existing letters by Aadhar |

@@ -35,7 +35,7 @@ for (let i = 0; i < 3; i++) {
 db.schedule = db.schedule || [];
 db.schedule.push({
   id: `SCH_DUMMY_${Date.now()}`,
-  event_name: 'Palanadu Zilla Parishad Review',
+  event_name: 'Palnadu Zilla Parishad Review',
   date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
   time: '10:00',
   mandal: 'Narasaraopet',
