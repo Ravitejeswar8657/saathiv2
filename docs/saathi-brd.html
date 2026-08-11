@@ -1,0 +1,1121 @@
+<title>Saathi — Business Requirement Document</title>
+
+<style>
+  :root {
+    --paper:     #EFF2F4;
+    --surface:   #FFFFFF;
+    --surface-2: #F5F7F9;
+    --ink:       #1A2228;
+    --ink-soft:  #586873;
+    --rule:      #D3DADF;
+    --rule-soft: #E6EBEE;
+    --accent:    #1E4E6B;
+    --accent-wash: rgba(30, 78, 107, 0.07);
+    --ok:        #1B6647;
+    --ok-wash:   rgba(27, 102, 71, 0.08);
+    --warn:      #855F0C;
+    --warn-wash: rgba(133, 95, 12, 0.09);
+
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #0F161B;
+      --surface:   #171F26;
+      --surface-2: #1E272F;
+      --ink:       #DDE4E9;
+      --ink-soft:  #93A2AD;
+      --rule:      #2E3B45;
+      --rule-soft: #232F38;
+      --accent:    #7FB4D4;
+      --accent-wash: rgba(127, 180, 212, 0.10);
+      --ok:        #62BC94;
+      --ok-wash:   rgba(98, 188, 148, 0.11);
+      --warn:      #D6A84E;
+      --warn-wash: rgba(214, 168, 78, 0.11);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:     #0F161B;
+    --surface:   #171F26;
+    --surface-2: #1E272F;
+    --ink:       #DDE4E9;
+    --ink-soft:  #93A2AD;
+    --rule:      #2E3B45;
+    --rule-soft: #232F38;
+    --accent:    #7FB4D4;
+    --accent-wash: rgba(127, 180, 212, 0.10);
+    --ok:        #62BC94;
+    --ok-wash:   rgba(98, 188, 148, 0.11);
+    --warn:      #D6A84E;
+    --warn-wash: rgba(214, 168, 78, 0.11);
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.65;
+    margin: 0;
+    padding: 30px 18px 90px;
+  }
+
+  .doc {
+    max-width: 1120px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+  }
+
+  /* ── cover / control block ── */
+  .cover { padding: 46px 56px 34px; border-bottom: 2px solid var(--accent); }
+  .org {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.17em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  .cover h1 {
+    font-family: var(--sans);
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.14;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  .cover .strap {
+    font-size: 18.5px;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 62ch;
+  }
+
+  .control {
+    margin-top: 32px;
+    border: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+  .control div {
+    padding: 12px 16px;
+    border-right: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .control dt {
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 0 0 3px;
+  }
+  .control dd {
+    font-family: var(--mono);
+    font-size: 13px;
+    margin: 0;
+  }
+
+  /* ── body ── */
+  .content { padding: 0 56px 54px; }
+
+  section { padding-top: 46px; }
+  section > h2 {
+    font-family: var(--sans);
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0 0 6px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--accent);
+    text-wrap: balance;
+  }
+  section > h2 .num {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    margin-right: 12px;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 17.5px;
+    font-weight: 700;
+    letter-spacing: -0.008em;
+    margin: 36px 0 8px;
+    text-wrap: balance;
+  }
+  h3 .num { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 9px; }
+  h4 {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 24px 0 6px;
+  }
+  p { margin: 0 0 14px; max-width: 76ch; }
+  .lede { font-size: 18px; }
+  ul, ol { max-width: 76ch; padding-left: 22px; margin: 0 0 14px; }
+  li { margin-bottom: 7px; }
+  strong { font-weight: 700; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-wash);
+    padding: 14px 20px;
+    margin: 20px 0;
+    max-width: 82ch;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .tag {
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  /* ── tables ── */
+  .scroll { overflow-x: auto; margin: 14px 0 22px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; line-height: 1.5; }
+  caption {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    text-align: left;
+    padding-bottom: 8px;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 10px 16px 10px 0;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  thead th {
+    font-family: var(--sans);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    border-bottom: 1.5px solid var(--rule);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 1px solid var(--rule); }
+  td.id {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  td.st { white-space: nowrap; }
+  th.narrow, td.narrow { white-space: nowrap; }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .b-ok   { background: var(--ok-wash);   color: var(--ok);   border: 1px solid var(--ok); }
+  .b-part { background: var(--warn-wash); color: var(--warn); border: 1px solid var(--warn); }
+  .b-todo { background: transparent;      color: var(--ink-soft); border: 1px dashed var(--ink-soft); }
+
+  .keyline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    padding: 13px 18px;
+    background: var(--surface-2);
+    border: 1px solid var(--rule-soft);
+    font-family: var(--sans);
+    font-size: 12.5px;
+    margin: 18px 0 6px;
+  }
+  .keyline span { display: flex; align-items: center; gap: 8px; }
+
+  .footer {
+    border-top: 1px solid var(--rule);
+    padding: 22px 56px 30px;
+    font-family: var(--sans);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+  }
+
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible, .scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  @media (max-width: 760px) {
+    body { padding: 12px 8px 60px; }
+    .cover { padding: 30px 24px 26px; }
+    .cover h1 { font-size: 26px; }
+    .content { padding: 0 24px 40px; }
+    .footer { padding: 20px 24px 26px; }
+  }
+</style>
+
+<div class="doc">
+
+  <div class="cover">
+    <p class="org">Office of the Member of Parliament · Palanadu Constituency</p>
+    <h1>Business Requirement Document</h1>
+    <p class="strap">Saathi — Constituency Engagement, Grievance Redressal and Political Intelligence Platform</p>
+
+    <div class="control">
+      <div><dt>Document type</dt><dd>Business Requirement Document</dd></div>
+      <div><dt>Version</dt><dd>1.0</dd></div>
+      <div><dt>Status</dt><dd>For review</dd></div>
+      <div><dt>Date of issue</dt><dd>11 August 2026</dd></div>
+      <div><dt>Business owner</dt><dd>Chief of Staff</dd></div>
+      <div><dt>Scope</dt><dd>Full platform, all capabilities</dd></div>
+      <div><dt>Prepared by</dt><dd>Business Analysis</dd></div>
+      <div><dt>Basis of analysis</dt><dd>Operational system and process flow</dd></div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ═══════════ 1 ═══════════ -->
+    <section>
+      <h2><span class="num">1</span>Business Objective</h2>
+
+      <h3><span class="num">1.1</span>The business problem</h3>
+      <p class="lede">A parliamentary office serving a rural constituency receives citizen requests in the forms its citizens can actually produce — a handwritten paper form pushed across a desk, a telephone call in Telugu, a photograph of a sanction letter, a voice note from a village. It receives political information the same way: a field worker's spoken report, a photographed banner, a newspaper cutting, a scribbled note.</p>
+
+      <p>Before Saathi, none of this became information the office could act on collectively. Each intake stream lived in a separate register, a separate spreadsheet, or a staff member's memory. This produced five recurring operational failures:</p>
+
+      <ul>
+        <li><strong>Requests were lost or duplicated.</strong> The same citizen approaching the office twice through two different channels generated two unconnected cases, and neither was recognised as a repeat.</li>
+        <li><strong>Prioritisation was personality-driven.</strong> Which case was urgent depended on who last spoke to whom, not on any consistent standard the office could defend.</li>
+        <li><strong>Preparation for engagements was manual and inconsistent.</strong> Assembling who the Member of Parliament would meet, what they had asked for previously, and what had been promised took hours per day and was frequently incomplete.</li>
+        <li><strong>Field political reporting never reached the leadership.</strong> Campaign activity, scheme delivery and cluster-level observations were reported informally and never aggregated.</li>
+        <li><strong>Nothing was measurable.</strong> The office could not state which villages it had neglected, which categories of request dominated a mandal, or whether a commitment had been honoured.</li>
+      </ul>
+
+      <h3><span class="num">1.2</span>Value delivered</h3>
+      <p>Saathi converts an unstructured, multi-channel, multi-lingual inflow into a single verified operational record, and turns that record into the specific outputs the office must produce each day.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 1.1 — Value by business dimension</caption>
+          <thead>
+            <tr><th style="width:22%">Dimension</th><th style="width:39%">Before</th><th>Delivered by Saathi</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Citizen service</strong></td><td>Paper forms filed manually; no way to tell whether a citizen had approached before.</td><td>Every request captured in whatever form it arrived, recognised against existing cases, and tracked to a resolution status.</td></tr>
+            <tr><td><strong>Consistency</strong></td><td>Urgency assigned informally, case by case.</td><td>A fixed, published prioritisation standard applied identically to every request, and explainable to anyone who questions the ordering.</td></tr>
+            <tr><td><strong>Staff productivity</strong></td><td>Hours per day transcribing forms and assembling engagement notes.</td><td>Automated first-pass reading of documents and voice recordings, with staff acting as verifiers rather than transcribers.</td></tr>
+            <tr><td><strong>Leadership visibility</strong></td><td>Verbal briefings of uneven quality.</td><td>A produced daily briefing document, a geographic coverage view, and an enquiry facility over the office's entire history.</td></tr>
+            <tr><td><strong>Institutional memory</strong></td><td>Held by individuals; lost on staff turnover.</td><td>Held by the organisation, searchable, with every original document and recording retained against its case.</td></tr>
+            <tr><td><strong>Accountability</strong></td><td>No audit trail of what changed or who changed it.</td><td>Every correction to a case preserved as a recoverable prior version.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">1.3</span>Guiding business principles</h3>
+      <p>Three principles govern the design of every capability in this document and should govern every future change to it.</p>
+
+      <div class="callout">
+        <span class="tag">Principle 1 — Assisted, never autonomous</span>
+        <p>Automated extraction produces a <em>proposal</em>. A member of staff reviews and corrects that proposal, and the corrected version — not the machine's reading — becomes the official record. No automated output is ever committed to the register unseen.</p>
+      </div>
+
+      <div class="callout">
+        <span class="tag">Principle 2 — Advice is separated from action</span>
+        <p>Where the system suggests a reply to a citizen, a next step, or the wording of a letter to a government department, that suggestion is written to advisory fields only. It can never populate the fields that record what the office actually did. The audit trail records decisions taken by people.</p>
+      </div>
+
+      <div class="callout">
+        <span class="tag">Principle 3 — The source is never discarded</span>
+        <p>The original photograph, scanned document or voice recording is retained against the case permanently, so any staff member can re-verify a doubtful reading against the original at any point in the future.</p>
+      </div>
+
+      <h3><span class="num">1.4</span>Proposed success measures</h3>
+      <ul>
+        <li>Elapsed time from a citizen presenting a request to that request being visible in the register, with a category and a priority.</li>
+        <li>Percentage of automatically extracted fields corrected by staff at review — the direct measure of extraction reliability.</li>
+        <li>Percentage of repeat approaches correctly identified as linked to an existing case.</li>
+        <li>Proportion of open requests older than their recorded deadline.</li>
+        <li>Number of villages with registered stakeholders that have received no engagement within the neglect threshold.</li>
+        <li>Preparation time per engagement, measured before and after adoption.</li>
+      </ul>
+    </section>
+
+    <!-- ═══════════ 2 ═══════════ -->
+    <section>
+      <h2><span class="num">2</span>User Persona Profiles</h2>
+
+      <p>Saathi is used by a small, non-technical team operating under time pressure, frequently on mobile devices in the field. Several personas are field staff whose primary working language is Telugu. The system must therefore favour capture over form-filling, and correction over data entry.</p>
+
+      <h3><span class="num">2.1</span>Primary personas</h3>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 2.1 — Primary business users</caption>
+          <thead>
+            <tr><th style="width:20%">Persona</th><th style="width:26%">Role in the workflow</th><th style="width:27%">Goals</th><th>Constraints and pressures</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Front Office Officer</strong><br><span style="color:var(--ink-soft)">Grievance intake</span></td>
+              <td>Receives citizens in person and by telephone. Captures the request, verifies the automated reading, and commits it to the register.</td>
+              <td>Record every citizen accurately and quickly; never turn a citizen away because the paperwork is slow; recognise repeat visitors.</td>
+              <td>Handles queues of citizens; often processes a stack of paper forms after the office closes; must work in Telugu and English interchangeably.</td>
+            </tr>
+            <tr>
+              <td><strong>Personal Assistant</strong><br><span style="color:var(--ink-soft)">Scheduling and briefing</span></td>
+              <td>Maintains the engagement schedule, prepares each engagement, and produces the daily briefing document.</td>
+              <td>Ensure the Member of Parliament never meets an important stakeholder unprepared; produce the briefing before the day starts.</td>
+              <td>Works to a fixed daily deadline; the schedule changes at short notice; is accountable for anything the Member is not told.</td>
+            </tr>
+            <tr>
+              <td><strong>Field Political Coordinator</strong></td>
+              <td>Logs campaign activity, government scheme delivery and cluster-level field reports from the constituency.</td>
+              <td>Report ground reality without having to write a formal document; have that report reach the leadership.</td>
+              <td>Reports from the field, usually by phone, often by voice; has limited time and limited typing ability.</td>
+            </tr>
+            <tr>
+              <td><strong>Chief of Staff</strong></td>
+              <td>Reviews the consolidated position across all pillars; directs escalation and departmental follow-up; owns the platform.</td>
+              <td>Know the true state of the constituency; identify neglect and emerging issues before they become political problems.</td>
+              <td>Consumes rather than enters data; needs the position at a glance, not a list of records to read.</td>
+            </tr>
+            <tr>
+              <td><strong>Member of Parliament</strong></td>
+              <td>Consumes the daily briefing and the executive intelligence view. Does not enter data.</td>
+              <td>Arrive at each engagement informed; understand delivery performance and constituency sentiment.</td>
+              <td>Extremely time-constrained; consumes information immediately before use; requires Telugu output.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">2.2</span>Secondary personas</h3>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 2.2 — Secondary business users and affected parties</caption>
+          <thead>
+            <tr><th style="width:20%">Persona</th><th style="width:26%">Role in the workflow</th><th>Goals and interaction</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Field Correspondent</strong><br><span style="color:var(--ink-soft)">Journalist</span></td>
+              <td>Submits local news items and supporting material through a dedicated submission form.</td>
+              <td>Have constituency-relevant reporting reach the office promptly. Interacts with one form only and sees nothing else in the system.</td>
+            </tr>
+            <tr>
+              <td><strong>Communications Officer</strong></td>
+              <td>Maintains the social media content calendar — scheduled posts, their imagery and captions.</td>
+              <td>Plan the public communications calendar and hold approved material in one place ahead of publication.</td>
+            </tr>
+            <tr>
+              <td><strong>Data Administrator</strong></td>
+              <td>Performs periodic bulk imports of the stakeholder master list and the media tracking sheet.</td>
+              <td>Keep the stakeholder register current without manual re-keying. Interacts with the system infrequently.</td>
+            </tr>
+            <tr>
+              <td><strong>Constituent</strong><br><span style="color:var(--ink-soft)">Citizen — indirect</span></td>
+              <td>Does not use the system. Presents a request in person or by telephone and receives a response.</td>
+              <td>The ultimate beneficiary. Every requirement in Section 3 is justified by the quality of service this persona receives.</td>
+            </tr>
+            <tr>
+              <td><strong>Government Department Official</strong><br><span style="color:var(--ink-soft)">External — indirect</span></td>
+              <td>Does not use the system. Receives formal correspondence generated from a citizen's case.</td>
+              <td>Receives a correctly addressed, complete referral identifying the citizen, the location and the request.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ 3 ═══════════ -->
+    <section>
+      <h2><span class="num">3</span>Functional Requirements &amp; Business Rules</h2>
+
+      <p>Requirements are grouped into ten business capabilities. Each rule carries a reference identifier for traceability and a current-state marker.</p>
+
+      <div class="keyline">
+        <span><span class="badge b-ok">In place</span> Operating in the live service today</span>
+        <span><span class="badge b-part">Partial</span> Available but incomplete against the business need</span>
+        <span><span class="badge b-todo">Proposed</span> Required by the business, not yet delivered</span>
+      </div>
+
+      <!-- 3.1 -->
+      <h3><span class="num">3.1</span>Capability A — Constituent Request Capture</h3>
+      <p><strong>Purpose.</strong> To accept a citizen request in whatever form the citizen and the office can produce it, without forcing a member of staff to transcribe it first.</p>
+      <p><strong>Business trigger.</strong> A citizen presents at the office in person, or telephones it. Alternatively, a member of staff processes a batch of paper forms collected earlier in the day.</p>
+      <p><strong>Termination.</strong> The capability ends when a verified request is committed to the register, or when the member of staff discards the draft.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.1 — Business rules: constituent request capture</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">GRV-01</td><td>Recognised intake channels are <strong>In-Person Walk-In</strong> and <strong>Telephone Call</strong>.</td><td>These are the two channels through which the office genuinely receives citizens. Historic records carry two retired messaging channels; those values are preserved for continuity but no new request may be created against them.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-02</td><td>A submission must contain <strong>at least one</strong> of: typed notes, a photograph or scanned document, or a voice recording.</td><td>An entirely empty submission is rejected and the officer is told, in plain terms, that at least one of the three is required. Any combination of the three is permitted.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-03</td><td>A single submission produces <strong>exactly one</strong> request record, regardless of how many attachments it carries.</td><td>A citizen presenting a form, a supporting photograph and a spoken explanation has made one request, not three. This rule prevents the register being inflated by attachment count.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-04</td><td>Bulk capture permits up to <strong>20 photographed forms</strong> in one batch; each form becomes its own separate request.</td><td>Supports the end-of-day processing of a stack of paper forms collected at a camp or the front desk. Here each form genuinely is a distinct citizen, so the one-record rule applies per form.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-05</td><td>A single submission permits up to <strong>10 photographs or documents</strong> and <strong>one voice recording</strong>, each up to <strong>15 MB</strong>.</td><td>Sufficient for a multi-page form with supporting evidence and a spoken explanation, while protecting the service from oversized uploads on poor rural connections.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-06</td><td>Accepted formats are standard photograph formats and PDF documents for imagery, and the common voice-recording formats for audio.</td><td>An unsupported file is rejected immediately, naming the file type, so the officer can convert or re-capture rather than discovering the failure later.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-07</td><td>Attachments are held provisionally until the request is committed.</td><td>Discarding a draft releases its attachments. Any attachment left unclaimed for <strong>24 hours</strong> is cleared automatically, so an abandoned review does not accumulate citizen material indefinitely.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-08</td><td>If the automated extraction service is unavailable, capture is <strong>refused with a clear explanation</strong> rather than failing silently.</td><td>The register itself remains fully usable for direct manual entry, so an outage degrades the service but never stops the office recording a citizen.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.2 -->
+      <h3><span class="num">3.2</span>Capability B — Assisted Extraction and Mandatory Verification</h3>
+      <p><strong>Purpose.</strong> To convert captured material into structured request information, and to guarantee that a human being confirms it before it becomes an official record.</p>
+      <p><strong>Business trigger.</strong> Material is captured under Capability A.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.2 — Business rules: extraction and verification</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">GRV-09</td><td><strong>No extracted request may be saved without staff review.</strong></td><td>Every extraction is presented in an editable preview. The officer may correct any field. The corrected version becomes the record. This is the single most important control in the platform.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-10</td><td>Voice recordings are transcribed in their <strong>original language and script</strong>, including Telugu and mixed Telugu–English speech.</td><td>Forcing a translation at capture would lose nuance and make the record unverifiable against the recording. The transcript is retained alongside the request.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-11</td><td>Where several sources are present, precedence is fixed: <strong>the photographed form governs identity and location</strong>; <strong>the spoken account governs the nature and urgency</strong> of the request.</td><td>Reflects reality — a form carries the citizen's written name, village and telephone number; the spoken account carries the explanation of what is actually wrong.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-12</td><td>The request description is <strong>assembled from every source</strong>, each contribution clearly labelled by its origin. It is never selected from one source.</td><td>Nothing a citizen said or wrote is silently discarded because another source was judged more reliable. The officer sees all of it and edits it down.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-13</td><td>Any detail <strong>typed by the officer overrides</strong> the corresponding extracted value outright.</td><td>Staff knowledge of a citizen or a village is authoritative over an automated reading.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-14</td><td>Where extraction of one attachment fails, <strong>the submission continues</strong> and the failure is recorded in place against that attachment.</td><td>One unreadable photograph must not discard a citizen's entire submission. The officer sees which part failed and supplies it manually.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-15</td><td>Submissions judged not to be requests are <strong>flagged, not discarded</strong>.</td><td>Greetings, opinions and general commentary are surfaced so the officer can gate them out of the register. A photographed official form is always treated as a valid request regardless of this judgement.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-16</td><td>Non-request input the officer wishes to keep is recorded as <strong>Feedback</strong> rather than as a request.</td><td>Preserves genuine constituency sentiment as intelligence without inflating the open-request count. Feedback is counted and reported separately, and optionally classified as Positive, Neutral, Negative or Mixed.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-17</td><td>Confidence in the automated reading of a document is recorded against the request.</td><td>Allows supervisors to identify which records warrant re-verification against the retained original.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.3 -->
+      <h3><span class="num">3.3</span>Capability C — Duplicate Identification and Case Linking</h3>
+      <p><strong>Purpose.</strong> To recognise when a citizen has approached the office before, so that the office responds to a person's history rather than to an isolated request.</p>
+      <p><strong>Business trigger.</strong> Runs continuously as an officer types into the capture form, and again automatically whenever a request is built.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.3 — Business rules: duplicate identification</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">GRV-18</td><td>An <strong>exact match on telephone number</strong> is treated as a confirmed relationship and the two requests are <strong>linked automatically in both directions</strong>.</td><td>A telephone number is a reliable identifier in this context. Linking both ways means the connection is visible from either request, whichever the officer opens first.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-19</td><td>A <strong>similar request description</strong> yields up to five <em>possible</em> matches. These are advisory and are <strong>not</strong> linked automatically.</td><td>Similar wording is a hint, not proof. The officer decides. Comparison is only attempted where the description is substantive enough to be meaningful.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-20</td><td>A <strong>matching name and village in combination</strong> yields a possible match, advisory only.</td><td>Names recur across a constituency; name alone is not a signal. Name together with village is worth showing an officer, but not worth acting on automatically.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-21</td><td>Possible matches are displayed <strong>live during data entry</strong>, before the request is committed.</td><td>The officer can ask the citizen "have you been to us before about this?" while the citizen is still present — the only moment at which the question can be resolved cheaply.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-22</td><td>Linked requests display a visible indicator in the register.</td><td>Anyone reviewing a case sees immediately that it is part of a repeat approach and can review the history before responding.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.4 -->
+      <h3><span class="num">3.4</span>Capability D — Request Classification and Prioritisation</h3>
+      <p><strong>Purpose.</strong> To apply one consistent, explainable standard of importance across every request, independent of who captured it.</p>
+      <p><strong>Business trigger.</strong> Classification is proposed at extraction; the priority is calculated at the moment the request is committed and recalculated on every subsequent amendment to category or urgency.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.4 — Business rules: classification and prioritisation</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">GRV-23</td><td>Every request is assigned <strong>exactly one category</strong> from a fixed, published list of <strong>25 request categories</strong>.</td><td>A closed list is what makes reporting comparable across mandals and across months. The full list, with departmental ownership, is at Appendix A.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-24</td><td>Every category carries a <strong>fixed institutional weight</strong> between 30 and 90, set by the office as a matter of policy.</td><td>Expresses the office's standing position on relative importance — medical assistance and law and order rank highest; organisational and courtesy matters rank lowest.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-25</td><td>Every request carries an urgency of <strong>High, Medium or Low</strong>, with <strong>Medium as the default</strong> where none can be determined.</td><td>Urgency is a judgement about this particular citizen's situation, proposed automatically and confirmed or corrected by the officer, with a stated reason.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-26</td><td>Priority is calculated as <strong>40 per cent category weight and 60 per cent urgency</strong>.</td><td>Deliberately weights the individual circumstance above the category. A low-ranking category presented as genuinely urgent will outrank a high-ranking category presented as routine.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-27</td><td>The calculation is <strong>fixed and identical for every request</strong>, and the resulting priority is stored with the request.</td><td>The office must be able to explain to any citizen, official or member why one case ranked above another. Storing the result means historic ordering remains explainable even after the policy weights change.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-28</td><td>Amending category or urgency <strong>immediately recalculates</strong> the priority.</td><td>Prevents a corrected classification from leaving a stale priority behind it.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.5 -->
+      <h3><span class="num">3.5</span>Capability E — Case Management, Escalation and Correspondence</h3>
+      <p><strong>Purpose.</strong> To carry a request from capture through to resolution, including formal referral to the responsible government department.</p>
+      <p><strong>Business trigger.</strong> A request exists in the register and a member of staff opens it to progress it.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.5 — Business rules: case management and correspondence</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">GRV-29</td><td>Resolution status is one of <strong>Pending</strong>, <strong>In Progress</strong> or <strong>Resolved</strong>, defaulting to Pending on creation.</td><td>Three states are sufficient for the office's working practice and keep the register comprehensible to every staff member.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-30</td><td>A case may record an <strong>assigned officer</strong>, a <strong>deadline</strong>, the <strong>action already taken</strong> and the <strong>action still required</strong>.</td><td>These four fields constitute the office's accountability record and are only ever written by a person.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-31</td><td>Every amendment <strong>preserves the previous version</strong> of the case.</td><td>A re-classified category or a reassigned officer is recoverable. Corrections no longer overwrite history irretrievably.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-32</td><td>Each category maps to a <strong>named government department and a designated officer of that department</strong>.</td><td>Referral does not depend on any staff member knowing which office handles a subject. See Appendix A.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-33</td><td>A <strong>suggested citizen reply and internal next step</strong> may be generated on request. These are written to advisory fields only and <strong>can never populate the accountability record</strong>.</td><td>Direct application of Principle 2. The suggestion is generated only when a staff member asks for it, never automatically on save.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-34</td><td>A <strong>formal letter to the responsible department</strong> may be drafted on request, addressed automatically from the category mapping, and is fully editable before issue.</td><td>Removes the drafting burden while keeping the office as author. The draft is retained so an interrupted session does not lose the work.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-35</td><td>A formal letter <strong>cannot be produced for issue until a draft exists</strong>; the request is refused with an instruction to draft one first.</td><td>Prevents an empty letter bearing the Member's name reaching a government department.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-36</td><td>Deleting a case <strong>also removes its retained source material</strong>.</td><td>Citizen photographs and recordings must not survive the deletion of the case that justified holding them.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-37</td><td>The register must record <strong>what the department actually did in response</strong> — the reply received, the outcome and the date.</td><td>Today the resolution status depends entirely on a staff member remembering to update it. Without a captured outcome, the office cannot measure departmental responsiveness, and delivery reporting cannot be produced.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.6 -->
+      <h3><span class="num">3.6</span>Capability F — Temple Reference Letter Issuance</h3>
+      <p><strong>Purpose.</strong> To issue temple darshan reference letters as a controlled outcome of a citizen request, under fixed entitlement limits.</p>
+      <p><strong>Business trigger.</strong> A citizen request of this nature exists and a member of staff raises a letter from it.</p>
+
+      <div class="callout">
+        <span class="tag">Scope note</span>
+        <p>Reference letters are <strong>not a separate intake channel</strong>. They are raised from an existing citizen request and are managed within the request register, where the office already works. This document therefore treats them as an outcome of Capability E, not as an independent capability.</p>
+      </div>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.6 — Business rules: reference letter issuance</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">GRV-38</td><td>A letter requires a <strong>date</strong>, a <strong>recipient name</strong> and a <strong>darshan type</strong> from a fixed list of two.</td><td>An incomplete letter is refused. The two recognised types are Break Darshan and Supadam.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-39</td><td>Party size is capped by darshan type: <strong>Break Darshan — 6 persons; Supadam — 10 persons</strong>.</td><td>These are the entitlements the office may extend. A request above the cap is refused, stating the type, the limit and the number requested.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-40</td><td>Party size, where stated, must be a <strong>whole number of at least one</strong>.</td><td>Basic integrity check preventing a letter being issued for a fractional or zero party.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-41</td><td>Prior letters for the <strong>same national identity number</strong> are surfaced as a warning at the point of issue.</td><td>Alerts staff to repeat beneficiaries so the office can apply judgement. It is a warning, not a block — repeat issue may be entirely legitimate.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-42</td><td>Letters raised directly are <strong>Confirmed</strong>. Letters arising from bulk-processed forms begin as <strong>Pending Review</strong> and <strong>cannot be confirmed</strong> until date, darshan type and party size are all present.</td><td>Paper forms do not capture darshan type or party size, so a letter derived from one is necessarily incomplete until staff supply the missing entitlement details.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GRV-43</td><td>An issued letter remains <strong>linked to the originating request</strong>.</td><td>The register shows what was granted to whom and on what basis, from the citizen's case rather than from a separate list.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.7 -->
+      <h3><span class="num">3.7</span>Capability G — Engagement Scheduling and Preparation</h3>
+      <p><strong>Purpose.</strong> To plan the Member's engagements and to ensure that every engagement is entered with the relevant stakeholders, history and talking points to hand.</p>
+      <p><strong>Business trigger.</strong> The Personal Assistant records an engagement, or opens the preparation workflow for a scheduled date.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.7 — Business rules: scheduling and engagement preparation</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">ENG-01</td><td>An engagement requires an <strong>event name, a date and a mandal</strong>. Without all three it is refused.</td><td>The mandal is mandatory because it is the key by which relevant stakeholders are identified. An engagement without a location cannot be prepared for.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-02</td><td>On creation, the system <strong>automatically identifies stakeholders in that mandal</strong> and attaches them to the engagement.</td><td>Removes the largest manual step in preparation. The Personal Assistant curates a proposed list rather than building one.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-03</td><td>An engagement may be tagged with one or more <strong>audience cohorts</strong> from a defined list of 16, spanning the political ecosystem, religious and caste communities, demographic segments and occupational groups.</td><td>Allows the office to plan and later evidence its engagement across the constituency's communities. Optional — most engagements do not target a specific cohort.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-04</td><td>Whether a <strong>speech preparation step</strong> applies is determined by engagement type. It applies to <strong>Public Meeting, Inauguration and Party Cadre Meeting</strong>.</td><td>These are the occasions on which the Member addresses a room. Preparing speaking points for the others wastes the Assistant's time.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-05</td><td>The speech step is <strong>skipped by default</strong> for Grievance Camp, Condolence Visit, Festival and unspecified types, but the Assistant may <strong>force it open</strong>.</td><td>A grievance camp is for listening; a condolence visit is expressly not a campaign occasion; a festival visit is not a policy address. The override respects that the Assistant knows the occasion better than the rule does.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-06</td><td>Preparation follows five sequential stages: <strong>Stakeholders and Notes → Speaking Points → Personal Touches → News → Preview and Issue</strong>.</td><td>Mirrors the order in which the Assistant genuinely works, and makes the state of preparation visible at a glance.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-07</td><td>Preparation <strong>cannot advance beyond the stakeholder stage until the stakeholder list is approved</strong>.</td><td>The single hard gate in the workflow. It guarantees a person has confirmed who the Member will meet before any briefing is produced.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-08</td><td>Draft speaking points and personal-touch suggestions are <strong>starting drafts, always editable</strong>, and are marked as reviewed only when a person has entered content.</td><td>Preserves Principle 1 in the briefing workflow. The distinction between "drafted" and "reviewed" tells the Assistant what still needs attention.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-09</td><td>News suggested for an engagement <strong>prioritises items tagged to that day's mandals</strong>, with wider coverage following.</td><td>Local matters are what a local audience expects the Member to be aware of.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-10</td><td>Recording an interaction with a stakeholder <strong>resets their contact recency and adjusts their engagement score</strong>.</td><td>Keeps the neglect analysis honest by reflecting contact as it happens.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-11</td><td>Stakeholder summaries should be <strong>assembled from the individual's own history</strong> with the office.</td><td>Today a standing note exists only where a staff member typed one. The office holds the history required to produce it — prior requests, prior commitments, prior meetings — but does not yet compose it into a briefing line.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.8 -->
+      <h3><span class="num">3.8</span>Capability H — Daily Briefing Production</h3>
+      <p><strong>Purpose.</strong> To produce, for any given date, a single printable briefing document that the Member can read immediately before the day begins.</p>
+      <p><strong>Business trigger.</strong> The Personal Assistant completes preparation and requests the briefing for a date.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.8 — Business rules: daily briefing</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">ENG-12</td><td>The briefing is produced <strong>for a specified date</strong> and consolidates that date's engagements, stakeholders, notes, speaking points and relevant news.</td><td>One document, one day. The Member is not asked to assemble anything.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-13</td><td>The briefing must render <strong>Telugu correctly</strong>.</td><td>Non-negotiable. A briefing that cannot present names, villages and speaking points in Telugu is not usable by its intended reader.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENG-14</td><td>If no engagements exist for the requested date, the user is <strong>told plainly that none exist</strong>.</td><td>Distinguishes an empty day from a failure, so the Assistant does not investigate a non-problem.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.9 -->
+      <h3><span class="num">3.9</span>Capability I — Political Field Reporting</h3>
+      <p><strong>Purpose.</strong> To collect structured field intelligence on campaigns, government scheme delivery and cluster-level activity, in the same low-effort manner as citizen requests.</p>
+      <p><strong>Business trigger.</strong> A field coordinator submits a report from the constituency.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.9 — Business rules: political field reporting</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">POL-01</td><td>Political reporting is a <strong>first-class intake channel</strong> with its own capture point, not a variant of citizen request capture.</td><td>The reporting audience, the reviewer and the downstream consumer are all different. Treating it as a sub-case of grievances obscures the only structured political signal the office holds.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">POL-02</td><td>A report must contain <strong>at least one</strong> of typed notes, photographs or documents, or a voice recording, and produces <strong>one report</strong> regardless of attachment count.</td><td>Identical capture standard to Capability A, deliberately, so a coordinator who can log a request can log a report without new training.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">POL-03</td><td>Limits are <strong>10 photographs or documents plus one voice recording, each up to 15 MB</strong>.</td><td>Consistent with citizen request capture.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">POL-04</td><td>Every report is classified as <strong>Campaign, Government Scheme, Cluster Report or Other</strong>.</td><td>A closed list making the three genuinely distinct kinds of field reporting separable for analysis.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">POL-05</td><td>Every report carries a delivery status of <strong>Planned, Ongoing, Completed or Delayed</strong>.</td><td>Turns a narrative report into something the office can track. Delayed is a first-class state because delay is the condition leadership most needs to see.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">POL-06</td><td>Every report records a <strong>mandal and village</strong>.</td><td>Makes political reporting analysable on the same geography as citizen requests — the precondition for comparing delivery against demand.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">POL-07</td><td>Reports are <strong>filterable by type, delivery status and mandal</strong>, and remain editable after submission.</td><td>Field reports are provisional by nature and are corrected as the situation develops.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">POL-08</td><td>Field reports must be <strong>summarised into the executive view</strong> as counts and delivery-status positions by mandal.</td><td>Reports are captured, categorised and located, but no leadership view reads them. The executive summary tiles they should populate remain illustrative. Closing this requires no new data collection.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+            <tr><td class="id">POL-09</td><td>The office requires a <strong>register of government schemes</strong> recording, per village, the number of cases applied, sanctioned, pending and settled.</td><td>Free-text reports classified as Government Scheme describe activity; they cannot answer "how many households in this village are still awaiting sanction". Delivery reporting depends on this.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+            <tr><td class="id">POL-10</td><td>The office requires intake for <strong>parliamentary and assembly speeches</strong> and for <strong>press engagements</strong>.</td><td>Currently there is no way to submit either. Their absence is the direct cause of the office being unable to produce any position on its own public record or tone.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.10 -->
+      <h3><span class="num">3.10</span>Capability J — Media Monitoring</h3>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.10 — Business rules: media monitoring</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">MED-01</td><td>A submitted news item requires a <strong>headline</strong>; all other detail is optional.</td><td>A correspondent filing from the field must be able to submit in seconds. Detail can follow.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">MED-02</td><td>Every item is classified by <strong>geographic scope</strong>: District, Mandal, State, National or International.</td><td>Prevents district coverage being lost among statewide political reporting — the distinction leadership most relies on.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">MED-03</td><td>A <strong>mandal-specific</strong> item and a <strong>district-wide</strong> item are recognised as different things, and district filtering returns both.</td><td>A field correspondent's report tagged to one village is operationally distinct from district-level coverage, though both matter to a district view.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">MED-04</td><td>Items carry a priority of <strong>High, Medium or Low</strong> and may carry a supporting attachment.</td><td>Allows the day's coverage to be triaged before it reaches the briefing.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">MED-05</td><td>Public news relevant to the constituency is <strong>gathered automatically and refreshed at 15-minute intervals</strong>.</td><td>Gives the office a continuously current external view without a staff member monitoring sources.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">MED-06</td><td>A <strong>media tracking sheet may be imported in bulk</strong>, each row classified on the same scope basis.</td><td>Supports the office's existing external media-monitoring arrangement without re-keying.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">MED-07</td><td>The office requires a <strong>media tone position</strong> across coverage, press engagements and public statements.</td><td>Presented today as an illustrative indicator only. A genuine position depends on the speech and press intake required by POL-10.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.11 -->
+      <h3><span class="num">3.11</span>Capability K — Stakeholder Register and Influence Assessment</h3>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.11 — Business rules: stakeholder register</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">STK-01</td><td>A stakeholder added individually requires a <strong>name, telephone number and mandal</strong>.</td><td>The minimum required to contact the person and to match them to an engagement.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">STK-02</td><td>The register may be populated in bulk from the <strong>master stakeholder spreadsheet</strong>.</td><td>The register is maintained externally by the party organisation and imported. Re-import does not duplicate existing entries.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">STK-03</td><td>Each stakeholder receives a <strong>Priority and Proximity assessment</strong> at import, combining estimated reach and role, contact recency, whether they have an open request, reciprocity, political affinity and their assigned priority level.</td><td>Gives the office a defensible ordering of ~3,250 stakeholders. The contributing factors are recorded against each individual so the assessment can be explained.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">STK-04</td><td>Stakeholders are banded into <strong>three tiers</strong>, each carrying a recommended engagement action — direct contact by the Member for the highest tier, assistant follow-up for the middle tier.</td><td>Converts a score into an instruction a staff member can act on without interpretation.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">STK-05</td><td>Stakeholders are <strong>searchable by approximate name</strong>, tolerating spelling variation.</td><td>Telugu names transliterate inconsistently. Exact-match search would make the register unusable at the front desk.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">STK-06</td><td><strong>Sensitive personal attributes</strong> — religion, caste, date of birth and gender — are excluded from the enquiry facility and from general search.</td><td>A deliberate governance control. These attributes are not exposed to open enquiry, and are not currently populated.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.12 -->
+      <h3><span class="num">3.12</span>Capability L — Coverage, Neglect and Governance Analysis</h3>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.12 — Business rules: coverage and governance analysis</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">COV-01</td><td>The <strong>universe of places that matter</strong> is defined as those in which the office holds registered stakeholders.</td><td>Prevents the neglect analysis being diluted by places where the office has no presence and no expectation of one.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COV-02</td><td>Coverage is measured by <strong>engagements actually scheduled</strong> against that universe.</td><td>Uses the record the office already maintains rather than imposing a separate attendance-recording burden.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COV-03</td><td>A stakeholder is <strong>stale after 90 days</strong> without contact; the threshold is adjustable by the reviewer.</td><td>Ninety days is the office's working standard; the ability to vary it supports pre-election tightening.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COV-04</td><td>Individually named <strong>influencers going stale are surfaced by name</strong>, not only in aggregate.</td><td>An aggregate percentage does not prompt action; a named person does.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COV-05</td><td>Request density, average priority and the <strong>dominant request category</strong> are presented <strong>geographically by mandal</strong>.</td><td>Lets leadership see where pressure is concentrated and what it consists of, without reading the register.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COV-06</td><td>Every analytical view must support the filter sequence <strong>Constituency → Mandal → Village</strong>.</td><td>Mandal-level filtering is consistently supported; village-level filtering is inconsistent across views, which prevents village-level accountability.</td><td class="st"><span class="badge b-part">Partial</span></td></tr>
+            <tr><td class="id">COV-07</td><td>The office requires a <strong>development delivery position by village</strong> — what was requested, what was referred, what was delivered.</td><td>The office's most-requested leadership output. It depends on the outcome capture at GRV-37 and the scheme register at POL-09.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.13 -->
+      <h3><span class="num">3.13</span>Capability M — Communications Calendar</h3>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.13 — Business rules: communications calendar</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">COM-01</td><td>A calendar entry requires a <strong>date</strong> and <strong>at least one item of media</strong>.</td><td>The calendar exists to hold planned material; an entry with neither is not a plan.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COM-02</td><td>A date may hold <strong>multiple entries</strong>; each entry may hold <strong>up to 10 items of media</strong> and one caption.</td><td>Reflects real practice — several posts on an active day, each a gallery.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COM-03</td><td>Video is permitted, at up to <strong>100 MB</strong> per item.</td><td>A materially higher allowance than request capture, because campaign video is the format and the material is uploaded from the office.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COM-04</td><td>Entries remain editable and removable; removal <strong>also removes the stored media</strong>.</td><td>Plans change; unused material should not persist after the plan is withdrawn.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">COM-05</td><td>Draft public content should be <strong>proposed from office activity</strong> — a completed engagement, a resolved request, a delivered scheme.</td><td>The calendar stores and schedules but originates nothing. Every input needed to propose content already exists in the register.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.14 -->
+      <h3><span class="num">3.14</span>Capability N — Institutional Knowledge Enquiry</h3>
+      <p><strong>Purpose.</strong> To let a staff member ask a question in plain language and receive an answer drawn from the office's own records.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.14 — Business rules: knowledge enquiry</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">ENQ-01</td><td>The enquiry facility is <strong>strictly read-only</strong>. It cannot create, amend or delete any record.</td><td>The definitive control on the capability. It can describe the register; it can never alter it.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENQ-02</td><td>Answers are <strong>grounded in the office's own records</strong>, which are presented to the facility as reference material and never as instruction.</td><td>Prevents a citizen's own words, captured in a request, from being interpreted as a directive to the system.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENQ-03</td><td>A question is <strong>recorded before any answer is attempted</strong>, and a partial answer is preserved if the user navigates away.</td><td>No question and no partial answer is lost to a dropped connection — a routine condition in this operating environment.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENQ-04</td><td>One conversation is active at a time; it <strong>closes automatically after 120 minutes</strong> of inactivity.</td><td>A new question hours later starts a new thread rather than appending to a stale one.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENQ-05</td><td>Conversations are <strong>titled from the first question asked</strong>.</td><td>Makes history navigable without asking staff to name threads.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENQ-06</td><td>Deleted conversations are <strong>recoverable for 30 days</strong>, with the <strong>10 most recent</strong> retained. Restored conversations return in a closed state.</td><td>Protects against accidental deletion under a bounded retention policy. Restoring does not silently redirect new questions into an old thread.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">ENQ-07</td><td>Search <strong>degrades rather than fails</strong>: if one retrieval method is unavailable, results are returned from the others and marked as reduced.</td><td>A partial answer with a visible caveat is more useful to a staff member mid-task than no answer at all.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.15 -->
+      <h3><span class="num">3.15</span>Capability O — Executive Intelligence View</h3>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.15 — Business rules: executive intelligence view</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">EXE-01</td><td>The executive view is <strong>consumption-only</strong>. It presents no data-entry function.</td><td>Its users are the Member and the Chief of Staff. Entry belongs to the operational personas.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">EXE-02</td><td>Information is organised into <strong>three standing pillars</strong>: Personal (the day), Political (standing) and Governance (delivery).</td><td>The office's own mental model. Every capability reports into exactly one pillar.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">EXE-03</td><td>Any indicator not derived from real records must be <strong>explicitly and visibly marked as illustrative</strong>.</td><td>A demonstration figure presented as fact on a leadership screen is a serious business risk. This rule is currently honoured and must remain a condition of release.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">EXE-04</td><td>Illustrative indicators must be <strong>replaced with real measures or withdrawn</strong>.</td><td>Constituency health, sentiment, opposition activity, scheme progress and fund utilisation are all presently illustrative. Each depends on a Proposed requirement elsewhere in this section.</td><td class="st"><span class="badge b-part">Partial</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3.16 -->
+      <h3><span class="num">3.16</span>Cross-Cutting Business Rules</h3>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <caption>Table 3.16 — Rules applying across all capabilities</caption>
+          <thead>
+            <tr><th class="narrow">Ref.</th><th style="width:26%">Rule</th><th>Business rationale and behaviour</th><th class="narrow">State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">GOV-01</td><td>Deletion is <strong>reversible by default</strong> across every register.</td><td>A record removed in error can be recovered. Only the deliberate removal of a case's source material is immediate and final.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GOV-02</td><td><strong>Constituency, mandal and village</strong> are the standard geographic vocabulary of every register and every report.</td><td>One shared vocabulary is what makes requests, engagements, field reports and media comparable to one another.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GOV-03</td><td>Dates are recorded and interpreted in <strong>Indian Standard Time</strong>.</td><td>"Today's briefing" must mean the working day of the office, without ambiguity.</td><td class="st"><span class="badge b-ok">In place</span></td></tr>
+            <tr><td class="id">GOV-04</td><td>Every register supports <strong>export to spreadsheet and to a printable document</strong>.</td><td>The office must be able to produce a register for a meeting, a department or an audit without system access.</td><td class="st"><span class="badge b-part">Partial</span></td></tr>
+            <tr><td class="id">GOV-05</td><td>The office recognises <strong>three organisational hierarchies</strong> over the same ground: administrative, party organisational and elected body.</td><td>Only the administrative hierarchy is currently recorded. The party and elected-body structures are not, and their lowest levels are not villages — so adopting them requires an explicit business decision on how they reconcile to the administrative geography.</td><td class="st"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ 4 ═══════════ -->
+    <section>
+      <h2><span class="num">4</span>End-to-End Business Workflow</h2>
+
+      <p>Four business journeys are described. Each states the successful path first, then the exception paths as they present to the user.</p>
+
+      <h3><span class="num">4.1</span>Journey 1 — Citizen request, capture to resolution</h3>
+
+      <h4>Successful path</h4>
+      <ol>
+        <li><strong>Presentation.</strong> A citizen attends the office with a completed paper form, or telephones to describe a problem.</li>
+        <li><strong>Capture.</strong> The Front Office Officer records the approach in whatever form is available — photographing the form, typing a summary of the call, recording the citizen's own spoken account, or any combination. Nothing is transcribed at this stage.</li>
+        <li><strong>Duplicate check.</strong> As the officer enters the citizen's details, the system surfaces earlier approaches. A telephone match is presented as confirmed; a similar description or a matching name and village is presented as a possibility for the officer to test with the citizen while they are still present.</li>
+        <li><strong>Proposal.</strong> The system reads the captured material and proposes a complete request: the citizen's identity and location, the nature of the request, its category and its urgency, with the reasoning for the urgency stated.</li>
+        <li><strong>Verification.</strong> The officer reviews the proposal in an editable form, corrects anything misread, and confirms it. <em>This step cannot be bypassed.</em></li>
+        <li><strong>Commitment.</strong> On confirmation the request enters the register. Its priority is calculated from its category and urgency. Any confirmed duplicate is linked in both directions. The original photographs and recordings are retained against the case.</li>
+        <li><strong>Progression.</strong> A staff member assigns an officer, sets a deadline where appropriate, and records the action taken. Status moves from Pending to In Progress.</li>
+        <li><strong>Referral.</strong> Where a government department must act, staff request a draft letter. The system addresses it to the department and officer mapped to the request's category and produces a draft, which staff edit and then issue as a formal document under the Member's name.</li>
+        <li><strong>Closure.</strong> When the matter is settled, status is set to Resolved. The request leaves the open count and remains permanently searchable.</li>
+      </ol>
+
+      <h4>Exception paths</h4>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:32%">Condition</th><th>What the user experiences</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Nothing captured — no notes, no attachment, no recording</td><td>The submission is refused with a plain instruction that at least one of the three is required. Nothing is recorded.</td></tr>
+            <tr><td>An unsupported file type is attached</td><td>The submission is refused immediately, naming the offending file type, so the officer can re-capture rather than discovering the problem after the citizen has left.</td></tr>
+            <tr><td>One of several attachments cannot be read</td><td>Capture continues. The failure is shown against that specific attachment, and the officer supplies the missing detail manually from the retained original.</td></tr>
+            <tr><td>The automated reading is wrong</td><td>The officer corrects it in the review form. The correction becomes the record; the machine's reading is discarded.</td></tr>
+            <tr><td>The submission is not a request at all</td><td>It is flagged. The officer either discards it or retains it as Feedback, which is counted separately and never inflates the open-request position.</td></tr>
+            <tr><td>The officer abandons the review</td><td>The draft is discarded and its attachments released. Anything left unclaimed is cleared automatically after 24 hours.</td></tr>
+            <tr><td>Automated extraction is unavailable</td><td>Assisted capture is refused with a clear explanation. The officer records the request manually; no citizen is turned away.</td></tr>
+            <tr><td>A formal letter is requested before one has been drafted</td><td>The request is refused with an instruction to draft the letter first, preventing an empty document being issued under the Member's name.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">4.2</span>Journey 2 — Engagement, from scheduling to briefing</h3>
+
+      <h4>Successful path</h4>
+      <ol>
+        <li><strong>Scheduling.</strong> The Personal Assistant records the engagement with its name, date and mandal, and may classify its type and tag the audience communities it addresses.</li>
+        <li><strong>Automatic stakeholder identification.</strong> The system attaches the stakeholders registered in that mandal, ordered by standing, each carrying their history with the office and any open request.</li>
+        <li><strong>Stakeholder approval.</strong> The Assistant reviews the proposed list, writes or adjusts a briefing note for each individual, and approves the list. <em>Preparation cannot proceed until this approval is given.</em></li>
+        <li><strong>Speaking points.</strong> Where the engagement type is one at which the Member addresses a room, a draft set of speaking points is offered, built around the village, the local leaders present, the outstanding requests in that area and the day's local news. The Assistant edits it. For other engagement types this stage is skipped, though the Assistant may open it deliberately.</li>
+        <li><strong>Personal touches.</strong> The Assistant records the informal elements that make an engagement land locally.</li>
+        <li><strong>News.</strong> The Assistant selects the coverage the Member should be aware of, with items relating to the day's mandals presented first.</li>
+        <li><strong>Issue.</strong> The Assistant previews and produces the briefing document for the date, rendered so that Telugu content is correct, and provides it to the Member.</li>
+      </ol>
+
+      <h4>Exception paths</h4>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:32%">Condition</th><th>What the user experiences</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>The engagement lacks a name, date or mandal</td><td>It is refused. Without a mandal no stakeholders can be identified and the engagement cannot be prepared for.</td></tr>
+            <tr><td>The Assistant attempts to advance before approving the stakeholder list</td><td>Progression is blocked. This is the workflow's one hard gate and exists so that no briefing is issued without a person having confirmed who the Member will meet.</td></tr>
+            <tr><td>The engagement type does not warrant a speech</td><td>The stage is omitted automatically. The Assistant may open it if the occasion warrants it after all.</td></tr>
+            <tr><td>No engagements exist for the requested date</td><td>The Assistant is told plainly that the date holds no engagements, distinguishing an empty day from a failure.</td></tr>
+            <tr><td>No local news is available</td><td>Preparation continues without it. Absent news never blocks the briefing.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">4.3</span>Journey 3 — Political field report</h3>
+
+      <h4>Successful path</h4>
+      <ol>
+        <li><strong>Observation.</strong> A Field Political Coordinator observes something worth reporting — a campaign event held, a scheme reaching or failing to reach a village, a cluster-level development.</li>
+        <li><strong>Capture.</strong> The coordinator submits typed notes, photographs of what they saw, a spoken account, or any combination — the same capture standard as a citizen request, requiring no additional training.</li>
+        <li><strong>Proposal.</strong> The system proposes a single structured report: a title, the report type, the delivery status, the mandal and village, and a description assembled from every source supplied.</li>
+        <li><strong>Verification.</strong> The report is reviewed and corrected before it is committed, exactly as a citizen request is.</li>
+        <li><strong>Consolidation.</strong> The report joins the field reporting register, filterable by type, delivery status and mandal, and remains editable as the situation develops.</li>
+      </ol>
+
+      <h4>Exception paths and current limitation</h4>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:32%">Condition</th><th>What the user experiences</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Nothing captured, or an unsupported file attached</td><td>Refused with the same plain messages as citizen request capture.</td></tr>
+            <tr><td>The situation changes after reporting</td><td>The coordinator amends the report and updates its delivery status — for example from Ongoing to Delayed.</td></tr>
+            <tr><td><strong>The report reaches the leadership view</strong></td><td><strong>It does not.</strong> Reports are captured, classified and located, but no leadership summary reads them; the corresponding executive indicators remain illustrative. This is requirement POL-08 and is the largest single gap between what the office collects and what it sees.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">4.4</span>Journey 4 — Governance oversight and the open loop</h3>
+
+      <h4>Current path</h4>
+      <ol>
+        <li><strong>Aggregation.</strong> Committed requests aggregate automatically by category, status, mandal and village.</li>
+        <li><strong>Geographic review.</strong> The Chief of Staff reviews concentration and dominant category by mandal, and reviews which places with registered stakeholders have received no engagement within the neglect threshold.</li>
+        <li><strong>Direction.</strong> Escalation is directed at concentrations of unresolved requests, and engagements are directed at neglected areas.</li>
+        <li><strong>Referral.</strong> Formal correspondence is issued to the responsible department.</li>
+        <li><strong>Manual closure.</strong> A staff member who learns of an outcome updates the request's status by hand.</li>
+      </ol>
+
+      <div class="callout">
+        <span class="tag">Business risk — the loop is open</span>
+        <p>Step 5 is the weakness in the process. Nothing captures the department's response, so the recorded status reflects only what a staff member remembered to update. Three consequences follow directly, and all three are recorded as Proposed requirements in Section 3:</p>
+        <ul style="margin-top:8px;margin-bottom:0">
+          <li>The office <strong>cannot measure departmental responsiveness</strong>, and so cannot escalate on evidence.</li>
+          <li>The office <strong>cannot produce a development delivery position</strong> by village, which is its most-requested leadership output.</li>
+          <li><strong>Resolution figures cannot be relied upon</strong> for external reporting, because they measure record-keeping diligence rather than resolution.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ═══════════ 5 ═══════════ -->
+    <section>
+      <h2><span class="num">5</span>Data &amp; Information Requirements</h2>
+
+      <p>Information requirements are stated in business terms. <strong>Mandatory</strong> items must be present for the record to be accepted; <strong>Derived</strong> items are calculated by the system and are not entered by a user.</p>
+
+      <h3><span class="num">5.1</span>Constituent request information</h3>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:22%">Information group</th><th style="width:44%">Business data points</th><th class="narrow">Obligation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Citizen identity</td><td>Full name; contact telephone number; email address; referring person's name and contact number</td><td class="narrow">Optional, strongly expected</td></tr>
+            <tr><td>Citizen location</td><td>Village; mandal; assembly constituency; postal address</td><td class="narrow">Optional, strongly expected</td></tr>
+            <tr><td>Request particulars</td><td>Date of approach; description of the request; intake channel; whether the entry is a request or feedback; recorded sentiment</td><td class="narrow">Date mandatory (defaults to today)</td></tr>
+            <tr><td>Classification</td><td>Request category from the published list of 25; urgency; stated reason for the urgency</td><td class="narrow">Mandatory</td></tr>
+            <tr><td>Priority</td><td>Calculated priority standing</td><td class="narrow">Derived</td></tr>
+            <tr><td>Accountability record</td><td>Assigned officer; action already taken; action still required; deadline; resolution status</td><td class="narrow">Status mandatory (defaults to Pending)</td></tr>
+            <tr><td>Source material</td><td>Original photographs, scanned documents and voice recordings; transcript of any recording; confidence in the automated reading; how the request was captured</td><td class="narrow">At least one source mandatory</td></tr>
+            <tr><td>Relationships</td><td>Linked earlier requests from the same citizen; reference letters issued from this request</td><td class="narrow">Derived</td></tr>
+            <tr><td>Advisory content</td><td>Suggested reply to the citizen; suggested internal next step; drafted letter subject and body</td><td class="narrow">Optional, on request only</td></tr>
+            <tr><td>Departmental outcome</td><td>Department response received; outcome; date of outcome</td><td class="narrow"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">5.2</span>Stakeholder information</h3>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:22%">Information group</th><th style="width:44%">Business data points</th><th class="narrow">Obligation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Identity and contact</td><td>Name; telephone number; occupation</td><td class="narrow">Name, telephone mandatory</td></tr>
+            <tr><td>Location</td><td>Village; mandal; constituency</td><td class="narrow">Mandal mandatory</td></tr>
+            <tr><td>Political standing</td><td>Party affiliation; organisational role; area of influence; leadership alignment</td><td class="narrow">Optional</td></tr>
+            <tr><td>Assessment</td><td>Priority and proximity standing; tier; priority level; estimated reach; political affinity; the factors that drove the assessment</td><td class="narrow">Derived at import</td></tr>
+            <tr><td>Engagement state</td><td>Date of last interaction; days since contact; open request indicator; previous commitment made; standing briefing note</td><td class="narrow">Maintained by use</td></tr>
+            <tr><td>Sensitive attributes</td><td>Religion; caste; date of birth; gender</td><td class="narrow">Restricted — excluded from enquiry and search</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">5.3</span>Engagement and briefing information</h3>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:22%">Information group</th><th style="width:44%">Business data points</th><th class="narrow">Obligation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Engagement particulars</td><td>Event name; date; time; venue; engagement type; mandal; village</td><td class="narrow">Name, date, mandal mandatory</td></tr>
+            <tr><td>Audience</td><td>Audience cohorts addressed, from the defined list of 16</td><td class="narrow">Optional</td></tr>
+            <tr><td>Attendees</td><td>Identified stakeholders; per-stakeholder briefing note; whether each note has been reviewed; whether the list has been approved</td><td class="narrow">Approval mandatory to proceed</td></tr>
+            <tr><td>Content</td><td>Speaking points; whether reviewed; whether deliberately skipped; personal touches</td><td class="narrow">Conditional on engagement type</td></tr>
+            <tr><td>Supporting material</td><td>Selected news items for the day</td><td class="narrow">Optional</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">5.4</span>Political field reporting information</h3>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:22%">Information group</th><th style="width:44%">Business data points</th><th class="narrow">Obligation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Report particulars</td><td>Title; report type (Campaign, Government Scheme, Cluster Report, Other); description; reporting officer</td><td class="narrow">Type mandatory</td></tr>
+            <tr><td>Location</td><td>Mandal; village</td><td class="narrow">Expected</td></tr>
+            <tr><td>Delivery position</td><td>Status (Planned, Ongoing, Completed, Delayed)</td><td class="narrow">Mandatory</td></tr>
+            <tr><td>Evidence</td><td>Photographs, documents and voice recordings supplied with the report</td><td class="narrow">At least one source mandatory</td></tr>
+            <tr><td>Scheme delivery position</td><td>Scheme name; per-village cases applied, sanctioned, pending and settled</td><td class="narrow"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">5.5</span>Media and communications information</h3>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:22%">Information group</th><th style="width:44%">Business data points</th><th class="narrow">Obligation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>News item</td><td>Headline; body; source; geographic scope; mandal; priority; link; supporting attachment; date submitted</td><td class="narrow">Headline mandatory</td></tr>
+            <tr><td>Communications calendar</td><td>Publication date; caption; associated imagery or video</td><td class="narrow">Date and at least one item mandatory</td></tr>
+            <tr><td>Public record</td><td>Parliamentary and assembly speeches; press engagement transcripts; date, venue and subject of each</td><td class="narrow"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="num">5.6</span>Reference and organisational information</h3>
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:22%">Information group</th><th style="width:44%">Business data points</th><th class="narrow">Obligation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Request category reference</td><td>Category name; institutional weight; owning government department; designated departmental officer</td><td class="narrow">Maintained reference data</td></tr>
+            <tr><td>Geographic reference</td><td>Constituency; mandal; village; mandal map positions for geographic presentation</td><td class="narrow">Maintained reference data</td></tr>
+            <tr><td>Reference letter</td><td>Date; recipient name; telephone; national identity number; darshan type; party size; referring person; remarks; review state; originating request</td><td class="narrow">Date, name, type mandatory</td></tr>
+            <tr><td>Organisational hierarchies</td><td>Party organisation structure; elected body structure; their relationship to the administrative geography</td><td class="narrow"><span class="badge b-todo">Proposed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ APPENDIX A ═══════════ -->
+    <section>
+      <h2><span class="num">A</span>Appendix A — Request Categories and Departmental Ownership</h2>
+      <p>The published classification list. Weight expresses the office's standing policy on relative institutional importance and contributes 40 per cent of a request's calculated priority. Categories owned internally are handled by the office itself rather than referred outward.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th style="width:30%">Request category</th><th class="narrow">Weight</th><th>Referred to</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Chief Minister's Relief Fund / Medical Assistance</td><td class="narrow">90</td><td>District Collector — Relief Fund Cell</td></tr>
+            <tr><td>Police</td><td class="narrow">85</td><td>Superintendent of Police</td></tr>
+            <tr><td>Public Grievance</td><td class="narrow">75</td><td>District Collector</td></tr>
+            <tr><td>Irrigation and Water Resources</td><td class="narrow">75</td><td>Executive Engineer, Irrigation</td></tr>
+            <tr><td>Medical and Health</td><td class="narrow">75</td><td>District Medical and Health Officer</td></tr>
+            <tr><td>Social Welfare and Minority Welfare</td><td class="narrow">70</td><td>District Social Welfare Officer</td></tr>
+            <tr><td>Housing</td><td class="narrow">70</td><td>Project Officer, State Housing Corporation</td></tr>
+            <tr><td>Electricity</td><td class="narrow">65</td><td>Assistant Divisional Engineer, Electricity</td></tr>
+            <tr><td>Revenue</td><td class="narrow">65</td><td>Tehsildar / District Revenue Officer</td></tr>
+            <tr><td>Panchayat Raj and Rural Development</td><td class="narrow">65</td><td>District Panchayat Officer</td></tr>
+            <tr><td>Civil Supplies</td><td class="narrow">60</td><td>District Supply Officer</td></tr>
+            <tr><td>Roads and Buildings</td><td class="narrow">60</td><td>Executive Engineer, Roads and Buildings</td></tr>
+            <tr><td>Education</td><td class="narrow">60</td><td>District Educational Officer</td></tr>
+            <tr><td>Agriculture</td><td class="narrow">60</td><td>Joint Director of Agriculture</td></tr>
+            <tr><td>Transport</td><td class="narrow">55</td><td>Regional Transport Officer</td></tr>
+            <tr><td>Banking and Financial Institutions</td><td class="narrow">55</td><td>Lead District Manager</td></tr>
+            <tr><td>Employee Transfer</td><td class="narrow">50</td><td>Handled internally</td></tr>
+            <tr><td>Members of Parliament Local Area Development</td><td class="narrow">50</td><td>Handled internally</td></tr>
+            <tr><td>Horticulture</td><td class="narrow">50</td><td>Deputy Director of Horticulture</td></tr>
+            <tr><td>Fisheries</td><td class="narrow">50</td><td>Assistant Director of Fisheries</td></tr>
+            <tr><td>Recommendation and Request Letters</td><td class="narrow">45</td><td>Handled internally</td></tr>
+            <tr><td>Temple Reference Letter</td><td class="narrow">40</td><td>Dedicated reference letter process</td></tr>
+            <tr><td>Nominated Posts</td><td class="narrow">40</td><td>Handled internally</td></tr>
+            <tr><td>Party and Organisational Matters</td><td class="narrow">35</td><td>Handled internally</td></tr>
+            <tr><td>Other</td><td class="narrow">30</td><td>District Collector</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ APPENDIX B ═══════════ -->
+    <section>
+      <h2><span class="num">B</span>Appendix B — Outstanding Requirements Summary</h2>
+      <p>Requirements recorded as Partial or Proposed in Section 3, sequenced by business dependency. The first item requires no new information to be collected.</p>
+
+      <div class="scroll" tabindex="0">
+        <table>
+          <thead>
+            <tr><th class="narrow">Seq.</th><th style="width:27%">Requirement</th><th class="narrow">Ref.</th><th>Business consequence of the gap</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="narrow">1</td><td>Summarise field political reports into the executive view</td><td class="id">POL-08</td><td>The office collects political reporting that its leadership never sees. No new collection is required — only presentation of information already held.</td></tr>
+            <tr><td class="narrow">2</td><td>Capture the departmental outcome against each request</td><td class="id">GRV-37</td><td>Resolution figures measure record-keeping diligence rather than resolution. Blocks delivery reporting and evidence-based escalation.</td></tr>
+            <tr><td class="narrow">3</td><td>Establish a government scheme register with per-village position</td><td class="id">POL-09</td><td>The office can describe scheme activity but cannot state how many households remain unserved in any village.</td></tr>
+            <tr><td class="narrow">4</td><td>Establish intake for speeches and press engagements</td><td class="id">POL-10</td><td>The office holds no record of its own public statements, and therefore cannot assess its own public position.</td></tr>
+            <tr><td class="narrow">5</td><td>Extend village-level filtering across every view</td><td class="id">COV-06</td><td>Accountability stops at mandal level, above the level at which citizens experience delivery.</td></tr>
+            <tr><td class="narrow">6</td><td>Produce a development delivery position by village</td><td class="id">COV-07</td><td>The most-requested leadership output cannot be produced. Depends on items 2 and 3.</td></tr>
+            <tr><td class="narrow">7</td><td>Establish a media and public tone position</td><td class="id">MED-07</td><td>Leadership has no evidenced read of external sentiment. Depends on item 4.</td></tr>
+            <tr><td class="narrow">8</td><td>Replace or withdraw all illustrative executive indicators</td><td class="id">EXE-04</td><td>Illustrative figures on a leadership screen carry a standing risk of being read as fact. Depends on items 1, 3, 4 and 6.</td></tr>
+            <tr><td class="narrow">9</td><td>Compose stakeholder summaries from held history</td><td class="id">ENG-11</td><td>Briefing quality depends on whether a staff member happened to type a note.</td></tr>
+            <tr><td class="narrow">10</td><td>Propose draft public content from office activity</td><td class="id">COM-05</td><td>Communications planning remains wholly manual despite the underlying activity being fully recorded.</td></tr>
+            <tr><td class="narrow">11</td><td>Complete export coverage across all registers</td><td class="id">GOV-04</td><td>Some registers cannot be produced for an external meeting or audit without system access.</td></tr>
+            <tr><td class="narrow">12</td><td>Decide the treatment of party and elected-body hierarchies</td><td class="id">GOV-05</td><td>Requires a business decision before design: these structures do not resolve to villages, so their relationship to the administrative geography must be defined.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    Business Requirement Document · Saathi · Version 1.0 · For review · Office of the Member of Parliament, Palanadu Constituency
+  </div>
+
+</div>
