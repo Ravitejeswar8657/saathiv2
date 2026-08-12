@@ -1,0 +1,655 @@
+<title>BRD Presentation Outline</title>
+
+<style>
+  :root {
+    --paper:     #EFEFEC;
+    --surface:   #FFFFFF;
+    --surface-2: #F6F6F3;
+    --ink:       #1B1A18;
+    --ink-soft:  #5D5B57;
+    --rule:      #D7D6D1;
+    --rule-soft: #E8E7E3;
+    --accent:    #0F5B54;
+    --accent-wash: rgba(15, 91, 84, 0.08);
+    --clay:      #A0552F;
+    --clay-wash: rgba(160, 85, 47, 0.09);
+
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --serif: "Iowan Old Style", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #131312;
+      --surface:   #1C1C1A;
+      --surface-2: #242422;
+      --ink:       #E4E3DF;
+      --ink-soft:  #9B9993;
+      --rule:      #33322F;
+      --rule-soft: #2A2926;
+      --accent:    #6FBDB0;
+      --accent-wash: rgba(111, 189, 176, 0.12);
+      --clay:      #D08A62;
+      --clay-wash: rgba(208, 138, 98, 0.12);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:     #131312;
+    --surface:   #1C1C1A;
+    --surface-2: #242422;
+    --ink:       #E4E3DF;
+    --ink-soft:  #9B9993;
+    --rule:      #33322F;
+    --rule-soft: #2A2926;
+    --accent:    #6FBDB0;
+    --accent-wash: rgba(111, 189, 176, 0.12);
+    --clay:      #D08A62;
+    --clay-wash: rgba(208, 138, 98, 0.12);
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 30px 18px 80px;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  /* ── header ── */
+  header { margin-bottom: 34px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.19em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+  }
+  h1 {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: -0.026em;
+    line-height: 1.1;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .strap {
+    font-size: 18px;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 62ch;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin-top: 20px;
+  }
+  .pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 5px 11px;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink-soft);
+    border-radius: 2px;
+  }
+  .pill b { color: var(--ink); font-weight: 700; }
+
+  /* ── arc strip ── */
+  .arc {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 2px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 30px 0 44px;
+  }
+  .act { background: var(--surface); padding: 15px 17px; }
+  .act .n {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 5px;
+  }
+  .act .t { font-weight: 700; font-size: 15.5px; letter-spacing: -0.01em; display: block; margin-bottom: 3px; }
+  .act .s { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
+
+  /* ── slide cards ── */
+  .slide {
+    display: grid;
+    grid-template-columns: 108px 1fr;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    margin-bottom: 16px;
+  }
+  .rail {
+    border-right: 1px solid var(--rule-soft);
+    padding: 20px 14px;
+    background: var(--surface-2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .snum {
+    font-family: var(--mono);
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .slabel {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    text-align: center;
+    line-height: 1.4;
+  }
+  .frame {
+    width: 64px;
+    height: 36px;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    margin-top: 2px;
+    display: block;
+  }
+
+  .main { padding: 20px 24px 22px; min-width: 0; }
+  .slide h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.018em;
+    line-height: 1.2;
+    margin: 0 0 4px;
+    text-wrap: balance;
+  }
+  .layout {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    background: var(--accent-wash);
+    border: 1px solid var(--accent);
+    padding: 3px 9px;
+    display: inline-block;
+    margin: 6px 0 14px;
+    border-radius: 2px;
+  }
+
+  .zone { margin-top: 14px; }
+  .zt {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 7px;
+  }
+  .zt::after { content: ""; flex: 1; height: 1px; background: var(--rule-soft); }
+  .zt.cue { color: var(--clay); }
+
+  ul.bul { list-style: none; margin: 0; padding: 0; }
+  ul.bul li {
+    position: relative;
+    padding-left: 20px;
+    margin-bottom: 7px;
+    font-size: 16.5px;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+  ul.bul li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 0.62em;
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+  }
+
+  .cue {
+    font-size: 14.5px;
+    color: var(--ink);
+    background: var(--clay-wash);
+    border-left: 3px solid var(--clay);
+    padding: 10px 14px;
+    line-height: 1.5;
+  }
+
+  .notes {
+    font-family: var(--serif);
+    font-size: 15.5px;
+    font-style: italic;
+    color: var(--ink-soft);
+    line-height: 1.58;
+    margin: 0;
+    max-width: 74ch;
+  }
+
+  .flag {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--clay);
+    border: 1px dashed var(--clay);
+    padding: 2px 7px;
+    border-radius: 2px;
+    margin-left: 8px;
+    white-space: nowrap;
+    vertical-align: 3px;
+  }
+
+  /* ── closing note ── */
+  .endnote {
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    padding: 22px 26px;
+    margin-top: 34px;
+  }
+  .endnote h3 {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+  }
+  .endnote p { margin: 0 0 10px; font-size: 15.5px; color: var(--ink-soft); max-width: 80ch; }
+  .endnote p:last-child { margin-bottom: 0; }
+  .endnote b { color: var(--ink); }
+
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  @media (max-width: 680px) {
+    body { padding: 16px 10px 50px; }
+    h1 { font-size: 27px; }
+    .slide { grid-template-columns: 1fr; }
+    .rail { flex-direction: row; border-right: none; border-bottom: 1px solid var(--rule-soft); padding: 12px 16px; justify-content: flex-start; }
+    .frame { display: none; }
+    .main { padding: 16px 18px 18px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Presentation Outline · Derived from BRD v1.1</p>
+    <h1>Constituency Engagement Portal — Stakeholder Review Deck</h1>
+    <p class="strap">A twelve-slide storyboard translating the Business Requirement Document into a review presentation for the leadership and the delivery team.</p>
+    <div class="meta">
+      <span class="pill">Slides <b>12</b></span>
+      <span class="pill">Runtime <b>~25 min + Q&amp;A</b></span>
+      <span class="pill">Audience <b>Business owner &amp; delivery</b></span>
+      <span class="pill">Purpose <b>Review &amp; decision</b></span>
+      <span class="pill">Source <b>BRD v1.1</b></span>
+    </div>
+  </header>
+
+  <div class="arc">
+    <div class="act">
+      <span class="n">Act 1 · Slides 1–4</span>
+      <span class="t">The case</span>
+      <span class="s">Why the Application exists, what it is worth, and the principles that constrain it.</span>
+    </div>
+    <div class="act">
+      <span class="n">Act 2 · Slides 5–6</span>
+      <span class="t">The control model</span>
+      <span class="s">Who may do what. The two-role hierarchy and its definitive permission matrix.</span>
+    </div>
+    <div class="act">
+      <span class="n">Act 3 · Slides 7–11</span>
+      <span class="t">The capability</span>
+      <span class="s">What the Application does, shown through the flagship workflow and two key modules.</span>
+    </div>
+    <div class="act">
+      <span class="n">Act 4 · Slide 12</span>
+      <span class="t">The ask</span>
+      <span class="s">Where the platform stands, what is outstanding, and the decisions required today.</span>
+    </div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">01</span><span class="slabel">Title</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>One Platform for the Constituency Office</h2>
+      <span class="layout">Layout — Full-bleed title with document control strip along the base</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Business Requirement Document, version 1.1</li>
+          <li>Scope: the full platform, every capability</li>
+          <li>Owner: Chief of Staff. Status: for review</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Three-pillar motif as the hero graphic — Personal, Political, Governance — rendered as three vertical bands. Document control values set small and monospaced along the lower edge, styled as a title block.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">Open by stating this is a review session, not an approval gate — the document is issued for comment. Name the three pillars now, because every subsequent slide maps back to one of them. Confirm the room agrees on scope before proceeding.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">02</span><span class="slabel">Problem</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>Fragmented Intake Is Costing the Office</h2>
+      <span class="layout">Layout — 2 × 2 grid of failure tiles, each with icon and one-line consequence</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Requests lost or duplicated across channels</li>
+          <li>Prioritisation driven by personality, not standard</li>
+          <li>Preparation manual, slow and often incomplete</li>
+          <li>Neglect invisible; nothing is measurable</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Diagram of five disconnected registers with no arrows between them, feeding nothing. Set it deliberately messy — the visual argument is the absence of connection, not the boxes themselves.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">These four failures are consolidated from six recorded in the document. Emphasise that none was a technology failure — each followed directly from intake living in separate places. The last point is the one that lands with leadership, because it is about accountability rather than effort.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">03</span><span class="slabel">Value</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>Any Format In, One Verified Record Out</h2>
+      <span class="layout">Layout — Before / after, 2-column comparison split by a central arrow</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Paper, voice, photograph and text accepted</li>
+          <li>One reviewed record, whatever arrived</li>
+          <li>That record drives every downstream output</li>
+          <li>Memory survives staff turnover</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Left: scattered input icons — form, microphone, camera, keyboard. Centre: a single funnel. Right: the outputs fanning out — briefing, register, analytics. Reuse the messy diagram from slide 2 on the left so the contrast is immediate.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">This is the core value proposition and the slide to slow down on. The important claim is that adding a new intake source means adding a form, not building a new pipeline. Invite the room to test it against their own channels.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">04</span><span class="slabel">Principles</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>Three Principles Constrain Every Requirement</h2>
+      <span class="layout">Layout — 3-column principle cards, numbered, equal weight</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Assisted, never autonomous</li>
+          <li>Advice is separated from action</li>
+          <li>The source is never discarded</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Three numbered cards. Icons: a person overlaying a document for review; two diverging arrows for advice versus action; an archive box for retained source material. Keep each card to the principle name plus a single clarifying line.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">State plainly that these are governance commitments, not design preferences — they constrain future change as much as current build. Principle one is the answer to any question about automation risk. Principle two is what keeps the accountability record defensible if it is ever challenged externally.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">05</span><span class="slabel">Roles</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>Two Roles, One Unambiguous Hierarchy</h2>
+      <span class="layout">Layout — 2-column role comparison above a two-tier hierarchy pyramid</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Role 1: absolute privilege, unrestricted access</li>
+          <li>Role 2: scoped, operational, no deletion rights</li>
+          <li>Visibility follows the user's assigned area</li>
+          <li>No access control exists today <span class="flag">Flag as gap</span></li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Two-tier pyramid, Role 1 above Role 2, with no intermediate band — the absence is the point. Place an open-padlock icon beside the fourth bullet, in the same warning colour used for gaps throughout the deck.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">Deliver the first three bullets as the proposed model, then land the fourth deliberately — every function is presently reachable by every user, and nothing is attributable. Expect this to generate discussion, so hold detailed questions until the matrix on the next slide. This is the single largest control gap in the platform.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">06</span><span class="slabel">Matrix</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>Permissions Are Explicit and Definitive</h2>
+      <span class="layout">Layout — Full-width matrix table, landscape slide, colour-coded cells</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Nineteen functional areas fully mapped</li>
+          <li>Four permissions: read, write, edit, delete</li>
+          <li>Anything not granted is denied</li>
+          <li>Deletion and issue reserved to Role 1</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Heat-style matrix using three states — Full in green, Scoped in amber, None in grey. Do not print all nineteen rows at legible size; show the eight rows where the roles diverge and note that the full matrix sits in the document. Highlight the news row, which is the only area where Write is not applicable to either role.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">Walk only the divergent rows — the rest are predictable and reading them aloud loses the room. The closing principle is what matters: the matrix is definitive, so any capability not granted is denied by default rather than by omission. Confirm the scoping dimension is the right one for how staff are actually deployed.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">07</span><span class="slabel">Capabilities</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>Sixteen Capabilities Across Three Pillars</h2>
+      <span class="layout">Layout — 3-column capability map, chips grouped beneath each pillar heading</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Personal: scheduling, preparation, daily briefing</li>
+          <li>Political: field reporting, automated news</li>
+          <li>Governance: requests, escalation, coverage analytics</li>
+          <li>Cross-cutting: contacts, enquiry, access control</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Three vertical pillars carrying capability chips, with the cross-cutting group as a horizontal band beneath all three. Shade each chip by current state using the deck's standard three-colour key, so the audience reads coverage and gaps in one glance.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">This is the orientation slide — it shows scope without detail, and the next four slides drill into selected areas. Point out that the Political pillar carries visibly more amber than the other two, which sets up the discussion on slide twelve. Do not read the chips aloud.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">08</span><span class="slabel">Workflow</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>From Counter to Closure, With One Gate</h2>
+      <span class="layout">Layout — Horizontal process flow, nine steps, one step visually emphasised</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Capture any format; nothing transcribed manually</li>
+          <li>Duplicates surfaced while the citizen is present</li>
+          <li>Staff verification gate cannot be bypassed</li>
+          <li>Referral drafted, then issued under authorisation</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Nine-step left-to-right flow. Render step five, verification, at larger scale and in the accent colour with a gate or checkpoint icon — it is the only mandatory human control in the chain and should dominate the graphic.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">This is the flagship workflow and the one most staff will recognise from their own day. Spend the time on the verification gate: the corrected record, not the machine's reading, is what becomes official. Mention that exception paths are documented for every step, and offer to walk them in the follow-up session.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">09</span><span class="slabel">Standard</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>Priority Is Calculated, Not Negotiated</h2>
+      <span class="layout">Layout — Formula callout above a worked example queue</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Twenty-five categories, each a fixed weight</li>
+          <li>Urgency judged high, medium or low</li>
+          <li>Forty per cent category, sixty per cent urgency</li>
+          <li>Stored, so historic ordering stays explainable</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">A single 40 / 60 split bar as the hero element, then three sample requests ranked beneath it showing how a low-weight category presented as urgent outranks a high-weight category presented as routine. That worked example carries the argument better than the formula does.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">The business point is the sixty per cent weighting on urgency — the individual circumstance deliberately outranks the category. Stress that the calculation is identical for every request and the result is stored, so the office can defend its ordering to a citizen or an official months later. Note that the weights are policy, owned by the business, and changing them is a decision rather than a configuration change.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">10</span><span class="slabel">Contacts</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>One Directory, Internal and External</h2>
+      <span class="layout">Layout — 2-column split (internal | external) above a three-tier assessment band</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Single register, split by relationship type</li>
+          <li>Mandatory: name, telephone, assigned area</li>
+          <li>Tiered assessment drives the recommended action</li>
+          <li>No capacity limit, by explicit rule</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">A split directory graphic — internal contacts left, external right — feeding one shared register beneath. Below that, a three-tier band showing the recommended action per tier. Avoid any figure implying a directory size; the no-limit rule is a stated requirement.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">Explain why both populations sit in one register: a local engagement needs the area representative and the responsible official together, and separate registers would force staff to search twice. The tier model is what converts an assessment into an instruction a staff member can act on without interpretation. Flag the one outstanding item — departmental officials are still held separately from the directory.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">11</span><span class="slabel">Automation</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>News Runs Without Anyone Touching It</h2>
+      <span class="layout">Layout — Left-to-right automated pipeline with a struck-through manual path beneath</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Acquired, extracted, classified and indexed automatically</li>
+          <li>No manual entry form, for any role</li>
+          <li>Scope classification prevents local coverage being lost</li>
+          <li>Existing manual intake to be withdrawn <span class="flag">Change of position</span></li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Continuous loop or gear motif driving a four-stage pipeline across the slide. Beneath it, a data-entry form icon crossed through in the warning colour — the prohibition is as much the requirement as the automation is.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">Be explicit that this reverses current behaviour: a manual submission form and a bulk import both exist today and are to be decommissioned. Withdrawing them is what makes the no-manual-entry rule enforceable rather than merely stated. Confirm that existing manually entered items are retained as historic content, since that is the question this slide reliably provokes.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12 -->
+  <div class="slide">
+    <div class="rail"><span class="snum">12</span><span class="slabel">The ask</span><span class="frame"></span></div>
+    <div class="main">
+      <h2>Strong Foundation, Fourteen Gaps, One Sequence</h2>
+      <span class="layout">Layout — Status chart left, four-phase roadmap right, decision box along the base</span>
+      <div class="zone">
+        <div class="zt">Core content</div>
+        <ul class="bul">
+          <li>Ninety-seven of one hundred thirty rules met</li>
+          <li>Access control is the principal gap</li>
+          <li>Two quick wins need no new data</li>
+          <li>Decision required: organisational hierarchy treatment</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <div class="zt cue">Visual cue</div>
+        <p class="cue">Donut or stacked bar showing 97 in place, 8 partial, 25 proposed, using the deck's three-colour key. Alongside it, a four-phase roadmap with the two quick wins marked distinctly. Close with a bordered decision box, visually separated so the ask is unmistakable.</p>
+      </div>
+      <div class="zone">
+        <div class="zt">Speaker notes</div>
+        <p class="notes">Lead with the positive position — roughly three quarters of the requirements are already met — before turning to what is outstanding. The two quick wins are surfacing field reports to leadership and withdrawing manual news entry; neither requires collecting any new information. Close on the explicit ask: the hierarchy question needs a business decision before design can begin, and that decision is the one thing this session cannot conclude without.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="endnote">
+    <h3>Notes for the deck builder</h3>
+    <p><b>Colour key must be consistent throughout.</b> Three states — in place, partial, proposed — appear on slides 6, 7 and 12. Fix the three colours on slide 6 and reuse them without variation, or the audience will read the roadmap chart as unrelated to the capability map.</p>
+    <p><b>Two slides carry a change of position and should not be softened.</b> Slide 5 states that no access control exists today; slide 11 states that manual news entry is to be withdrawn. Both reverse current behaviour, and both are flagged in the source document rather than implied.</p>
+    <p><b>Slide 6 should be landscape or full-bleed.</b> The matrix is the densest artefact in the deck; it needs the width. Show only the divergent rows and reference the document for the complete matrix.</p>
+    <p><b>Every bullet is under ten words</b> and no slide carries more than four. Where a point needs qualification, it belongs in the speaker notes, not on the slide.</p>
+  </div>
+
+</div>
