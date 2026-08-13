@@ -148,6 +148,7 @@
     </div>
   </div>
 
+  <div id="brief-bar"></div>
   <div id="upcoming-list"></div>
 </div>
 
@@ -286,6 +287,12 @@ async function loadSchedule() {
 function renderList() {
   const todayIST = getTodayIST();
 
+  // One brief entry point for the whole page. It offers every date that has
+  // events — not just the filtered ones — so narrowing the list to one day does
+  // not take the other days' briefs away with it.
+  document.getElementById('brief-bar').innerHTML =
+    SaathiUI.briefBarHTML(allSchedule, { todayIST, selected: selectedDateFilter });
+
   // Group events by date
   const byDate = {};
   allSchedule.forEach(ev => {
@@ -319,12 +326,9 @@ function renderList() {
     const isToday = date === todayIST;
     const dateLabel = isToday ? 'Today' : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 
-    html += `<div style="margin-top:24px;margin-bottom:12px;padding:14px 16px;background:${isToday ? 'var(--accent-bg)' : '#f9fafb'};border:1px solid ${isToday ? 'var(--accent-border)' : 'var(--border)'};border-radius:var(--radius-md);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <div>
-        <div style="font-size:15px;font-weight:700;color:${isToday ? 'var(--accent-hover)' : 'var(--stone-700)'}">${dateLabel} · ${evts.length} event${evts.length > 1 ? 's' : ''}</div>
-        <div style="font-size:12px;color:var(--stone-500);margin-top:2px">${date}</div>
-      </div>
-      <a href="/brief_workflow.html?date=${date}" class="btn ${isToday ? 'btn-accent' : 'btn-primary'}">Prepare brief &rarr;</a>
+    html += `<div style="margin-top:24px;margin-bottom:12px;padding:14px 16px;background:${isToday ? 'var(--accent-bg)' : '#f9fafb'};border:1px solid ${isToday ? 'var(--accent-border)' : 'var(--border)'};border-radius:var(--radius-md)">
+      <div style="font-size:15px;font-weight:700;color:${isToday ? 'var(--accent-hover)' : 'var(--stone-700)'}">${dateLabel} · ${evts.length} event${evts.length > 1 ? 's' : ''}</div>
+      <div style="font-size:12px;color:var(--stone-500);margin-top:2px">${date}</div>
     </div>`;
 
     evts.forEach(ev => {

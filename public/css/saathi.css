@@ -412,6 +412,13 @@ td { padding: 10px; font-size: 13px; border-bottom: 1px solid #f3f4f6; }
 .cal-today-btn:hover { opacity: .9; }
 .cal-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 16px 0 4px; font-size: 13px; color: var(--stone-600); }
 .cal-clear-btn { font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: underline; background: none; border: none; font-family: inherit; padding: 0; }
+/* One brief-workflow entry point per page (SaathiUI.briefBarHTML), in place of
+   a "Prepare brief" button on every date group. */
+.brief-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 16px 0 4px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.brief-bar label { font-size: 13px; font-weight: 600; color: var(--stone-600); margin: 0; }
+.brief-bar select { flex: 1; min-width: 160px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; background: #fff; }
+.brief-bar .btn { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-weekday { font-size: 11px; font-weight: 600; color: var(--stone-500); text-align: center; padding: 4px 0; }
 .cal-day { position: relative; min-height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 6px; font-size: 12px; cursor: pointer; background: #fff; }

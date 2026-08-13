@@ -116,6 +116,8 @@
 .mini-list-card { display: block; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; text-decoration: none; color: inherit; transition: border-color .15s, background .15s; }
 .mini-list-card:last-child { margin-bottom: 0; }
 .mini-list-card:hover { border-color: var(--accent-light); background: var(--accent-bg); }
+/* Cards that are only a readout — no hover affordance, since there is nowhere to click through to. */
+.mini-list-card.static:hover { border-color: var(--border); background: transparent; }
 .mini-list-name { font-size: 13px; font-weight: 600; color: var(--ink); }
 .mini-list-meta { font-size: 12px; color: var(--stone-500); margin-top: 2px; }
 
@@ -384,7 +386,10 @@
 
       <!-- Today's Schedule -->
       <div class="section-block">
-        <div class="section-header"><i data-lucide="calendar-clock"></i> Today's Schedule</div>
+        <div class="section-header">
+          <i data-lucide="calendar-clock"></i> Today's Schedule
+          <a href="#" id="todays-brief-link" style="display:none;margin-left:auto;font-size:12px;font-weight:600;color:var(--accent);text-decoration:none">Prepare today's brief &rarr;</a>
+        </div>
         <div class="card card-list">
           <div id="todays-schedule-list"><div class="empty-state">Loading…</div></div>
         </div>
@@ -1031,6 +1036,9 @@ async function loadStats() {
 // ── Today's Schedule ─────────────────────────────────────────────────────
 async function loadTodaysSchedule() {
   const listEl = document.getElementById('todays-schedule-list');
+  // Every card here is the same day, so the brief link belongs once in the
+  // header rather than on each card.
+  const briefLink = document.getElementById('todays-brief-link');
   try {
     const r = await fetch('/api/schedule');
     const data = await r.json();
@@ -1040,16 +1048,21 @@ async function loadTodaysSchedule() {
       .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
     if (todays.length === 0) {
+      briefLink.style.display = 'none';
       listEl.innerHTML = `<div class="empty-state">No events scheduled for today — <a href="/pa_schedule.html" style="color:var(--accent);font-weight:600">Add one &rarr;</a></div>`;
       return;
     }
 
+    briefLink.href = `/brief_workflow.html?date=${todayIST}`;
+    briefLink.style.display = 'inline';
+
     listEl.innerHTML = todays.map(ev => `
-      <a href="/brief_workflow.html?date=${ev.date}" class="mini-list-card">
+      <div class="mini-list-card static">
         <div class="mini-list-name">${esc(ev.event_name)}</div>
         <div class="mini-list-meta">${ev.time ? fmt12h(ev.time) : 'Time TBD'}${ev.mandal ? ' · ' + esc(ev.mandal) : ''}</div>
-      </a>`).join('');
+      </div>`).join('');
   } catch (e) {
+    briefLink.style.display = 'none';
     listEl.innerHTML = '<div class="empty-state">Failed to load schedule.</div>';
   }
 }

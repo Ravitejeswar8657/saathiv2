@@ -19,6 +19,64 @@
     ).join('');
   };
 
+  // ── "Prepare brief" bar ────────────────────────────────────────────────────
+  // The brief workflow is entered by date (/brief_workflow.html?date=…), so a
+  // page that lists events used to repeat that link once per date group — a wall
+  // of near-identical rows. One control with a date dropdown replaces all of them.
+  //
+  // The dropdown lists only dates that actually have events, deliberately: the
+  // wizard dead-ends on "No events for this date", so a free date input would let
+  // staff walk into an empty brief. The old per-date buttons made that impossible
+  // and this keeps that property.
+
+  function dateLabel(date, todayIST) {
+    if (date === todayIST) return 'Today';
+    return new Date(date + 'T00:00:00')
+      .toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  SaathiUI.briefDates = function (events, todayIST) {
+    const counts = new Map();
+    (events || []).forEach(ev => {
+      if (!ev || !ev.date) return;
+      counts.set(ev.date, (counts.get(ev.date) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, count]) => ({
+        date, count,
+        label: `${dateLabel(date, todayIST)} · ${count} event${count > 1 ? 's' : ''}`,
+      }));
+  };
+
+  SaathiUI.briefBarHTML = function (events, opts = {}) {
+    const { todayIST = '', selected = '', id = 'brief-date-select' } = opts;
+    const dates = SaathiUI.briefDates(events, todayIST);
+    if (!dates.length) return '';
+
+    const has = d => d && dates.some(x => x.date === d);
+    const pick = has(selected) ? selected
+      : has(todayIST) ? todayIST
+      : (dates.find(x => x.date > todayIST) || dates[dates.length - 1]).date;
+
+    const options = dates.map(d =>
+      `<option value="${d.date}"${d.date === pick ? ' selected' : ''}>${d.label}</option>`
+    ).join('');
+
+    return `
+      <div class="brief-bar">
+        <label for="${id}">Prepare brief for</label>
+        <select id="${id}">${options}</select>
+        <button type="button" class="btn btn-primary" onclick="SaathiUI.openBrief('${id}')">Prepare brief &rarr;</button>
+      </div>`;
+  };
+
+  SaathiUI.openBrief = function (selectId) {
+    const el = document.getElementById(selectId);
+    if (!el || !el.value) return;
+    location.href = `/brief_workflow.html?date=${el.value}`;
+  };
+
   function ensureToastContainer() {
     let el = document.getElementById('saathi-toast-container');
     if (!el) {
