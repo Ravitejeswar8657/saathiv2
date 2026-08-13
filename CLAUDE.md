@@ -107,6 +107,7 @@ see `brain/docs/03-database-design.md` and `brain/docs/integration-brief-chat-se
 | `004_data_fixups.sql` | One-off data corrections (replaces a boot-time IIFE that re-ran on every start) |
 | `005_news_scopes.sql` | Widens `news.scope` to the four categories the media tracker emits (`district`/`state` alongside `mandal`/`national`/`international`) |
 | `006_palnadu_spelling.sql` | Corrects the `constituency` setting written as `Palanadu (AP)` by an earlier `setup_db.js` |
+| `007_event_coverage.sql` | Post-event coverage on `events` (`media_links`, `social_posted`, `social_links`, `coverage_notes` — links as JSON columns) plus the `event_media` child table for uploaded files |
 
 Every typed row projects a companion row into `records` — that is what retrieval ranks and what the chat assistant is grounded on. `idx_records_source` keeps the projection one-to-one, and `records` can always be rebuilt from the typed tables.
 
@@ -159,11 +160,18 @@ The Excel column mapping is: `Name`, `Phone Number`, `Village`, `Mandal`, `Const
 
 All pages are vanilla HTML/JS with no framework or bundler. They call the REST API and render directly.
 
+Shared scripts: `public/js/saathi-ui.js` (toast, confirm dialog, mandal list) and
+`public/js/event-coverage.js` — the post-event coverage modal, injected into the page on
+first open and used identically by `index.html` and `pa_schedule.html`. It records what
+came of an event (press/media links, uploaded photos/video/PDF, whether social went out
+and the post links, plus notes); the event's own fields are read-only in it, because
+booking details are edited nowhere and the wizard owns prep.
+
 | Page | Purpose |
 |---|---|
-| `index.html` | Main team dashboard — contacts, schedule, news, grievance-register stat tile |
+| `index.html` | Main team dashboard — contacts, schedule, news, grievance-register stat tile. Upcoming-event cards open the shared coverage modal; a corner `Prepare brief →` link keeps the old route into `brief_workflow.html` |
 | `news.html` | Journalist submission form |
-| `pa_schedule.html` | PA schedule upload |
+| `pa_schedule.html` | PA schedule upload. Event cards are clickable and open the post-event coverage modal |
 | `pa_issues.html` | Issue/grievance logging |
 | `admin.html` | Chief of Staff intelligence hub, MP-facing only (no data-entry UI on this page). Today's schedule, Personal/Political/Governance Intelligence pillars, News Dashboard/Live News pulse, plus sidebar Campaign Summaries and AI-Suggested Daily Actions. Nothing on this page reads `/api/contacts` — the mandal/village governance report, grievance category breakdown, and social-media queue are the only real-data widgets (all sourced from `/api/grievances`, `/api/social-calendar`, `/api/schedule`, `/api/stats`); Constituency Health Score, Voter Sentiment Map, Media Sentiment, Opposition Activity, Campaign Summaries, Government Scheme Progress, Scheme Fund Utilization, and Daily Actions are clearly-tagged illustrative placeholders |
 | `heatmap.html` | Mandal-level coverage heatmap (Leaflet + OpenStreetMap, no API key) — contact density, average priority score, and grievance-register hotspots (count/top category/avg priority per mandal, from `/api/grievances`, additive to the legacy `contact.open_grievance` count) per mandal, joined against `public/assets/mandal_coords.json` (generated once via `scripts/geocode_mandals.js`) |
@@ -182,7 +190,9 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | GET | `/api/contact/:id` | Single contact |
 | POST | `/api/contact` | Add new contact |
 | POST | `/api/schedule` | Add event; auto-finds nearby contacts by mandal using Fuse.js |
-| DELETE | `/api/schedule/:id` | Remove event |
+| PATCH | `/api/schedule/:id` | Record post-event coverage (multipart: `media_links`/`social_links` JSON, `social_posted`, `coverage_notes`, `remove_media` JSON, up to 10 files under `media`). Coverage only — it does not edit the event's own fields |
+| GET | `/api/schedule/media/:filename` | Retrieve a stored event coverage file |
+| DELETE | `/api/schedule/:id` | Remove event (and unlink its coverage media) |
 | POST | `/api/issue` | Log issue against a contact (still used by `pa_issues.html`; issues logged this way stay `pending` — the admin approve/reject workflow that used to resolve them was removed) |
 | POST | `/api/news` | Submit news item (multipart, optional attachment) |
 | GET | `/api/brief-pdf` | Generate the daily brief PDF for a date (`buildBriefPDF`) |
@@ -242,7 +252,7 @@ All pages are vanilla HTML/JS with no framework or bundler. They call the REST A
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | Server listen port |
-| `RAILWAY_VOLUME_MOUNT_PATH` | `./data` | Path for `saathi.db`, `db.json` and stored media (`grievance_media/`, `social_calendar_media/`, `campaign_media/`) |
+| `RAILWAY_VOLUME_MOUNT_PATH` | `./data` | Path for `saathi.db`, `db.json` and stored media (`grievance_media/`, `social_calendar_media/`, `campaign_media/`, `event_media/`) |
 | `SQLITE_PATH` | `<volume>/saathi.db` | Override the database file location |
 | `CHAT_MAX_TOKENS` | `6000` | Context budget for a chat turn |
 | `CONVERSATION_IDLE_MINUTES` | `120` | Idle time after which a thread auto-closes (resolved lazily) |

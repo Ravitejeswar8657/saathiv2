@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="/js/saathi-ui.js" defer></script>
+<script src="/js/event-coverage.js" defer></script>
 <script src="/sidebar.js" defer></script>
 <style>
 .back-link{display:inline-block;margin-bottom:16px;font-size:13px;color:var(--accent);text-decoration:none}
@@ -31,7 +32,8 @@
 .tag-t3{background:var(--neutral-bg);color:var(--neutral)}
 .phone-link{color:var(--accent);text-decoration:none;font-weight:600;font-size:13px}
 .phone-link:hover{text-decoration:underline}
-.event-card{display:flex;justify-content:space-between;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:10px;background:#fff;box-shadow:var(--shadow-sm)}
+.event-card{display:flex;justify-content:space-between;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:10px;background:#fff;box-shadow:var(--shadow-sm);cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
+.event-card:hover{border-color:var(--accent-border);box-shadow:var(--shadow-md)}
 .event-name{font-size:14px;font-weight:600;color:var(--ink)}
 .event-meta{font-size:12px;color:var(--stone-500);margin-top:2px}
 .delete-icon-btn{background:none;border:none;color:var(--stone-400);cursor:pointer;padding:6px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center}
@@ -260,6 +262,9 @@ function confirmTime() {
   document.getElementById('time-confirmed').textContent = `✓ Time set: ${h}:${m} ${ampm}`;
 }
 
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 function fmt12h(t) {
   if (!t) return '';
   const [hStr, mStr] = t.split(':');
@@ -324,23 +329,24 @@ function renderList() {
 
     evts.forEach(ev => {
       html += `
-      <div class="event-card">
+      <div class="event-card" onclick="openCoverage('${ev.id}')" title="Click to record coverage">
         <div style="flex:1">
-          <div class="event-name">${ev.event_name}${ev.event_type ? ` <span class="tag tag-t2">${ev.event_type}</span>` : ''}${ev.audience_cohort ? ` <span class="tag tag-t3">${cohortLabelByKey[ev.audience_cohort] || ev.audience_cohort}</span>` : ''}</div>
-          <div class="event-meta">${ev.time ? fmt12h(ev.time) + ' · ' : ''}${ev.mandal}</div>
+          <div class="event-name">${esc(ev.event_name)}${ev.event_type ? ` <span class="tag tag-t2">${esc(ev.event_type)}</span>` : ''}${ev.audience_cohort ? ` <span class="tag tag-t3">${esc(cohortLabelByKey[ev.audience_cohort] || ev.audience_cohort)}</span>` : ''}</div>
+          <div class="event-meta">${ev.time ? fmt12h(ev.time) + ' · ' : ''}${esc(ev.mandal)}</div>
+          <div class="cov-strip">${EventCoverage.chipsHTML(ev)}</div>
           ${ev.nearby_contacts?.length ? `
             <div class="event-contacts">
               <div class="event-contacts-label">${ev.nearby_count} priority contacts nearby</div>
               ${ev.nearby_contacts.slice(0,5).map(c => `
                 <div class="nearby-item">
-                  <span><strong>${c.name}</strong> &middot; ${c.village} <span class="tag tag-${c.tier.toLowerCase()}">${c.tier}</span></span>
-                  <a href="tel:${c.phone}" class="phone-link">${c.phone}</a>
+                  <span><strong>${esc(c.name)}</strong> &middot; ${esc(c.village)} <span class="tag tag-${esc(String(c.tier).toLowerCase())}">${esc(c.tier)}</span></span>
+                  <a href="tel:${esc(c.phone)}" class="phone-link" onclick="event.stopPropagation()">${esc(c.phone)}</a>
                 </div>
               `).join('')}
             </div>
           ` : ''}
         </div>
-        <button onclick="deleteSchedule('${ev.id}')" class="delete-icon-btn" title="Delete event"><i data-lucide="trash-2"></i></button>
+        <button onclick="event.stopPropagation();deleteSchedule('${ev.id}')" class="delete-icon-btn" title="Delete event"><i data-lucide="trash-2"></i></button>
       </div>`;
     });
   });
@@ -469,6 +475,13 @@ async function submitSchedule() {
     btn.innerHTML = '<i data-lucide="calendar-plus" style="width:16px;height:16px"></i> Save & Find Nearby Contacts';
     lucide.createIcons();
   }
+}
+
+// Post-event coverage. The modal lives in /js/event-coverage.js so index.html
+// gets exactly the same one.
+function openCoverage(id) {
+  const ev = allSchedule.find(e => e.id === id);
+  if (ev) EventCoverage.open(ev, loadSchedule);
 }
 
 async function deleteSchedule(id) {

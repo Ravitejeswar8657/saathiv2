@@ -134,6 +134,68 @@ test('event JSON columns degrade instead of throwing on a malformed blob', () =>
   assert.deepEqual(got.creative_touches, { selected: [], custom: [], reviewed: false });
 });
 
+// ── event coverage: what came of the event, recorded afterwards ──────────
+
+test('an event round-trips the coverage a staffer recorded after the fact', () => {
+  // Every one of these is a column that has to be in COLUMNS: toRow builds its
+  // row from that list alone, so a field left out of it is silently dropped on
+  // save and the staffer's write-up disappears with no error anywhere.
+  const e = events.insertEvent({ event_name: 'Coverage test', date: '2026-09-04' });
+  const saved = events.updateEvent(e.id, {
+    media_links: [{ url: 'https://example.com/a', label: 'The Hindu' }],
+    social_posted: true,
+    social_links: [{ url: 'https://x.com/p/1', label: 'X' }],
+    coverage_notes: 'Turnout beat the estimate; the canal question came up twice.',
+  });
+
+  assert.deepEqual(saved.media_links, [{ url: 'https://example.com/a', label: 'The Hindu' }]);
+  assert.equal(saved.social_posted, true);
+  assert.deepEqual(saved.social_links, [{ url: 'https://x.com/p/1', label: 'X' }]);
+
+  const got = events.getEvent(e.id);
+  assert.equal(got.coverage_notes, 'Turnout beat the estimate; the canal question came up twice.');
+  assert.equal(got.social_posted, true);
+});
+
+test('coverage notes reach the corpus, so the write-up is answerable later', () => {
+  events.insertEvent({ event_name: 'Rythu meeting', date: '2026-09-07' });
+  const e = events.listEvents({ from: '2026-09-07', to: '2026-09-07' })[0];
+  events.updateEvent(e.id, { coverage_notes: 'The zilla parishad chairman spoke on borewell arrears.' });
+  assert.ok(search.ftsSearch('borewell arrears').length > 0);
+});
+
+test('event media keeps the filename key the coverage modal reads', () => {
+  const e = events.insertEvent({ event_name: 'Media test', date: '2026-09-08' });
+  const saved = events.updateEvent(e.id, {
+    media: [{ filename: 'e1.jpg', mime: 'image/jpeg' }, { filename: 'e2.pdf', mime: 'application/pdf' }],
+  });
+  assert.equal(saved.media[0].filename, 'e1.jpg');
+  assert.equal(saved.media[0].type, 'image');
+  assert.equal(saved.media[1].type, 'pdf');
+});
+
+test('an update that says nothing about media leaves the attachments alone', () => {
+  // updateEvent is a merge-then-full-rewrite, and PATCH /api/schedule/:id/prep
+  // hands it the whole event object — so "omitted" has to mean "untouched", or a
+  // prep save would wipe the photos.
+  const e = events.insertEvent({ event_name: 'Untouched test', date: '2026-09-09' });
+  events.updateEvent(e.id, { media: [{ filename: 'keep.jpg', mime: 'image/jpeg' }] });
+  events.updateEvent(e.id, { speech_points: 'unrelated edit' });
+  assert.equal(events.getEvent(e.id).media[0].filename, 'keep.jpg');
+});
+
+test('deleting an event hands back its file paths so the bytes can be unlinked', () => {
+  // The delete is soft, so event_media's ON DELETE CASCADE never fires and the
+  // files on the volume have nothing to clean them up but this return value.
+  const e = events.insertEvent({ event_name: 'Unlink test', date: '2026-09-10' });
+  events.updateEvent(e.id, { media: [{ filename: 'gone.jpg', mime: 'image/jpeg' }] });
+
+  assert.deepEqual(events.softDeleteEvent(e.id), ['gone.jpg']);
+  assert.equal(events.getEvent(e.id), null);
+  // A second delete has nothing left to unlink and must not claim otherwise.
+  assert.deepEqual(events.softDeleteEvent(e.id), []);
+});
+
 // ── news ─────────────────────────────────────────────────────────────────
 
 test('news scope is split out of the overloaded mandal field', () => {

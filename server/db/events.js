@@ -12,17 +12,20 @@
 // destroy.
 import { getDb } from './connection.js';
 import { ulid, now } from './ids.js';
+import { listMedia, replaceMedia, mediaPaths } from './media.js';
 import { upsertRecord, softDeleteRecordFor, logTimeline } from './records.js';
 
 const COLUMNS = [
   'id', 'event_name', 'date', 'time', 'address', 'village', 'mandal',
   'description', 'event_type', 'audience_cohort', 'contacts_approved',
   'contacts_approved_at', 'speech_points', 'speech_points_reviewed',
-  'speech_skipped', 'creative_touches', 'news_selected', 'created_at',
+  'speech_skipped', 'creative_touches', 'news_selected',
+  'media_links', 'social_posted', 'social_links', 'coverage_notes', 'created_at',
 ];
 
-const JSON_COLUMNS = ['creative_touches', 'news_selected'];
-const BOOL_COLUMNS = ['contacts_approved', 'speech_points_reviewed', 'speech_skipped'];
+const JSON_COLUMNS = ['creative_touches', 'news_selected', 'media_links', 'social_links'];
+const BOOL_COLUMNS = ['contacts_approved', 'speech_points_reviewed', 'speech_skipped',
+  'social_posted'];
 
 const EMPTY_TOUCHES = { selected: [], custom: [], reviewed: false };
 
@@ -45,6 +48,12 @@ function toRecord(row) {
 
   out.nearby_contacts = listEventContacts(row.id);
   out.nearby_count = out.nearby_contacts.length;
+  // `filename` rather than `file_path`, because that is the key the coverage
+  // modal builds /api/schedule/media/:filename from — same rename social_posts
+  // does for the same reason.
+  out.media = listMedia('event_media', row.id).map(m => ({
+    filename: m.file_path, mime: m.mime, type: m.type, label: m.label,
+  }));
   return out;
 }
 
@@ -71,7 +80,9 @@ function projectEvent(e) {
     sourceTable: 'events',
     sourceId: e.id,
     title: e.event_name || 'Event',
-    body: [e.description, e.address, place, e.event_type, e.speech_points]
+    // coverage_notes is prose a human wrote about what actually happened, so it
+    // belongs in the retrieval corpus. The link arrays do not — they are URLs.
+    body: [e.description, e.address, place, e.event_type, e.speech_points, e.coverage_notes]
       .filter(Boolean).join('\n'),
     summary: [e.date, place].filter(Boolean).join(' · '),
     occurredAt: e.date || null,
@@ -153,7 +164,7 @@ export function countUpcomingEvents(today) {
 
 // ── writes ───────────────────────────────────────────────────────────────
 
-export function insertEvent(event, { contactIds = [] } = {}) {
+export function insertEvent(event, { contactIds = [], media = [] } = {}) {
   const db = getDb();
   const row = toRow({ ...event, id: event.id || ulid() });
 
@@ -162,6 +173,7 @@ export function insertEvent(event, { contactIds = [] } = {}) {
     db.prepare(`INSERT INTO events (${cols.join(', ')})
                 VALUES (${cols.map(c => `@${c}`).join(', ')})`).run(row);
     if (contactIds.length) setEventContacts(row.id, contactIds);
+    if (media.length) replaceMedia('event_media', row.id, media);
     upsertRecord(projectEvent({ ...event, id: row.id }));
     logTimeline({
       kind: 'event.scheduled', refType: 'event', refId: row.id,
@@ -183,19 +195,32 @@ export function updateEvent(id, patch) {
     const sets = Object.keys(row).filter(c => c !== 'id' && c !== 'created_at');
     db.prepare(`UPDATE events SET ${sets.map(c => `${c} = @${c}`).join(', ')} WHERE id = @id`)
       .run(row);
+    // Only when the caller explicitly passed it: replaceMedia is a wholesale
+    // delete-and-reinsert, so touching it on every update would churn row ids
+    // for callers that never meant to change the attachments.
+    if (patch.media !== undefined) replaceMedia('event_media', id, patch.media);
     upsertRecord(projectEvent(merged));
   });
   run();
   return getEvent(id);
 }
 
+/**
+ * Soft-delete an event and hand back its stored file paths.
+ *
+ * The rows stay (the delete is soft, so event_media's CASCADE never fires), but
+ * the bytes on the volume have no reason to. Returning the paths is what lets
+ * DELETE /api/schedule/:id unlink them — the same contract softDeletePost has.
+ */
 export function softDeleteEvent(id) {
   const ts = now();
+  const paths = mediaPaths('event_media', id);
   const info = getDb().prepare(
     'UPDATE events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL')
     .run(ts, ts, id);
-  if (info.changes) softDeleteRecordFor('events', id);
-  return info.changes > 0;
+  if (!info.changes) return [];
+  softDeleteRecordFor('events', id);
+  return paths;
 }
 
 export function replaceAllEvents(items) {
@@ -205,7 +230,7 @@ export function replaceAllEvents(items) {
     db.prepare("DELETE FROM records WHERE source_table = 'events'").run();
     for (const e of list) {
       const contactIds = (e.nearby_contacts || []).map(c => c.id).filter(Boolean);
-      insertEvent(e, { contactIds });
+      insertEvent(e, { contactIds, media: e.media || [] });
       // The PA-written briefs are the part that cannot be recomputed, so they are
       // carried across explicitly rather than left to the join.
       for (const c of e.nearby_contacts || []) {

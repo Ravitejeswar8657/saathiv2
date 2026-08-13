@@ -1,5 +1,5 @@
 // server/db/media.js
-// Attachments for grievances, campaign reports and social posts.
+// Attachments for grievances, campaign reports, social posts and events.
 //
 // All three stored their attachments as a JSON `media[]` array on the parent
 // record, and two of them ALSO kept legacy singular fields mirroring the first
@@ -18,6 +18,7 @@ const TABLES = {
   grievance_media:   { parent: 'grievance_id', label: true },
   campaign_media:    { parent: 'report_id',    label: true },
   social_post_media: { parent: 'post_id',      label: false },
+  event_media:       { parent: 'event_id',     label: true },
 };
 
 function spec(table) {

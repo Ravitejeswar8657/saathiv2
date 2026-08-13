@@ -69,6 +69,7 @@ const DB_PATH = path.join(VOLUME, 'db.json');
 const GRIEVANCE_MEDIA_PATH = path.join(VOLUME, 'grievance_media');
 const SOCIAL_MEDIA_PATH = path.join(VOLUME, 'social_calendar_media');
 const CAMPAIGN_MEDIA_PATH = path.join(VOLUME, 'campaign_media');
+const EVENT_MEDIA_PATH = path.join(VOLUME, 'event_media');
 const BASE_URL = process.env.BASE_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
 const TELUGU_FONT_PATH = path.join(ROOT, 'public', 'fonts', 'NotoSansTelugu.ttf');
@@ -78,6 +79,7 @@ fs.mkdirSync(VOLUME, { recursive: true });
 fs.mkdirSync(GRIEVANCE_MEDIA_PATH, { recursive: true });
 fs.mkdirSync(SOCIAL_MEDIA_PATH, { recursive: true });
 fs.mkdirSync(CAMPAIGN_MEDIA_PATH, { recursive: true });
+fs.mkdirSync(EVENT_MEDIA_PATH, { recursive: true });
 
 // Sweep pending recordings abandoned mid-review (browser closed before the preview
 // was saved or discarded). Anything still named tmp_* after a day is orphaned.
@@ -149,6 +151,9 @@ const logGrievanceMedia = uploadGrievanceMedia.fields([
 ]);
 // Social media calendar posts can include video, which runs much larger than photos.
 const uploadSocialMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 10 } });
+// Post-event coverage attached from the schedule page's event modal — photos and
+// clips from the ground, so the same generous cap as the social calendar.
+const uploadEventMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 10 } });
 // Universal "Log Political Report" intake — one report's own attachments (photos/PDF + audio).
 const uploadCampaignReportMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 11 } });
 const logCampaignReportMedia = uploadCampaignReportMedia.fields([
@@ -603,8 +608,129 @@ app.get('/api/schedule', (req, res) => {
 });
 
 app.delete('/api/schedule/:id', (req, res) => {
-  softDeleteEvent(req.params.id);
+  for (const filePath of softDeleteEvent(req.params.id)) {
+    const p = path.join(EVENT_MEDIA_PATH, path.basename(filePath));
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
   res.json({ ok: true });
+});
+
+// ── Post-event coverage ───────────────────────────────────────────────────────
+// What came of an event, recorded after the fact from the event modal on
+// index.html / pa_schedule.html: press and media links, photos from the ground,
+// whether social went out, and a note on how it went.
+//
+// Deliberately not part of POST /api/schedule — none of this exists at the
+// moment an event is booked, so the create form stays a plain JSON post.
+
+const COVERAGE_LINK_LIMIT = 20;
+
+/**
+ * Link rows arrive as a JSON string because the request is multipart — files
+ * ride along in the same submit.
+ *
+ * Malformed input is an error rather than an empty list on purpose: a staffer
+ * whose links silently vanished on save has no way to tell that from a link
+ * they forgot to type.
+ */
+function parseCoverageLinks(raw, field) {
+  if (raw === undefined) return { links: undefined };
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { error: `${field} must be valid JSON` };
+  }
+  if (!Array.isArray(parsed)) return { error: `${field} must be an array` };
+  if (parsed.length > COVERAGE_LINK_LIMIT) {
+    return { error: `At most ${COVERAGE_LINK_LIMIT} links` };
+  }
+  const links = [];
+  for (const item of parsed) {
+    const url = String(item?.url ?? '').trim();
+    if (!url) continue; // a row the staffer added and left blank
+    if (!/^https?:\/\//i.test(url)) return { error: `Not a valid link: ${url}` };
+    links.push({ url, label: String(item?.label ?? '').trim() });
+  }
+  return { links };
+}
+
+app.patch('/api/schedule/:id', uploadEventMedia.array('media', 10), (req, res) => {
+  const event = getEvent(req.params.id);
+  // DELETE above is deliberately lenient; this is not. An edit that lands
+  // nowhere has to be visible, or staff keep re-entering the same coverage.
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  const mediaLinks = parseCoverageLinks(req.body.media_links, 'media_links');
+  if (mediaLinks.error) return res.status(400).json({ error: mediaLinks.error });
+  const socialLinks = parseCoverageLinks(req.body.social_links, 'social_links');
+  if (socialLinks.error) return res.status(400).json({ error: socialLinks.error });
+
+  const patch = {};
+  if (mediaLinks.links !== undefined) patch.media_links = mediaLinks.links;
+  if (req.body.coverage_notes !== undefined) patch.coverage_notes = req.body.coverage_notes;
+
+  if (req.body.social_posted !== undefined) {
+    const posted = req.body.social_posted === 'true' || req.body.social_posted === '1';
+    patch.social_posted = posted;
+    // The answer and its evidence are one statement: answering "no" clears the
+    // links, so a stale list cannot resurface if it is ever flipped back to yes.
+    patch.social_links = posted ? (socialLinks.links ?? event.social_links) : [];
+  } else if (socialLinks.links !== undefined) {
+    patch.social_links = socialLinks.links;
+  }
+
+  // replaceMedia is wholesale, so the full desired list is assembled here: what
+  // is already attached, minus what the modal staged for removal, plus the new
+  // uploads. Touched only when the request actually says something about media.
+  let removed = [];
+  if (req.body.remove_media !== undefined || req.files?.length) {
+    let removeList;
+    try {
+      removeList = req.body.remove_media ? JSON.parse(req.body.remove_media) : [];
+    } catch {
+      return res.status(400).json({ error: 'remove_media must be valid JSON' });
+    }
+    if (!Array.isArray(removeList)) return res.status(400).json({ error: 'remove_media must be an array' });
+    const drop = new Set(removeList.map(f => path.basename(String(f))));
+
+    const existing = event.media || [];
+    const kept = existing.filter(m => !drop.has(path.basename(m.filename)));
+    removed = existing.filter(m => drop.has(path.basename(m.filename)));
+
+    const added = [];
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      // Same allowlist as the social calendar — an event's coverage is the same
+      // photos, clips and PDFs, so there is nothing to diverge on.
+      const info = SOCIAL_MEDIA_MIMES[file.mimetype];
+      if (!info) return res.status(400).json({ error: `Unsupported file type: ${file.mimetype}` });
+      // The timestamp is load-bearing: an event can be added to more than once,
+      // and `${id}_${i}` alone would overwrite the first upload on the second.
+      const filename = `${event.id}_${Date.now()}_${i}.${info.ext}`;
+      fs.writeFileSync(path.join(EVENT_MEDIA_PATH, filename), file.buffer);
+      added.push({ filename, mime: file.mimetype, type: info.type, label: '' });
+    }
+    patch.media = [...kept, ...added];
+  }
+
+  const saved = updateEvent(event.id, patch);
+
+  // Unlink only once the write has committed, so a failed update never leaves
+  // the record pointing at files that are already gone.
+  for (const m of removed) {
+    const p = path.join(EVENT_MEDIA_PATH, path.basename(m.filename));
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
+
+  res.json({ ok: true, event: saved });
+});
+
+app.get('/api/schedule/media/:filename', (req, res) => {
+  const safeName = path.basename(req.params.filename);
+  const p = path.join(EVENT_MEDIA_PATH, safeName);
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'File not found' });
+  res.sendFile(p);
 });
 
 // ── Event prep — draft suggestions the PA reviews/edits, never the final answer ────────────
@@ -956,7 +1082,13 @@ app.patch('/api/schedule/:id/prep', (req, res) => {
 
   // nearby_contacts is a join, not a column — updateEvent ignores it, and
   // setEventContactBrief above has already written the only part a human edited.
-  const saved = updateEvent(event.id, event);
+  //
+  // `media` is stripped instead of ignored: updateEvent DOES act on it, and this
+  // route hands back the whole event object, so leaving it in would push the
+  // unchanged attachment list through replaceMedia's delete-and-reinsert on
+  // every prep save — new row ids for no reason.
+  const { media, ...prepPatch } = event;
+  const saved = updateEvent(event.id, prepPatch);
   res.json({ ok: true, event: { ...saved, speech_applicable: isSpeechApplicable(saved.event_type) } });
 });
 

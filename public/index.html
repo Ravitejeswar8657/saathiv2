@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/saathi.css">
 <script src="https://unpkg.com/lucide@latest" defer></script>
+<script src="/js/saathi-ui.js" defer></script>
+<script src="/js/event-coverage.js" defer></script>
 <script src="/sidebar.js" defer></script>
 <style>
   .container { padding-top: 40px; }
@@ -63,10 +65,14 @@
   .dash-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; align-items: start; }
 
   /* Compact upcoming-event cards */
-  .mini-event-card { display:block; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:8px; text-decoration:none; color:inherit; transition: border-color .15s, background .15s; }
+  .mini-event-card { display:block; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:8px; text-decoration:none; color:inherit; cursor:pointer; transition: border-color .15s, background .15s; }
   .mini-event-card:hover { border-color: var(--accent-light); background: var(--accent-bg); }
   .mini-event-name { font-size:13px; font-weight:600; color: var(--ink); }
   .mini-event-meta { font-size:12px; color: var(--stone-500); margin-top:2px; }
+  .mini-event-foot { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .mini-event-foot .cov-strip { margin-top:7px; flex:1; min-width:0; }
+  .mini-event-brief { flex:none; font-size:11px; font-weight:600; color:var(--accent); text-decoration:none; white-space:nowrap; margin-top:7px; }
+  .mini-event-brief:hover { text-decoration:underline; }
 
   /* Social media calendar mini-widget */
   .social-mini-grid { display: flex; flex-direction: column; gap: 8px; }
@@ -221,6 +227,9 @@ let calViewMonth = __tm - 1;
 const CAL_WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 function fmt12h(t) {
   if (!t) return '';
   const [hStr, mStr] = t.split(':');
@@ -338,15 +347,27 @@ function renderUpcoming() {
     return;
   }
 
+  // The card body opens the coverage modal; the brief workflow keeps its own
+  // link so the old one-click route into prep is not lost.
   listEl.innerHTML = upcoming.map(ev => {
     const isToday = ev.date === todayIST;
     const dateLabel = isToday ? 'Today' : new Date(ev.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     return `
-    <a href="/brief_workflow.html?date=${ev.date}" class="mini-event-card">
-      <div class="mini-event-name">${ev.event_name}</div>
-      <div class="mini-event-meta">${dateLabel}${ev.time ? ' · ' + fmt12h(ev.time) : ''}${ev.mandal ? ' · ' + ev.mandal : ''}</div>
-    </a>`;
+    <div class="mini-event-card" onclick="openCoverage('${ev.id}')" title="Click to record coverage">
+      <div class="mini-event-name">${esc(ev.event_name)}</div>
+      <div class="mini-event-meta">${dateLabel}${ev.time ? ' · ' + fmt12h(ev.time) : ''}${ev.mandal ? ' · ' + esc(ev.mandal) : ''}</div>
+      <div class="mini-event-foot">
+        <div class="cov-strip">${EventCoverage.chipsHTML(ev)}</div>
+        <a href="/brief_workflow.html?date=${ev.date}" class="mini-event-brief" onclick="event.stopPropagation()">Prepare brief &rarr;</a>
+      </div>
+    </div>`;
   }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function openCoverage(id) {
+  const ev = allSchedule.find(e => e.id === id);
+  if (ev) EventCoverage.open(ev, loadSchedule);
 }
 
 // ── Live news ────────────────────────────────────────────────────────────
