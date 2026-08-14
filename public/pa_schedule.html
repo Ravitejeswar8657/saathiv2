@@ -174,7 +174,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   await loadFilterOptions();
   await loadCohortOptions();
+  // The schedule load is kicked off at the bottom of this file, independently of
+  // this handler. Awaiting it here rather than racing it is what makes the
+  // re-render below — and the deep link after it — deterministic.
+  await scheduleReady;
   if (allSchedule.length) renderList();
+
+  // Arriving from admin.html's search: /pa_schedule.html?id=<event id>. This runs
+  // last on purpose: renderList() replaces the list's innerHTML wholesale, so a
+  // reveal applied before that re-render is thrown away with the node it marked.
+  const deepLinkId = SaathiUI.deepLinkId();
+  if (deepLinkId) {
+    SaathiUI.revealRecord(document.getElementById('ev-' + deepLinkId), { label: 'event' });
+  }
 });
 
 async function loadCohortOptions() {
@@ -495,13 +507,8 @@ async function deleteSchedule(id) {
   }
 }
 
-// Arriving from admin.html's search: /pa_schedule.html?id=<event id>. The list
-// renders every date on first load, so the card is in the DOM if the event
-// still exists.
-loadSchedule().then(() => {
-  const id = SaathiUI.deepLinkId();
-  if (id) SaathiUI.revealRecord(document.getElementById('ev-' + id), { label: 'event' });
-});
+// Awaited by the DOMContentLoaded handler above, which renders last.
+const scheduleReady = loadSchedule();
 </script>
 </body>
 </html>
