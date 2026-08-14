@@ -178,7 +178,7 @@ booking details are edited nowhere and the wizard owns prep.
 | `journalist.html` | Alternate journalist form |
 | `ttd_letters.html` | TTD reference letter register — calendar view, Aadhar duplicate check, Excel/PDF exports, per-letter PDF. Not in the sidebar nav (reachable by direct URL only); the page and its API are otherwise unchanged |
 | `grievances.html` | Unified grievance register across intake channels. Bulk "Upload Forms": staff photograph/scan many paper forms at once, Gemini OCR-extracts each into its own record. "Log Grievance" is a universal single-grievance intake — any combination of typed text, photo(s)/PDF (camera capture or file picker), and audio (mic recording or attached file) submitted together merge into one AI-reviewed record, never one-per-attachment. Every route assigns a category/urgency that staff review and correct in an editable preview before saving; channel column and filter, category pills, calendar, status tracking, Excel/PDF exports, live duplicate-check banner, linked-grievance badges, an on-demand AI-suggested-response panel (advisory only — never auto-populates the action fields), and an on-demand "Draft letter to department" panel (advisory AI-drafted letter to the grievance category's department head, editable, downloadable as PDF). `walk_in`/`phone_call` are the only live intake channels now; `whatsapp_text`/`whatsapp_voice` remain as historical channel values on old records (the WhatsApp Inbox intake that produced them was removed) |
-| `campaign_reports.html` | Third intake page (alongside schedule and news) for campaigns, government schemes, and cluster-wise field reports — single form (title, type, mandal/village, status, description, optional image/PDF attachment) plus a filterable listing with inline edit/delete. Not wired into admin.html's illustrative Campaign Summaries/Scheme Progress/Fund Utilization widgets yet |
+| `campaign_reports.html` | Third intake page (alongside schedule and news), titled "Political Intake", for campaigns, government schemes, and cluster-wise field reports. Intake is universal and AI-assisted, built on the same discipline as the grievance register: any combination of typed text, photo(s)/PDF (camera capture or file picker) and audio (mic recording or attached file) submitted together merge into ONE record, never one-per-attachment. Staff review and correct the extraction in an editable preview before saving — nothing reaches the register until they hit Save. Plus a type/status-filtered listing with inline edit/delete. Not wired into admin.html's illustrative Campaign Summaries/Scheme Progress/Fund Utilization widgets yet |
 | `social_calendar.html` | Social media content calendar — calendar view where each date can hold multiple posts, each post carrying one or more media files (images/video/PDF) plus a caption |
 
 ### Key API endpoints
@@ -228,10 +228,12 @@ booking details are edited nowhere and the wizard owns prep.
 | DELETE | `/api/social-calendar/:id` | Remove a post and its stored media files |
 | GET | `/api/social-calendar/media/:filename` | Retrieve a stored media file |
 | GET | `/api/campaign-reports` | List campaign/scheme/cluster reports (filterable by `type`/`mandal`/`status`) |
-| POST | `/api/campaign-reports` | Create a report (multipart: `title`, `type`, `status`, `mandal`, `village`, `description`, optional `attachment`) |
-| PATCH | `/api/campaign-reports/:id` | Edit a report's fields |
-| DELETE | `/api/campaign-reports/:id` | Remove a report and its stored attachment |
-| GET | `/api/campaign-reports/:id/media` | Retrieve a report's stored attachment |
+| POST | `/api/campaign-reports/log` | Universal single-report intake, mirroring `/api/grievances/log` (multipart: optional `text`, optional `images[]` up to 10, optional `audio`, plus staff-typed `title`/`mandal`/`village`/`logged_by`) — runs whichever of OCR/transcription/text-triage apply and merges them into ONE reviewable preview (`intake_mode: 'mixed'`); attachments are parked as `pending_media` and **nothing is written to the register** |
+| DELETE | `/api/campaign-reports/pending-media/:filename` | Drop a parked attachment when staff discard the preview (the same startup sweep clears `tmp_*` files older than 24h) |
+| POST | `/api/campaign-reports` | Commit the (staff-reviewed/edited) preview to the register — JSON `{items:[…]}`, **not** multipart; claims any `pending_media`/`media[]` |
+| PATCH | `/api/campaign-reports/:id` | Edit a report's fields (`title`/`type`/`mandal`/`village`/`status`/`description`) |
+| DELETE | `/api/campaign-reports/:id` | Remove a report and its stored attachments |
+| GET | `/api/campaign-reports/:id/media/:index?` | Retrieve one of the report's attachments; `:index` defaults to 0 (the first/legacy single attachment) |
 | POST | `/api/search` | Hybrid retrieval (`{query, k, filters}`) → `{query, k, degraded, sources, results[]}` |
 | GET | `/api/search` | Flat-list form of the above (`?q=`), kept for existing callers |
 | GET | `/api/search/status` | Corpus size, per-retriever health, fusion settings |
@@ -259,11 +261,11 @@ booking details are edited nowhere and the wizard owns prep.
 | `CONVERSATION_TRASH_LIMIT` | `10` | Deleted threads retained per channel |
 | `CONVERSATION_TRASH_DAYS` | `30` | Retention window before a deleted thread is purged |
 | `EXCEL_PATH` | `./combined_clean.xlsx` | Input file for `setup_db.js` |
-| `GEMINI_API_KEY` | (none) | Google Gemini API key for the grievance extraction paths — form-photo OCR, typed-summary triage and audio transcription (`server/gemini.js`). If unset, those endpoints fail fast with a clear error rather than crashing — staff can still use the register manually. |
+| `GEMINI_API_KEY` | (none) | Google Gemini API key for the extraction paths — form-photo OCR, typed-summary triage and audio transcription, for both the grievance register and the campaign-report intake (`server/gemini.js`). If unset, those endpoints fail fast with a clear error rather than crashing — staff can still use both registers manually. |
 
-### Grievance extraction (`server/gemini.js`)
+### AI extraction (`server/gemini.js`)
 
-Lazy-imported on first use so a missing `GEMINI_API_KEY` doesn't crash the server. All calls share one `callGemini(parts, responseSchema, timeoutMs)` helper and a common field schema; entry points wrap it:
+Lazy-imported on first use so a missing `GEMINI_API_KEY` doesn't crash the server. All calls share one `callGemini(parts, responseSchema, timeoutMs)` helper (30s default, 45s for audio) over two families of field schema — grievance and report; entry points wrap it:
 
 - `extractGrievanceFromImage(buffer, mimeType, categories)` — OCRs a photographed walk-in form; adds `ocr_confidence`.
 - `extractGrievanceFromText(text, categories)` — triages a typed phone-call summary or message; adds `is_grievance` + `confidence` so non-grievances (greetings, spam) can be gated out of the register.
@@ -271,9 +273,19 @@ Lazy-imported on first use so a missing `GEMINI_API_KEY` doesn't crash the serve
 - `suggestGrievanceResponse(grievance)` — on-demand, text-only draft of a citizen-facing reply plus an internal next-action note; advisory only, never wired into the save/commit path.
 - `draftDepartmentLetter(grievance, departmentInfo, mpName)` — on-demand, text-only draft of a formal letter (`subject`/`body`) to a government department head for the grievance's category; advisory only, auto-saved on generation but never auto-printed/sent.
 
+The campaign-report intake has its own trio, same shape but no category taxonomy or `is_grievance` gate — they judge `{type, status}` instead:
+
+- `extractReportFromImage(buffer, mimeType)` — OCRs a photographed report or notice.
+- `extractReportFromText(text)` — extracts from a typed field report.
+- `extractReportFromAudio(buffer, mimeType)` — transcribes dictated audio and extracts from the transcript; adds `transcript`, on the same 45s timeout.
+
 `POST /api/grievances/log` (the universal intake) calls `extractGrievanceFromImage`/`extractGrievanceFromAudio`/`extractGrievanceFromText` in whatever combination the submission includes, then merges the results into one record via `mergeGrievanceExtraction` in `server/index.js` (image OCR wins scalar identity/location fields; audio dictation wins the category/urgency judgement; `issue_description` is concatenated per-source, never chosen, so nothing is silently dropped).
 
-Each extraction path constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Source media is persisted to `VOLUME/grievance_media/` for later manual re-verification of low-confidence reads.
+`POST /api/campaign-reports/log` does the same for reports, merging via `mergeReportExtraction` in `server/index.js`. The merge rules are deliberately parallel: scalar fields are first-source-wins in priority order image→audio→text, `description` is concatenated per-source rather than chosen, and staff-typed fields always win outright. `{type, status}` is taken as one coherent bundle from a single richest source and never mixed across sources, because a type from one reading paired with a status from another describes a report that nobody filed.
+
+Each grievance extraction path constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Report extraction is constrained the same way, and additionally judges `confidence`/`sentiment` — but its `type`/`status` enums are **hardcoded literals in `REPORT_SHARED_PROPERTIES` (`server/gemini.js`)**, not built from `CAMPAIGN_REPORT_TYPES`/`CAMPAIGN_REPORT_STATUSES` in `server/index.js` the way grievance categories are passed in. The two lists have to be edited together: `PATCH /api/campaign-reports/:id` silently drops a `type` or `status` outside the server-side set, so a value only Gemini knows about would vanish on the next edit rather than error.
+
+Source media is persisted to `VOLUME/grievance_media/` and `VOLUME/campaign_media/` for later manual re-verification of low-confidence reads; both directories get the same startup sweep of abandoned `tmp_*` uploads.
 
 ### Duplicate detection (`server/index.js`)
 
