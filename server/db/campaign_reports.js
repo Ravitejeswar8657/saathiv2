@@ -17,11 +17,40 @@ const COLUMNS = [
   'logged_by', 'source_event_id', 'created_at',
 ];
 
-// Must match the CHECK constraints in 002_domain.sql, which are themselves lifted
-// from the Sets in server/index.js.
+/**
+ * The report vocabulary — the one place these values are written down in JS.
+ *
+ * They used to be restated in eight: this file's ENUMS, the CHECK constraints in
+ * 002_domain.sql, two Sets in server/index.js, the Gemini response schema, all
+ * three extraction prompts, and the page's own <select>s. Nothing warned when
+ * they drifted, and the failure was silent in the worst direction — a type only
+ * one copy knew about was quietly rewritten to 'Other' on save.
+ *
+ * `hint` is prompt-only: server/gemini.js renders it into the extraction prompt
+ * and nothing persists it. It lives here anyway, so that adding a type is one
+ * edit rather than one edit plus three places that must be kept to agree.
+ *
+ * The CHECK constraints in 002_domain.sql are the one copy that CANNOT derive
+ * from this, because an applied migration must never be edited. Widening the
+ * vocabulary is therefore a two-step change: add the value here AND add a
+ * migration widening the CHECK — exactly what 005_news_scopes.sql did for
+ * news.scope. Skip the migration and SQLite rejects the row outright.
+ */
+export const REPORT_TAXONOMY = {
+  types: [
+    { value: 'Campaign', hint: 'a political/public event, rally, health camp, etc.' },
+    { value: 'Government Scheme', hint: 'a scheme rollout/progress update' },
+    { value: 'Cluster Report', hint: 'a village/mandal-cluster field report, which may include notes about local leaders' },
+    { value: 'Other', hint: '' },
+  ],
+  statuses: ['Planned', 'Ongoing', 'Completed', 'Delayed'],
+};
+
 const ENUMS = {
-  type:        { values: ['Campaign', 'Government Scheme', 'Cluster Report', 'Other'], fallback: 'Other' },
-  status:      { values: ['Planned', 'Ongoing', 'Completed', 'Delayed'],               fallback: 'Planned' },
+  type:        { values: REPORT_TAXONOMY.types.map(t => t.value), fallback: 'Other' },
+  status:      { values: [...REPORT_TAXONOMY.statuses],           fallback: 'Planned' },
+  // Not part of the report taxonomy: these two are shaped by the intake pipeline
+  // rather than by what staff choose, and no prompt or <select> offers them.
   sentiment:   { values: ['', 'Positive', 'Neutral', 'Negative', 'Mixed'],             fallback: '' },
   intake_mode: { values: ['typed', 'ocr', 'dictated', 'mixed'],                        fallback: 'mixed' },
 };

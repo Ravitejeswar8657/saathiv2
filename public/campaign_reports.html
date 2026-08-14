@@ -162,19 +162,13 @@
   <div class="card">
     <div class="section-title">All reports</div>
     <div class="filter-bar">
+      <!-- Options are filled from GET /api/campaign-reports/taxonomy at init, so
+           this page cannot offer a type the server would reject. -->
       <select id="filter-type" onchange="loadReports()">
         <option value="">All types</option>
-        <option value="Campaign">Campaign</option>
-        <option value="Government Scheme">Government Scheme</option>
-        <option value="Cluster Report">Cluster Report</option>
-        <option value="Other">Other</option>
       </select>
       <select id="filter-status" onchange="loadReports()">
         <option value="">All statuses</option>
-        <option value="Planned">Planned</option>
-        <option value="Ongoing">Ongoing</option>
-        <option value="Completed">Completed</option>
-        <option value="Delayed">Delayed</option>
       </select>
     </div>
     <div id="reports-list"><div class="empty-state">Loading…</div></div>
@@ -189,20 +183,10 @@
     <div class="form-group"><label>Title</label><input id="edit-title"></div>
     <div class="form-row">
       <div class="form-group"><label>Type</label>
-        <select id="edit-type">
-          <option value="Campaign">Campaign</option>
-          <option value="Government Scheme">Government Scheme</option>
-          <option value="Cluster Report">Cluster Report</option>
-          <option value="Other">Other</option>
-        </select>
+        <select id="edit-type"></select>
       </div>
       <div class="form-group"><label>Status</label>
-        <select id="edit-status">
-          <option value="Planned">Planned</option>
-          <option value="Ongoing">Ongoing</option>
-          <option value="Completed">Completed</option>
-          <option value="Delayed">Delayed</option>
-        </select>
+        <select id="edit-status"></select>
       </div>
     </div>
     <div class="form-row">
@@ -238,8 +222,39 @@ function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// The type/status vocabulary, fetched rather than restated. These values are
+// validated server-side and a value outside the set is silently dropped on save,
+// so a hardcoded <option> here could offer staff a choice that quietly does
+// nothing. Empty until loadTaxonomy() resolves.
+let reportTaxonomy = { types: [], statuses: [] };
+
+function taxonomyOptionsHTML(values, selected) {
+  return values.map(v =>
+    `<option value="${esc(v)}"${v === selected ? ' selected' : ''}>${esc(v)}</option>`).join('');
+}
+
+const typeValues = () => reportTaxonomy.types.map(t => t.value);
+
+async function loadTaxonomy() {
+  try {
+    const r = await fetch('/api/campaign-reports/taxonomy');
+    reportTaxonomy = await r.json();
+  } catch (e) {
+    console.error('Could not load the report taxonomy', e);
+    return;
+  }
+  // The filters keep their "All …" placeholder; the edit modal does not have one.
+  document.getElementById('filter-type').innerHTML =
+    '<option value="">All types</option>' + taxonomyOptionsHTML(typeValues());
+  document.getElementById('filter-status').innerHTML =
+    '<option value="">All statuses</option>' + taxonomyOptionsHTML(reportTaxonomy.statuses);
+  document.getElementById('edit-type').innerHTML = taxonomyOptionsHTML(typeValues());
+  document.getElementById('edit-status').innerHTML = taxonomyOptionsHTML(reportTaxonomy.statuses);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
+  await loadTaxonomy();
   await loadFilterOptions();
   await loadReports();
   // Arriving from admin.html's search: /campaign_reports.html?id=<report id>.
@@ -571,10 +586,8 @@ function renderReportPreview() {
   section.style.display = 'block';
 
   const ex = previewItem.extracted || {};
-  const typeOptions = ['Campaign', 'Government Scheme', 'Cluster Report', 'Other']
-    .map(t => `<option value="${t}">${t}</option>`).join('');
-  const statusOptions = ['Planned', 'Ongoing', 'Completed', 'Delayed']
-    .map(s => `<option value="${s}">${s}</option>`).join('');
+  const typeOptions = taxonomyOptionsHTML(typeValues());
+  const statusOptions = taxonomyOptionsHTML(reportTaxonomy.statuses);
 
   document.getElementById('preview-card').innerHTML = `
     <div class="preview-card-head">

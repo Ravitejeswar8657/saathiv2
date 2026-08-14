@@ -44,6 +44,7 @@ import {
 } from './db/news.js';
 import {
   listReports, getReport, insertReport, updateReport, softDeleteReport, replaceAllReports,
+  REPORT_TAXONOMY,
 } from './db/campaign_reports.js';
 import {
   listPosts, getPost, insertPost, updatePost, softDeletePost, replaceAllPosts, countPostsBetween,
@@ -2087,10 +2088,14 @@ app.get('/api/social-calendar/media/:filename', (req, res) => {
 // Mirrors the grievance universal-intake shape: any combination of typed text,
 // photo(s)/PDF, and audio describing ONE campaign/scheme/cluster item is merged
 // into a single AI-extracted preview record staff review and edit before saving.
-// No per-value weight/department metadata exists for report type/status (unlike
-// ISSUE_CATEGORIES), so these stay bare fixed enums.
-const CAMPAIGN_REPORT_TYPES = new Set(['Campaign', 'Government Scheme', 'Cluster Report', 'Other']);
-const CAMPAIGN_REPORT_STATUSES = new Set(['Planned', 'Ongoing', 'Completed', 'Delayed']);
+// The vocabulary itself lives in server/db/campaign_reports.js, next to the
+// coercion that enforces it on write — see REPORT_TAXONOMY there. These Sets are
+// derived, so a route's idea of a valid type cannot disagree with the register's.
+// The same object is handed to server/gemini.js as a parameter (that module
+// deliberately imports nothing, so it stays lazily loadable) and served to the
+// page by GET /api/campaign-reports/taxonomy.
+const CAMPAIGN_REPORT_TYPES = new Set(REPORT_TAXONOMY.types.map(t => t.value));
+const CAMPAIGN_REPORT_STATUSES = new Set(REPORT_TAXONOMY.statuses);
 // Unified mime map for this intake's single parking path (unlike grievances, which
 // split an image-only allowlist for the bulk /upload route from GRIEVANCE_AUDIO_MIMES
 // for /log — campaign reports have only one intake route, so one map covers it all).
@@ -2112,6 +2117,12 @@ app.get('/api/campaign-reports', (req, res) => {
   if (status) items = items.filter(r => r.status === status);
   items = items.slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
   res.json({ items });
+});
+
+// The taxonomy the page builds its type/status <select>s from, so those cannot
+// drift from what the server validates. Mirrors GET /api/grievances/categories.
+app.get('/api/campaign-reports/taxonomy', (req, res) => {
+  res.json(REPORT_TAXONOMY);
 });
 
 // Universal intake — extracts a preview only, does not write to the DB.
@@ -2165,19 +2176,19 @@ app.post('/api/campaign-reports/log', logCampaignReportMedia, async (req, res) =
   const [imageResults, audioResult, textResult] = await Promise.all([
     Promise.all(images.map(async (f, i) => {
       try {
-        const extracted = await gemini.extractReportFromImage(f.buffer, f.mimetype);
+        const extracted = await gemini.extractReportFromImage(f.buffer, f.mimetype, REPORT_TAXONOMY);
         return { ok: true, idx: i, file: f.originalname, extracted };
       } catch (e) {
         return { ok: false, idx: i, file: f.originalname, error: e.message };
       }
     })),
     audioFile
-      ? gemini.extractReportFromAudio(audioFile.buffer, audioFile.mimetype)
+      ? gemini.extractReportFromAudio(audioFile.buffer, audioFile.mimetype, REPORT_TAXONOMY)
           .then(extracted => ({ ok: true, extracted }))
           .catch(e => ({ ok: false, error: e.message }))
       : null,
     text
-      ? gemini.extractReportFromText(text)
+      ? gemini.extractReportFromText(text, REPORT_TAXONOMY)
           .then(extracted => ({ ok: true, extracted }))
           .catch(e => ({ ok: false, error: e.message }))
       : null,

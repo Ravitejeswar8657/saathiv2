@@ -286,14 +286,30 @@ export async function extractGrievanceFromAudio(buffer, mimeType, categories) {
 // ISSUE_CATEGORIES has for grievance categories — so the 4-value enums are
 // just hardcoded here, the same way resolution_status is hardcoded in
 // SHARED_PROPERTIES, rather than built via a withCategoryEnum-style injector.
-function buildReportImagePrompt() {
+// "A, B, or C" — the form the three prompts were hand-written in.
+function orList(items) {
+  if (items.length < 2) return items.join('');
+  return `${items.slice(0, -1).join(', ')}, or ${items[items.length - 1]}`;
+}
+
+// The type/status instructions, rendered from the taxonomy rather than restated
+// in each prompt. All three prompts used identical wording for the type list and
+// near-identical wording for the status one; the clarifying clause that only the
+// image prompt carried is now used everywhere.
+function reportEnumInstructions({ types, statuses }) {
+  const typeList = orList(types.map(t => `"${t.value}"${t.hint ? ` (${t.hint})` : ''}`));
+  const statusList = orList([...statuses].map(s => `"${s}"`));
+  return `For "type", pick the single best match: ${typeList}.
+
+For "status", pick the single best match for how far along the activity is: ${statusList}.`;
+}
+
+function buildReportImagePrompt(taxonomy) {
   return `You are reading a photographed item from an Indian MP's constituency office — this could be a banner/event photo, an attendance sheet, a handwritten field note, or a government scheme progress note.
 
 Extract only what is legibly visible. If a field isn't shown or is illegible, return an empty string for it — never invent or guess a value.
 
-For "type", pick the single best match: "Campaign" (a political/public event, rally, health camp, etc.), "Government Scheme" (a scheme rollout/progress update), "Cluster Report" (a village/mandal-cluster field report, which may include notes about local leaders), or "Other".
-
-For "status", pick the single best match for how far along the activity is: "Planned", "Ongoing", "Completed", or "Delayed".
+${reportEnumInstructions(taxonomy)}
 
 Write "description" as a clear one-or-two-sentence summary of what the item shows.
 
@@ -306,14 +322,12 @@ For "ocr_confidence", rate how legible/certain your overall reading was.
 event_date should be normalized to YYYY-MM-DD if a date is shown and unambiguous; otherwise return your best-effort raw reading or an empty string.`;
 }
 
-function buildReportTextPrompt() {
+function buildReportTextPrompt(taxonomy) {
   return `You are triaging a staff-written note about a campaign event, a government scheme update, or a constituency/cluster field report for an Indian MP's office. The text may be in English, Telugu, or a mix.
 
 Pull out whatever details are actually present. Most fields may be missing — return an empty string for anything not stated. Never invent or guess a value. Write "description" as a clear one-or-two-sentence summary.
 
-For "type", pick the single best match: "Campaign" (a political/public event, rally, health camp, etc.), "Government Scheme" (a scheme rollout/progress update), "Cluster Report" (a village/mandal-cluster field report, which may include notes about local leaders), or "Other".
-
-For "status", pick the single best match: "Planned", "Ongoing", "Completed", or "Delayed".
+${reportEnumInstructions(taxonomy)}
 
 For "key_people_mentioned", list any named officials, leaders, or organizers mentioned, as free text (empty string if none).
 
@@ -326,16 +340,14 @@ Set "sentiment" to the overall tone of the note toward the MP/office/government 
 event_date should be YYYY-MM-DD if the text states when the activity happened/is happening; otherwise return an empty string.`;
 }
 
-function buildReportAudioPrompt() {
+function buildReportAudioPrompt(taxonomy) {
   return `You are processing an audio recording of a staff member describing a campaign event, a government scheme update, or a constituency/cluster field report for an Indian MP's office.
 
 First transcribe the audio into "transcript". The speaker may use Telugu, English, or a mix of both. Keep the original language and script — transcribe Telugu speech in Telugu script. Do not translate. If parts are inaudible, mark them [inaudible] rather than guessing.
 
 Then extract the report fields from that transcript. Return an empty string for any detail not actually spoken — never invent or guess a value. Write "description" as a clear one-or-two-sentence summary.
 
-For "type", pick the single best match: "Campaign" (a political/public event, rally, health camp, etc.), "Government Scheme" (a scheme rollout/progress update), "Cluster Report" (a village/mandal-cluster field report, which may include notes about local leaders), or "Other".
-
-For "status", pick the single best match: "Planned", "Ongoing", "Completed", or "Delayed".
+${reportEnumInstructions(taxonomy)}
 
 For "key_people_mentioned", list any named officials, leaders, or organizers mentioned, as free text (empty string if none).
 
@@ -348,10 +360,14 @@ Set "sentiment" to the overall tone of the note toward the MP/office/government 
 event_date should be YYYY-MM-DD if the speaker states when the activity happened/is happening; otherwise return an empty string.`;
 }
 
+// type/status carry no enum here on purpose — withReportEnums() injects them from
+// the taxonomy the caller passes in, exactly as withCategoryEnum() does for
+// grievance categories. Hardcoding them here is what let this file's idea of a
+// valid type drift from the server's.
 const REPORT_SHARED_PROPERTIES = {
   title: { type: 'STRING' },
-  type: { type: 'STRING', enum: ['Campaign', 'Government Scheme', 'Cluster Report', 'Other'] },
-  status: { type: 'STRING', enum: ['Planned', 'Ongoing', 'Completed', 'Delayed'] },
+  type: { type: 'STRING' },
+  status: { type: 'STRING' },
   mandal: { type: 'STRING' },
   village: { type: 'STRING' },
   event_date: { type: 'STRING' },
@@ -388,30 +404,41 @@ const REPORT_AUDIO_SCHEMA = {
   required: [...REPORT_TEXT_SCHEMA.required, 'transcript'],
 };
 
-export async function extractReportFromImage(buffer, mimeType) {
+function withReportEnums(schema, { types, statuses }) {
+  return {
+    ...schema,
+    properties: {
+      ...schema.properties,
+      type: { type: 'STRING', enum: types.map(t => t.value) },
+      status: { type: 'STRING', enum: [...statuses] },
+    },
+  };
+}
+
+export async function extractReportFromImage(buffer, mimeType, taxonomy) {
   return callGemini(
     [
-      { text: buildReportImagePrompt() },
+      { text: buildReportImagePrompt(taxonomy) },
       { inline_data: { mime_type: mimeType, data: buffer.toString('base64') } },
     ],
-    REPORT_IMAGE_SCHEMA,
+    withReportEnums(REPORT_IMAGE_SCHEMA, taxonomy),
   );
 }
 
-export async function extractReportFromText(text) {
+export async function extractReportFromText(text, taxonomy) {
   return callGemini(
-    [{ text: `${buildReportTextPrompt()}\n\n--- Reported item ---\n${text}` }],
-    REPORT_TEXT_SCHEMA,
+    [{ text: `${buildReportTextPrompt(taxonomy)}\n\n--- Reported item ---\n${text}` }],
+    withReportEnums(REPORT_TEXT_SCHEMA, taxonomy),
   );
 }
 
-export async function extractReportFromAudio(buffer, mimeType) {
+export async function extractReportFromAudio(buffer, mimeType, taxonomy) {
   return callGemini(
     [
-      { text: buildReportAudioPrompt() },
+      { text: buildReportAudioPrompt(taxonomy) },
       { inline_data: { mime_type: mimeType, data: buffer.toString('base64') } },
     ],
-    REPORT_AUDIO_SCHEMA,
+    withReportEnums(REPORT_AUDIO_SCHEMA, taxonomy),
     AUDIO_TIMEOUT_MS,
   );
 }

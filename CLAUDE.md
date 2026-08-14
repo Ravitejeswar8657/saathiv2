@@ -228,6 +228,7 @@ booking details are edited nowhere and the wizard owns prep.
 | DELETE | `/api/social-calendar/:id` | Remove a post and its stored media files |
 | GET | `/api/social-calendar/media/:filename` | Retrieve a stored media file |
 | GET | `/api/campaign-reports` | List campaign/scheme/cluster reports (filterable by `type`/`mandal`/`status`) |
+| GET | `/api/campaign-reports/taxonomy` | The `type`/`status` vocabulary the page builds its `<select>`s from (see "The report taxonomy") |
 | POST | `/api/campaign-reports/log` | Universal single-report intake, mirroring `/api/grievances/log` (multipart: optional `text`, optional `images[]` up to 10, optional `audio`, plus staff-typed `title`/`mandal`/`village`/`logged_by`) — runs whichever of OCR/transcription/text-triage apply and merges them into ONE reviewable preview (`intake_mode: 'mixed'`); attachments are parked as `pending_media` and **nothing is written to the register** |
 | DELETE | `/api/campaign-reports/pending-media/:filename` | Drop a parked attachment when staff discard the preview (the same startup sweep clears `tmp_*` files older than 24h) |
 | POST | `/api/campaign-reports` | Commit the (staff-reviewed/edited) preview to the register — JSON `{items:[…]}`, **not** multipart; claims any `pending_media`/`media[]` |
@@ -283,9 +284,27 @@ The campaign-report intake has its own trio, same shape but no category taxonomy
 
 `POST /api/campaign-reports/log` does the same for reports, merging via `mergeReportExtraction` in `server/index.js`. The merge rules are deliberately parallel: scalar fields are first-source-wins in priority order image→audio→text, `description` is concatenated per-source rather than chosen, and staff-typed fields always win outright. `{type, status}` is taken as one coherent bundle from a single richest source and never mixed across sources, because a type from one reading paired with a status from another describes a report that nobody filed.
 
-Each grievance extraction path constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Report extraction is constrained the same way, and additionally judges `confidence`/`sentiment` — but its `type`/`status` enums are **hardcoded literals in `REPORT_SHARED_PROPERTIES` (`server/gemini.js`)**, not built from `CAMPAIGN_REPORT_TYPES`/`CAMPAIGN_REPORT_STATUSES` in `server/index.js` the way grievance categories are passed in. The two lists have to be edited together: `PATCH /api/campaign-reports/:id` silently drops a `type` or `status` outside the server-side set, so a value only Gemini knows about would vanish on the next edit rather than error.
+Each grievance extraction path constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Report extraction is constrained the same way, and additionally judges `confidence`/`sentiment`. Its `type`/`status` enums come from `REPORT_TAXONOMY` in `server/db/campaign_reports.js` — see "The report taxonomy" below.
 
 Source media is persisted to `VOLUME/grievance_media/` and `VOLUME/campaign_media/` for later manual re-verification of low-confidence reads; both directories get the same startup sweep of abandoned `tmp_*` uploads.
+
+### The report taxonomy (`server/db/campaign_reports.js`)
+
+`REPORT_TAXONOMY` is the single source for campaign-report `type`/`status`. Everything else derives from it:
+
+| Consumer | How it derives |
+|---|---|
+| Write-time coercion (`ENUMS` in the same file) | `REPORT_TAXONOMY.types.map(t => t.value)` |
+| Route validation (`CAMPAIGN_REPORT_TYPES`/`CAMPAIGN_REPORT_STATUSES`, `server/index.js`) | Sets built from the import |
+| Gemini response schema | `withReportEnums(schema, taxonomy)`, mirroring `withCategoryEnum` |
+| All three extraction prompts | `reportEnumInstructions(taxonomy)` — one renderer, using each type's prompt-only `hint` |
+| The page's four `<select>`s | `GET /api/campaign-reports/taxonomy` |
+
+These were eight independent copies before, and a drift between them failed silently in the worst direction: a type only one copy knew about was rewritten to `Other` on save, with no error.
+
+**Adding a value is a two-step change.** The `CHECK` constraints in `002_domain.sql` cannot derive from JS — an applied migration must never be edited — so a new value needs both a `REPORT_TAXONOMY` entry *and* a migration widening the `CHECK`, the same way `005_news_scopes.sql` widened `news.scope`. Skip the migration and the insert fails loudly on the constraint, which is the intended behaviour: it is the one duplication left, and it errors rather than corrupting.
+
+`public/campaign_reports.html` still keeps `TYPE_TAG_CLASS`/`STATUS_CLASS` locally. Those are CSS-class lookups, not vocabulary, and both already fall back (`|| 'tag-other'`, `|| 'status-planned'`), so a new value renders unstyled rather than breaking.
 
 ### Duplicate detection (`server/index.js`)
 
