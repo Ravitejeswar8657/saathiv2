@@ -333,7 +333,7 @@ function renderList() {
 
     evts.forEach(ev => {
       html += `
-      <div class="event-card" onclick="openCoverage('${ev.id}')" title="Click to record coverage">
+      <div class="event-card" id="ev-${ev.id}" onclick="openCoverage('${ev.id}')" title="Click to record coverage">
         <div style="flex:1">
           <div class="event-name">${esc(ev.event_name)}${ev.event_type ? ` <span class="tag tag-t2">${esc(ev.event_type)}</span>` : ''}${ev.audience_cohort ? ` <span class="tag tag-t3">${esc(cohortLabelByKey[ev.audience_cohort] || ev.audience_cohort)}</span>` : ''}</div>
           <div class="event-meta">${ev.time ? fmt12h(ev.time) + ' · ' : ''}${esc(ev.mandal)}</div>
@@ -495,7 +495,13 @@ async function deleteSchedule(id) {
   }
 }
 
-loadSchedule();
+// Arriving from admin.html's search: /pa_schedule.html?id=<event id>. The list
+// renders every date on first load, so the card is in the DOM if the event
+// still exists.
+loadSchedule().then(() => {
+  const id = SaathiUI.deepLinkId();
+  if (id) SaathiUI.revealRecord(document.getElementById('ev-' + id), { label: 'event' });
+});
 </script>
 </body>
 </html>

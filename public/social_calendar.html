@@ -96,7 +96,14 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); loadPosts(); });
+document.addEventListener('DOMContentLoaded', async () => {
+  if (window.lucide) lucide.createIcons();
+  await loadPosts();
+  // Arriving from admin.html's search: /social_calendar.html?id=<post id>. No
+  // date filter is applied on first load, so every post is rendered.
+  const id = SaathiUI.deepLinkId();
+  if (id) SaathiUI.revealRecord(document.getElementById('card-' + id), { label: 'post' });
+});
 
 let allPosts = [];
 let selectedDateFilter = null;

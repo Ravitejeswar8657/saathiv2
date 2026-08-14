@@ -241,7 +241,12 @@ function esc(s) {
 document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
   await loadFilterOptions();
-  loadReports();
+  await loadReports();
+  // Arriving from admin.html's search: /campaign_reports.html?id=<report id>.
+  // The type/status filters both start empty, so the card is rendered if the
+  // report still exists.
+  const id = SaathiUI.deepLinkId();
+  if (id) SaathiUI.revealRecord(document.getElementById('rep-' + id), { label: 'report' });
 });
 
 async function loadFilterOptions() {
@@ -748,7 +753,7 @@ async function loadReports() {
       } else if (item.attachment) {
         attachmentsHtml = `<a href="/api/campaign-reports/${item.id}/media" target="_blank"><i data-lucide="paperclip" style="width:12px;height:12px;vertical-align:middle"></i> ${esc(item.attachment.original_name || 'Attachment')}</a>`;
       }
-      return `<div class="report-card">
+      return `<div class="report-card" id="rep-${item.id}">
         <div class="report-card-header">
           <div>
             <div class="report-title">${esc(item.title)} <span class="tag ${typeCls}">${esc(item.type)}</span> <span class="status-badge ${statusCls}">${esc(item.status)}</span></div>

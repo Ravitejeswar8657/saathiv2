@@ -1324,6 +1324,10 @@ function downloadRegisterPdf() {
 (async function init() {
   await loadCategories();
   await loadItems();
+  // Arriving from admin.html's search: /grievances.html?id=<grievance id>. No
+  // filter is applied on first load, so the row is rendered if it still exists.
+  const id = SaathiUI.deepLinkId();
+  if (id) SaathiUI.revealRecord(document.getElementById('row-' + id), { label: 'grievance' });
 })();
 </script>
 </body>

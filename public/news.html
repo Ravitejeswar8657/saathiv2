@@ -709,6 +709,20 @@ switchTab = function(tab) {
   origSwitchTab(tab);
   if (tab === 'manage') loadManageNews();
 };
+
+// Arriving from admin.html's search: /news.html?id=<news id>. The listing lives
+// on the Manage tab, so the deep link has to switch to it first — and the load
+// is awaited here rather than left to the wrapper above, which fires it without
+// waiting and would have us look for a card that has not been rendered yet.
+// DOMContentLoaded, not a bare call: /js/saathi-ui.js is deferred, so it has not
+// run yet while this inline script is being parsed and SaathiUI is undefined here.
+document.addEventListener('DOMContentLoaded', async () => {
+  const id = SaathiUI.deepLinkId();
+  if (!id) return;
+  origSwitchTab('manage');
+  await loadManageNews();
+  SaathiUI.revealRecord(document.getElementById('nc-' + id), { label: 'news item' });
+});
 </script>
 </body>
 </html>

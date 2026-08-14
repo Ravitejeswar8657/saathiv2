@@ -468,7 +468,11 @@ function downloadRegisterPdf() {
   window.open('/api/ttd-letters/export-pdf' + (params.toString() ? '?' + params.toString() : ''), '_blank');
 }
 
-loadLetters();
+// Arriving from admin.html's search: /ttd_letters.html?id=<letter id>.
+loadLetters().then(() => {
+  const id = SaathiUI.deepLinkId();
+  if (id) SaathiUI.revealRecord(document.getElementById('row-' + id), { label: 'letter' });
+});
 </script>
 </body>
 </html>

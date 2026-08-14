@@ -269,6 +269,13 @@ async function init() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(applyFilters, 280);
   });
+
+  // Arriving from admin.html's search: /contacts.html?id=<contact id>. This
+  // opens the detail modal rather than scrolling to a card, because the grid is
+  // paginated — a contact past the first PAGE_SIZE batch is not in the DOM at
+  // all, and openModal fetches the one contact directly.
+  const deepLinkId = SaathiUI.deepLinkId();
+  if (deepLinkId) openModal(deepLinkId);
 }
 
 async function loadFilterOptions() {
@@ -494,11 +501,16 @@ async function logInteraction(id, btn) {
 async function openModal(id) {
   try {
     const r = await fetch(`/api/contact/${id}`);
+    // A 404 used to fall through and render a modal of the error body's empty
+    // fields. It matters now that a stale search link can land here.
+    if (!r.ok) throw new Error(`Server returned ${r.status}`);
     const c = await r.json();
     renderModal(c);
     document.getElementById('detail-modal').classList.add('open');
     document.body.style.overflow = 'hidden';
-  } catch {}
+  } catch {
+    SaathiUI.toast('That contact is no longer here — it may have been deleted.', 'info');
+  }
 }
 
 function renderModal(c) {

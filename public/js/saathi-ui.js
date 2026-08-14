@@ -165,5 +165,58 @@
     });
   };
 
+  // ── Deep links from search ─────────────────────────────────────────────────
+  // admin.html's search links through as /page.html?id=<domain id>. Each page
+  // owns how it finds its own row — the markup is a table on one page, a card
+  // grid on the next — so this owns only the two halves that are identical
+  // everywhere: reading the param, and making the row visibly the one that was
+  // asked for.
+
+  SaathiUI.deepLinkId = function () {
+    return new URLSearchParams(location.search).get('id') || null;
+  };
+
+  function ensureFlashStyle() {
+    if (document.getElementById('saathi-flash-style')) return;
+    const style = document.createElement('style');
+    style.id = 'saathi-flash-style';
+    // Outline rather than background: these targets are table rows and cards
+    // with their own backgrounds, and overriding those makes the row look
+    // selected long after the animation has finished.
+    style.textContent = `
+      @keyframes saathi-flash-kf {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+        12%      { box-shadow: 0 0 0 3px var(--accent, #b45309); }
+        70%      { box-shadow: 0 0 0 3px var(--accent, #b45309); }
+      }
+      .saathi-flash {
+        animation: saathi-flash-kf 2.4s ease-in-out;
+        border-radius: var(--radius-md, 8px);
+      }`;
+    document.head.appendChild(style);
+  }
+
+  /**
+   * Scroll a deep-linked record into view and flash it.
+   *
+   * Returns false and toasts when the target is absent. A link that silently
+   * does nothing is worse than no link at all — the record may have been
+   * deleted since the search index last saw it, and the reader needs to be told
+   * that rather than left scrolling a list it was never in.
+   */
+  SaathiUI.revealRecord = function (target, opts = {}) {
+    const { label = 'record' } = opts;
+    const el = typeof target === 'string' ? document.querySelector(target) : target;
+    if (!el) {
+      SaathiUI.toast(`That ${label} is no longer here — it may have been deleted.`, 'info');
+      return false;
+    }
+    ensureFlashStyle();
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('saathi-flash');
+    setTimeout(() => el.classList.remove('saathi-flash'), 2600);
+    return true;
+  };
+
   window.SaathiUI = SaathiUI;
 })();
