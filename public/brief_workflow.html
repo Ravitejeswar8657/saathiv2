@@ -615,7 +615,10 @@ function newsStepHtml(n) {
     html += `<div style="font-size:12px;font-weight:600;color:var(--accent);margin:10px 0 6px;text-transform:uppercase;letter-spacing:0.5px">Field Reports (submitted today)</div>`;
     fieldItems.forEach(item => {
       const checked = selectedLinks.has(item.link) ? 'checked' : '';
-      html += `<div class="checklist-item"><input type="checkbox" id="news-${idx}" ${checked}><label for="news-${idx}">${item.link ? `<a href="${item.link}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a>` : escapeHtml(item.title)} ${item.source ? '· ' + item.source : ''}</label></div>`;
+      // The category the brief PDF will group this item under — server-resolved
+      // from the row's scope, so what the PA sees here is what prints.
+      const cat = item.category ? `· ${escapeHtml(item.category)} ` : '';
+      html += `<div class="checklist-item"><input type="checkbox" id="news-${idx}" ${checked}><label for="news-${idx}">${item.link ? `<a href="${item.link}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a>` : escapeHtml(item.title)} ${cat}${item.source ? '· ' + item.source : ''}</label></div>`;
       idx++;
     });
   }

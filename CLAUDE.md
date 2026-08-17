@@ -9,7 +9,7 @@ npm install                          # install dependencies
 node server/db/migrate.js            # apply schema migrations (idempotent)
 npm run backfill                     # import data/db.json into SQLite (idempotent, asserts row counts)
 EXCEL_PATH=./combined_clean.xlsx npm run setup-db   # re-import contacts from Excel into SQLite
-npm test                             # node --test server/ public/
+npm test                             # node --test "server/**/*.test.js" "public/**/*.test.js"
 node server/index.js                 # start server on port 3000 (or $PORT)
 ```
 
@@ -143,6 +143,28 @@ Single Express file (ES Modules). Key responsibilities:
 - Serves `public/` as static files; falls back to `public/index.html` for all unmatched routes.
 - Google News RSS is fetched and cached in-memory for 15 minutes (`/api/live-news`).
 - The "Daily brief" PDF (`buildBriefPDF`, `GET /api/brief-pdf`) is the live brief-generation flow, driven from `pa_schedule.html`/`brief_workflow.html` — it reads `db.schedule`/contact data directly and has no WhatsApp dependency.
+
+### News categories in the brief (`server/news-categories.js`)
+
+`newsCategory(item)` is the only thing allowed to decide which heading
+(`National`/`International`/`State`/`District`) a news item prints under, because three
+different shapes reach the brief: SQLite rows carry lowercase **`scope`**, in-flight Excel/PDF
+import items carry title-case `category`, and auto-scraped RSS carries neither (only
+`mandal_tag` → District if set, else State). `mandal` folds into District, matching the News
+Dashboard's District filter.
+
+`category` was the db.json-era field and `005_news_scopes.sql` moved that axis to the `scope`
+column. `buildBriefPDF` kept reading `n.category` off DB rows, got `undefined` every time and
+defaulted everything to `'District'` — so the INTERNATIONAL/NATIONAL/STATE headings never
+rendered even when the media tracker had imported items in all four. Never read `.category` or
+`.scope` off a news item in a brief path; call the resolver. The module is separate from
+`index.js` because importing `index.js` starts the HTTP server, so nothing in it is testable
+(`server/news-categories.test.js` also asserts every `SCOPES` value has a heading — that is what
+catches the next migration widening `news.scope`).
+
+The auto (nobody-picked-anything) news section is capped **per category**
+(`PDF_NEWS_PER_CATEGORY`, 5), not by a flat total: a flat slice before grouping let whichever
+category sorted first eat the whole allowance. PA-picked news is never truncated.
 
 ### PPS scoring (`scripts/setup_db.js`)
 

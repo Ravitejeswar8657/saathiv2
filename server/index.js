@@ -42,6 +42,7 @@ import {
 import {
   listNews, getNewsItem, insertNews, updateNews, softDeleteNews, replaceAllNews, countNews,
 } from './db/news.js';
+import { CATEGORY_ORDER, normalizeCategory, newsCategory } from './news-categories.js';
 import {
   listReports, getReport, insertReport, updateReport, softDeleteReport, replaceAllReports,
   REPORT_TAXONOMY,
@@ -893,7 +894,10 @@ app.get('/api/daily-prep', async (req, res) => {
       const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       return nDate === dateStr || nDate === todayIST;
     })
-    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true, category: n.category || 'District', body: n.body || '' }));
+    // `category` is derived from the row's `scope` column — see newsCategory in
+    // server/news-categories.js. Reading `n.category` here returned undefined for
+    // every row and filed the whole day's news under District.
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true, category: newsCategory(n), body: n.body || '' }));
 
   const combinedNewsSelected = [];
   const seenLinks = new Set();
@@ -1002,7 +1006,10 @@ app.get('/api/schedule/:id/prep', async (req, res) => {
       const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       return nDate === evDate || nDate === todayIST;
     })
-    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true, category: n.category || 'District', body: n.body || '' }));
+    // `category` is derived from the row's `scope` column — see newsCategory in
+    // server/news-categories.js. Reading `n.category` here returned undefined for
+    // every row and filed the whole day's news under District.
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', mandal_tag: n.mandal || '', is_field: true, category: newsCategory(n), body: n.body || '' }));
 
   res.json({
     event: { ...event, speech_applicable: isSpeechApplicable(event.event_type) },
@@ -2897,15 +2904,6 @@ app.post('/api/upload-news-brief', upload.single('pdf'), async (req, res) => {
   }
 });
 
-const CATEGORY_ORDER = ['National', 'International', 'State', 'District'];
-function normalizeCategory(raw) {
-  const v = String(raw || '').trim().toLowerCase();
-  if (v.includes('inter')) return 'International';
-  if (v.includes('nat')) return 'National';
-  if (v.includes('stat')) return 'State';
-  return 'District';
-}
-
 function parseNewsExcel(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   const items = [];
@@ -2984,6 +2982,9 @@ function formatDateLong(dateStr) {
 }
 
 const PDF_LEFT = 40, PDF_RIGHT = 555, PDF_WIDTH = PDF_RIGHT - PDF_LEFT;
+// Per-category ceiling for the auto (nobody-picked-anything) news section.
+// Four categories, so the brief stays bounded at 20 items.
+const PDF_NEWS_PER_CATEGORY = 5;
 const PDF_COLORS = {
   amber: '#B45309', amberTint: '#FFF7ED', amberBorder: '#B45309',
   ink: '#1F2937', slate: '#475569', green: '#15803D',
@@ -3173,10 +3174,14 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
       const nDate = new Date(n.submitted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       return nDate === dateStr || nDate === getISTDateStr();
     })
-    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', category: n.category || 'District', body: n.body || '' }));
+    .map(n => ({ title: n.headline, link: n.link || '', source: n.source || 'Field report', category: newsCategory(n), body: n.body || '' }));
 
   const newsIsAuto = pickedNews.length === 0;
-  const newsToShow = newsIsAuto ? [...fieldNewsForPdf, ...(liveNews || [])].slice(0, 8) : pickedNews;
+  // No flat cap here any more: slicing before the grouping below meant whichever
+  // category sorted first ate the whole allowance and the rest of the headings
+  // never rendered. The auto list is capped per category instead (see
+  // PDF_NEWS_PER_CATEGORY), so every category with news is represented.
+  const newsToShow = newsIsAuto ? [...fieldNewsForPdf, ...(liveNews || [])] : pickedNews;
 
   if (newsToShow.length) {
     if (doc.y > doc.page.height - 120) doc.addPage();
@@ -3190,12 +3195,15 @@ function buildBriefPDF(doc, db, dateStr, liveNews) {
 
     const grouped = {};
     newsToShow.forEach(n => {
-      const cat = CATEGORY_ORDER.includes(n.category) ? n.category : 'District';
+      const cat = newsCategory(n);
       (grouped[cat] = grouped[cat] || []).push(n);
     });
 
     CATEGORY_ORDER.forEach(cat => {
-      const list = grouped[cat] || [];
+      // Picked news is never truncated — the PA chose those items deliberately.
+      const list = newsIsAuto
+        ? (grouped[cat] || []).slice(0, PDF_NEWS_PER_CATEGORY)
+        : (grouped[cat] || []);
       if (!list.length) return;
 
       if (doc.y > doc.page.height - 60) doc.addPage();

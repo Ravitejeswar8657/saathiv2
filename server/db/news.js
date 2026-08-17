@@ -28,7 +28,9 @@ const COLUMNS = [
 // from statewide AP politics in the same bucket. 'mandal' stays for backward
 // compatibility: rows already in the table carry it, and it remains the
 // fallback for field-correspondent submissions that name a real place.
-const SCOPES = ['district', 'mandal', 'state', 'national', 'international'];
+// Exported because server/news-categories.js maps every one of these onto a
+// brief-PDF heading and asserts in its test that none is left unmapped.
+export const SCOPES = ['district', 'mandal', 'state', 'national', 'international'];
 const PRIORITIES = ['high', 'medium', 'low'];
 
 // db.json's magic mandal values, mapped onto the new axis. Anything else is a
