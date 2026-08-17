@@ -451,6 +451,15 @@
       <div class="pillar-block">
         <div class="pillar-heading"><i data-lucide="landmark"></i> Governance Intelligence</div>
 
+        <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <select class="chat-thread-select" id="gov-mandal-filter" style="flex:0 0 auto;min-width:150px" onchange="onGovFilterChange()">
+            <option value="">All Mandals</option>
+          </select>
+          <select class="chat-thread-select" id="gov-constituency-filter" style="flex:0 0 auto;min-width:170px" onchange="onGovFilterChange()">
+            <option value="">All Constituencies</option>
+          </select>
+        </div>
+
         <div class="section-block">
           <div class="section-header"><i data-lucide="map"></i> Mandal / Village Governance Report</div>
           <div class="card card-list">
@@ -1084,11 +1093,66 @@ let mandalStats = {};
 let categoryLabels = {};
 let globalCategoryCounts = {};
 let globalGrievanceCount = 0;
+let allGrievances = [];
+let govMandalFilter = '';
+let govConstituencyFilter = '';
 
 function seededFactor(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return (h % 100) / 100;
+}
+
+function computeGovernanceStats(items) {
+  mandalStats = {};
+  (window.SaathiUI ? SaathiUI.MANDALS : []).forEach(name => {
+    mandalStats[name] = { grievanceCountLive: 0, priorityScoreSum: 0, categoryCounts: {} };
+  });
+
+  globalCategoryCounts = {};
+  globalGrievanceCount = items.length;
+  items.forEach(g => {
+    if (g.resolution_status !== 'Resolved') {
+      globalCategoryCounts[g.category] = (globalCategoryCounts[g.category] || 0) + 1;
+    }
+    if (!g.mandal || g.resolution_status === 'Resolved' || EXCLUDED_MANDALS.has(g.mandal)) return;
+    const key = normalizeMandalName(g.mandal);
+    const stat = mandalStats[key];
+    if (!stat) return;
+    stat.grievanceCountLive++;
+    stat.priorityScoreSum += (g.priority_score || 0);
+    stat.categoryCounts[g.category] = (stat.categoryCounts[g.category] || 0) + 1;
+  });
+
+  Object.values(mandalStats).forEach(stat => {
+    stat.avgPriorityScore = stat.grievanceCountLive ? stat.priorityScoreSum / stat.grievanceCountLive : 0;
+    stat.topCategory = Object.entries(stat.categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  });
+}
+
+function applyGovernanceFilters() {
+  const filtered = allGrievances.filter(g => {
+    if (govMandalFilter && normalizeMandalName(g.mandal) !== govMandalFilter) return false;
+    if (govConstituencyFilter && g.assembly_constituency !== govConstituencyFilter) return false;
+    return true;
+  });
+  computeGovernanceStats(filtered);
+  renderGovernanceTable();
+  renderCategoryBreakdown();
+}
+
+function onGovFilterChange() {
+  govMandalFilter = document.getElementById('gov-mandal-filter').value;
+  govConstituencyFilter = document.getElementById('gov-constituency-filter').value;
+  applyGovernanceFilters();
+}
+
+function populateConstituencyFilter(items) {
+  const sel = document.getElementById('gov-constituency-filter');
+  const current = sel.value;
+  const values = [...new Set(items.map(g => (g.assembly_constituency || '').trim()).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All Constituencies</option>' +
+    values.map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(v)}</option>`).join('');
 }
 
 async function loadIntelligenceData() {
@@ -1101,34 +1165,15 @@ async function loadIntelligenceData() {
     const { categories } = await categoriesRes.json();
     categoryLabels = Object.fromEntries((categories || []).map(c => [c.key, c.label]));
 
-    mandalStats = {};
-    (window.SaathiUI ? SaathiUI.MANDALS : []).forEach(name => {
-      mandalStats[name] = { grievanceCountLive: 0, priorityScoreSum: 0, categoryCounts: {} };
-    });
+    allGrievances = grievances || [];
+    document.getElementById('stat-grievances-total').textContent = allGrievances.length.toLocaleString('en-IN');
+    populateConstituencyFilter(allGrievances);
+    if (window.SaathiUI && !document.getElementById('gov-mandal-filter').dataset.populated) {
+      document.getElementById('gov-mandal-filter').insertAdjacentHTML('beforeend', SaathiUI.mandalOptionsHTML());
+      document.getElementById('gov-mandal-filter').dataset.populated = '1';
+    }
 
-    globalCategoryCounts = {};
-    globalGrievanceCount = (grievances || []).length;
-    document.getElementById('stat-grievances-total').textContent = globalGrievanceCount.toLocaleString('en-IN');
-    (grievances || []).forEach(g => {
-      if (g.resolution_status !== 'Resolved') {
-        globalCategoryCounts[g.category] = (globalCategoryCounts[g.category] || 0) + 1;
-      }
-      if (!g.mandal || g.resolution_status === 'Resolved' || EXCLUDED_MANDALS.has(g.mandal)) return;
-      const key = normalizeMandalName(g.mandal);
-      const stat = mandalStats[key];
-      if (!stat) return;
-      stat.grievanceCountLive++;
-      stat.priorityScoreSum += (g.priority_score || 0);
-      stat.categoryCounts[g.category] = (stat.categoryCounts[g.category] || 0) + 1;
-    });
-
-    Object.values(mandalStats).forEach(stat => {
-      stat.avgPriorityScore = stat.grievanceCountLive ? stat.priorityScoreSum / stat.grievanceCountLive : 0;
-      stat.topCategory = Object.entries(stat.categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
-    });
-
-    renderGovernanceTable();
-    renderCategoryBreakdown();
+    applyGovernanceFilters();
   } catch (e) {
     console.error('Failed to load intelligence data', e);
   }
