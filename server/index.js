@@ -562,11 +562,17 @@ app.get('/api/schedule/cohorts', (req, res) => {
   res.json({ cohorts: COHORTS });
 });
 
-app.post('/api/schedule', (req, res) => {
-  const { event_name, date, time, address, village, mandal, description, event_type, audience_cohort } = req.body;
-  if (!mandal || !event_name || !date)
-    return res.status(400).json({ error: 'event_name, date and mandal required' });
-  const db = readDB();
+// Same 7 values as pa_schedule.html's #sch-event-type <select>. event_type has
+// no CHECK constraint or shared taxonomy module (unlike campaign_reports'
+// REPORT_TAXONOMY) — this list exists only to give the schedule-text extractor
+// an enum to pick from, mirroring the dropdown staff already see.
+const SCHEDULE_EVENT_TYPES = ['Public Meeting', 'Grievance Camp', 'Inauguration',
+  'Condolence Visit', 'Party Cadre Meeting', 'Festival', 'Other'];
+
+// Shared by both the single-event and batch paths below. Looks up nearby
+// priority contacts by plain mandal/village string match and inserts the event.
+function scheduleOneEvent(db, fields) {
+  const { event_name, date, time, address, village, mandal, description, event_type, audience_cohort } = fields;
   const byPPS = (a, b) => b.pps_score - a.pps_score;
   const mandalKey = mandal.toLowerCase();
   const villageKey = village?.toLowerCase();
@@ -602,7 +608,47 @@ app.post('/api/schedule', (req, res) => {
     audience_cohort: COHORT_KEYS.has(audience_cohort) ? audience_cohort : '',
   }, { contactIds: nearby.map(c => c.id) });
 
-  res.json({ ok: true, event_id: event.id, nearby_count: event.nearby_count, nearby_contacts: event.nearby_contacts });
+  return { event_id: event.id, nearby_count: event.nearby_count, nearby_contacts: event.nearby_contacts };
+}
+
+// Schedule text broadcast → preview items. Text-only (no attachments), so
+// unlike /api/grievances/log and /api/campaign-reports/log there is nothing to
+// park as pending_media — the response is pure preview, nothing is written.
+app.post('/api/schedule/parse-text', async (req, res) => {
+  const text = String(req.body.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'text required' });
+  if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: AI_UNCONFIGURED_ERROR });
+  try {
+    const gemini = await import('./gemini.js');
+    const mandals = listMandals();
+    const items = await gemini.extractScheduleFromText(text, SCHEDULE_EVENT_TYPES, mandals, getISTDateStr());
+    res.json({ ok: true, items, count: items.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Accepts either the legacy single-event body (pa_schedule.html's manual "Add
+// event" form, brief_workflow.html) or a batch `{items:[...]}` (the schedule
+// text-parse review flow saving multiple events at once) — same idea as
+// POST /api/grievances and POST /api/campaign-reports, which loop a per-item
+// build+insert over an `items` array.
+app.post('/api/schedule', (req, res) => {
+  const db = readDB();
+
+  if (Array.isArray(req.body.items)) {
+    const items = req.body.items;
+    const missing = items.findIndex(it => !it.mandal || !it.event_name || !it.date);
+    if (missing !== -1)
+      return res.status(400).json({ error: `item ${missing + 1}: event_name, date and mandal required` });
+    const saved = items.map(it => scheduleOneEvent(db, it));
+    return res.json({ ok: true, count: saved.length, items: saved });
+  }
+
+  const { event_name, date, mandal } = req.body;
+  if (!mandal || !event_name || !date)
+    return res.status(400).json({ error: 'event_name, date and mandal required' });
+  res.json({ ok: true, ...scheduleOneEvent(db, req.body) });
 });
 
 app.get('/api/schedule', (req, res) => {

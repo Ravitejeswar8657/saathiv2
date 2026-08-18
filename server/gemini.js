@@ -443,6 +443,64 @@ export async function extractReportFromAudio(buffer, mimeType, taxonomy) {
   );
 }
 
+// ── Schedule broadcast extraction ───────────────────────────────────────────
+// Turns a PA-facing "MP's schedule for the day" broadcast message (Telugu/
+// English, one header date + several bulleted engagements) into one object per
+// engagement. Structurally different from every extractor above: those all
+// return a single OBJECT because the source is one grievance/report; this one
+// wraps its OBJECT schema in a top-level ARRAY, because one message is many
+// events. callGemini() needs no change for that — it just forwards whatever
+// responseSchema it's given.
+function buildScheduleTextPrompt(eventTypes, mandals, todayIST) {
+  return `You are extracting individual engagements from an MP's daily schedule broadcast message, sent to constituency office staff. The text may be in Telugu, English, or a mix, and is usually formatted as a header (naming the MP, often with one date for the whole message) followed by a bulleted list of engagements, each typically stating a time, a venue, and a purpose.
+
+Return one object per distinct engagement, in the order they appear in the message.
+
+The message usually states one date near the top (e.g. "తేదీ: 18-08-2026" or "Date: 18 August 2026") that applies to every bullet below it. Use that date for every engagement unless a specific bullet states a different date of its own. Normalize every date to YYYY-MM-DD.${todayIST ? ` If no date is stated anywhere in the message, use ${todayIST}.` : ''}
+
+Normalize time to 24-hour HH:MM. Telugu time-of-day words: ఉదయం = morning (AM), మధ్యాహ్నం = early afternoon (12-4 PM), సాయంత్రం = evening (4-7 PM), రాత్రి = night (7 PM-12 AM) — combine the word with the stated hour to get an unambiguous 24-hour time. Leave "time" empty if no time is stated for that engagement.
+
+Put the venue/location text as written into "address". If the venue clearly names a real place from this list of the constituency's mandals, set "mandal" to the exact spelling from the list: ${mandals.join(', ')}. Otherwise leave "mandal" empty — never guess or pick the closest one (a district-level venue like a Collectorate is not a mandal). Leave "village" empty unless a specific village, distinct from the mandal itself, is named.
+
+Write "description" as the stated purpose/agenda of the engagement, as a short phrase (e.g. "Jal Jeevan Mission review meeting"). Translate to English if the source states it in Telugu, but keep proper nouns (scheme names, place names, person names) as given.
+
+For "event_name", write a short title for the engagement (e.g. "Public availability at Brindavan Gardens"), not the full source sentence.
+
+For "event_type", pick the single best match from this fixed list: ${eventTypes.join(', ')}. Use "Other" if nothing fits well — never leave it empty.
+
+Never invent a detail that isn't stated in the message — leave a field as an empty string when it isn't given.`;
+}
+
+const SCHEDULE_EVENT_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    event_name: { type: 'STRING' },
+    date: { type: 'STRING' },
+    time: { type: 'STRING' },
+    address: { type: 'STRING' },
+    village: { type: 'STRING' },
+    mandal: { type: 'STRING' },
+    description: { type: 'STRING' },
+    event_type: { type: 'STRING' },
+  },
+  required: ['event_name', 'date', 'event_type'],
+};
+
+function withEventTypeEnum(schema, eventTypes) {
+  return {
+    ...schema,
+    properties: { ...schema.properties, event_type: { type: 'STRING', enum: eventTypes } },
+  };
+}
+
+export async function extractScheduleFromText(text, eventTypes, mandals, todayIST) {
+  const items = await callGemini(
+    [{ text: `${buildScheduleTextPrompt(eventTypes, mandals, todayIST)}\n\n--- Schedule message ---\n${text}` }],
+    { type: 'ARRAY', items: withEventTypeEnum(SCHEDULE_EVENT_SCHEMA, eventTypes) },
+  );
+  return Array.isArray(items) ? items : [];
+}
+
 const SUGGESTION_SCHEMA = {
   type: 'OBJECT',
   properties: {
