@@ -395,67 +395,15 @@
         </div>
       </div>
 
-      <!-- Personal Intelligence -->
-      <div class="pillar-block">
-        <div class="pillar-heading"><i data-lucide="user-round"></i> Personal Intelligence</div>
-        <div class="pillar-grid">
-          <div class="card">
-            <div class="section-header">
-              <i data-lucide="heart-pulse"></i> Constituency Health Score
-              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
-            </div>
-            <div id="health-score-body"></div>
-          </div>
-          <div class="card">
-            <div class="section-header">
-              <i data-lucide="users"></i> Voter Sentiment Map
-              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
-            </div>
-            <div id="sentiment-map-body"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Political Intelligence -->
-      <div class="pillar-block">
-        <div class="pillar-heading"><i data-lucide="flag"></i> Political Intelligence</div>
-        <div class="pillar-grid">
-          <div class="card">
-            <div class="section-header">
-              <i data-lucide="signal"></i> Media Sentiment
-              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
-            </div>
-            <div id="sentiment-body"></div>
-          </div>
-          <div class="card">
-            <div class="section-header">
-              <i data-lucide="megaphone"></i> Opposition Activity
-              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
-            </div>
-            <div id="opposition-body"></div>
-          </div>
-        </div>
-        <div class="pillar-grid">
-          <div class="card">
-            <div class="section-header"><i data-lucide="message-circle-heart"></i> Political Feedback Pulse</div>
-            <div id="feedback-pulse-body"><div class="empty-state">Loading…</div></div>
-          </div>
-          <div class="card">
-            <div class="section-header"><i data-lucide="user-x"></i> Influencers Needing Attention</div>
-            <div id="stale-influencers-body"><div class="empty-state">Loading…</div></div>
-          </div>
-        </div>
-      </div>
-
       <!-- Governance Intelligence -->
       <div class="pillar-block">
         <div class="pillar-heading"><i data-lucide="landmark"></i> Governance Intelligence</div>
 
         <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-          <select class="chat-thread-select" id="gov-mandal-filter" style="flex:0 0 auto;min-width:150px" onchange="onGovFilterChange()">
+          <select class="chat-thread-select" id="gov-mandal-filter" style="flex:0 0 auto;min-width:150px" onchange="onSharedFilterChange()">
             <option value="">All Mandals</option>
           </select>
-          <select class="chat-thread-select" id="gov-constituency-filter" style="flex:0 0 auto;min-width:170px" onchange="onGovFilterChange()">
+          <select class="chat-thread-select" id="gov-constituency-filter" style="flex:0 0 auto;min-width:170px" onchange="onSharedFilterChange()">
             <option value="">All Constituencies</option>
           </select>
         </div>
@@ -516,7 +464,7 @@
 
         <div class="section-block">
           <div class="section-header"><i data-lucide="users-round"></i> Cohort Engagement Coverage</div>
-          <div class="pillar-caption">Meetings tagged by audience/community — from the Schedule page's "Audience / Community" field.</div>
+          <div class="pillar-caption">Meetings tagged by audience/community — from the Schedule page's "Audience / Community" field. Not affected by the Mandal/Constituency filter above — cohorts aren't location-tagged.</div>
           <div class="card card-list">
             <div class="data-table-wrap">
               <table class="data-table">
@@ -559,6 +507,59 @@
               <i data-lucide="image"></i> Ready-to-Post Social Media
             </div>
             <div id="social-posts-body"><div class="empty-state">Loading…</div></div>
+          </div>
+        </div>
+
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header"><i data-lucide="message-circle-heart"></i> Political Feedback Pulse</div>
+            <div id="feedback-pulse-body"><div class="empty-state">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="section-header"><i data-lucide="user-x"></i> Influencers Needing Attention</div>
+            <div id="stale-influencers-body"><div class="empty-state">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Personal Intelligence -->
+      <div class="pillar-block">
+        <div class="pillar-heading"><i data-lucide="user-round"></i> Personal Intelligence</div>
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="heart-pulse"></i> Constituency Health Score
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="health-score-body"></div>
+          </div>
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="users"></i> Voter Sentiment Map
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="sentiment-map-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Political Intelligence -->
+      <div class="pillar-block">
+        <div class="pillar-heading"><i data-lucide="flag"></i> Political Intelligence</div>
+        <div class="pillar-grid">
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="signal"></i> Media Sentiment
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="sentiment-body"></div>
+          </div>
+          <div class="card">
+            <div class="section-header">
+              <i data-lucide="megaphone"></i> Opposition Activity
+              <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
+            </div>
+            <div id="opposition-body"></div>
           </div>
         </div>
       </div>
@@ -1094,8 +1095,23 @@ let categoryLabels = {};
 let globalCategoryCounts = {};
 let globalGrievanceCount = 0;
 let allGrievances = [];
-let govMandalFilter = '';
-let govConstituencyFilter = '';
+let filterMandal = '';
+let filterConstituency = '';
+let mandalsByConstituencyMap = {};   // constituency name -> [mandal names], from /api/filter-options
+let rawCoverageData = null;          // full /api/coverage-report response, kept for re-filtering
+
+// Shared primitive for the page-wide Mandal/Constituency snapshot filter: every
+// filtered widget matches on mandal, with constituency resolved to its member
+// mandals rather than compared as its own field, so every widget (grievance rows
+// with assembly_constituency, coverage rows with only mandal) filters identically.
+function mandalPassesFilter(mandalName) {
+  if (!filterMandal && !filterConstituency) return true;
+  if (!mandalName) return false;
+  const norm = normalizeMandalName(mandalName);
+  if (filterMandal && norm !== filterMandal) return false;
+  if (filterConstituency && !(mandalsByConstituencyMap[filterConstituency] || []).includes(norm)) return false;
+  return true;
+}
 
 function seededFactor(name) {
   let h = 0;
@@ -1131,28 +1147,40 @@ function computeGovernanceStats(items) {
 }
 
 function applyGovernanceFilters() {
-  const filtered = allGrievances.filter(g => {
-    if (govMandalFilter && normalizeMandalName(g.mandal) !== govMandalFilter) return false;
-    if (govConstituencyFilter && g.assembly_constituency !== govConstituencyFilter) return false;
-    return true;
-  });
+  const filtered = allGrievances.filter(g => mandalPassesFilter(g.mandal));
   computeGovernanceStats(filtered);
   renderGovernanceTable();
   renderCategoryBreakdown();
 }
 
-function onGovFilterChange() {
-  govMandalFilter = document.getElementById('gov-mandal-filter').value;
-  govConstituencyFilter = document.getElementById('gov-constituency-filter').value;
+// Drives every widget that honors the page-wide snapshot filter: the two
+// grievance-derived Governance widgets, the three coverage-report widgets
+// (Visit Coverage / Villages / Influencers), and Political Feedback Pulse.
+// Cohort Engagement Coverage is deliberately excluded — it carries no mandal.
+function onSharedFilterChange() {
+  filterMandal = document.getElementById('gov-mandal-filter').value;
+  filterConstituency = document.getElementById('gov-constituency-filter').value;
   applyGovernanceFilters();
+  applyFeedbackPulseFilter();
+  applyCoverageFilters();
 }
 
-function populateConstituencyFilter(items) {
-  const sel = document.getElementById('gov-constituency-filter');
-  const current = sel.value;
-  const values = [...new Set(items.map(g => (g.assembly_constituency || '').trim()).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">All Constituencies</option>' +
-    values.map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(v)}</option>`).join('');
+async function loadFilterOptions() {
+  try {
+    const r = await fetch('/api/filter-options');
+    const data = await r.json();
+    mandalsByConstituencyMap = {};
+    Object.entries(data.mandalsByConstituency || {}).forEach(([k, mandals]) => {
+      mandalsByConstituencyMap[k] = mandals.map(normalizeMandalName);
+    });
+    const sel = document.getElementById('gov-constituency-filter');
+    const current = sel.value;
+    const values = (data.constituencies || []).slice().sort();
+    sel.innerHTML = '<option value="">All Constituencies</option>' +
+      values.map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(v)}</option>`).join('');
+  } catch (e) {
+    console.error('Failed to load filter options', e);
+  }
 }
 
 async function loadIntelligenceData() {
@@ -1167,13 +1195,13 @@ async function loadIntelligenceData() {
 
     allGrievances = grievances || [];
     document.getElementById('stat-grievances-total').textContent = allGrievances.length.toLocaleString('en-IN');
-    populateConstituencyFilter(allGrievances);
     if (window.SaathiUI && !document.getElementById('gov-mandal-filter').dataset.populated) {
       document.getElementById('gov-mandal-filter').insertAdjacentHTML('beforeend', SaathiUI.mandalOptionsHTML());
       document.getElementById('gov-mandal-filter').dataset.populated = '1';
     }
 
     applyGovernanceFilters();
+    applyFeedbackPulseFilter();
   } catch (e) {
     console.error('Failed to load intelligence data', e);
   }
@@ -1252,12 +1280,8 @@ let villageCoverageRows = [];
 async function loadCoverageReport() {
   try {
     const r = await fetch('/api/coverage-report');
-    const data = await r.json();
-    renderVisitCoverage(data.mandals);
-    prepareVillageCoverage(data.villages);
-    renderVillageCoverage();
-    renderCohortCoverage(data.cohorts, data.never_engaged_cohorts);
-    renderStaleInfluencers(data.stale_influencers);
+    rawCoverageData = await r.json();
+    applyCoverageFilters();
   } catch (e) {
     console.error('Failed to load coverage report', e);
     document.getElementById('visit-coverage-body').innerHTML = '<tr><td colspan="3"><div class="empty-state">Failed to load.</div></td></tr>';
@@ -1265,6 +1289,25 @@ async function loadCoverageReport() {
     document.getElementById('cohort-coverage-body').innerHTML = '<tr><td colspan="3"><div class="empty-state">Failed to load.</div></td></tr>';
     document.getElementById('stale-influencers-body').innerHTML = '<div class="empty-state">Failed to load.</div>';
   }
+}
+
+// Re-derives every coverage-report widget from the last fetch, applying the
+// current mandal/constituency snapshot filter — called on filter change, not
+// just on load, so a filter change never needs to re-fetch.
+function applyCoverageFilters() {
+  if (!rawCoverageData) return;
+  const filterActive = !!(filterMandal || filterConstituency);
+  renderVisitCoverage({
+    visited: (rawCoverageData.mandals?.visited || []).filter(m => mandalPassesFilter(m.name)),
+    never_visited: filterActive ? [] : (rawCoverageData.mandals?.never_visited || []),
+  });
+  prepareVillageCoverage({
+    visited: (rawCoverageData.villages?.visited || []).filter(v => mandalPassesFilter(v.context)),
+    never_visited: (rawCoverageData.villages?.never_visited || []).filter(v => mandalPassesFilter(v.context)),
+  });
+  renderVillageCoverage();
+  renderCohortCoverage(rawCoverageData.cohorts, rawCoverageData.never_engaged_cohorts); // unfiltered — no location data
+  renderStaleInfluencers((rawCoverageData.stale_influencers || []).filter(c => mandalPassesFilter(c.mandal)));
 }
 
 function fmtCoverageDate(d) {
@@ -1340,29 +1383,31 @@ function renderStaleInfluencers(list) {
 }
 
 // ── Political Feedback Pulse — first real (non-illustrative) sentiment source ──
-async function loadFeedbackPulse() {
+// Derived from allGrievances (already fetched by loadIntelligenceData) rather than
+// its own fetch — that list is unfiltered by entry_type, so it already carries the
+// feedback rows this widget needs.
+function applyFeedbackPulseFilter() {
+  const items = allGrievances.filter(g => g.entry_type === 'feedback' && mandalPassesFilter(g.mandal));
+  renderFeedbackPulse(items);
+}
+
+function renderFeedbackPulse(items) {
   const el = document.getElementById('feedback-pulse-body');
-  try {
-    const r = await fetch('/api/grievances?entry_type=feedback');
-    const { items } = await r.json();
-    if (!items || !items.length) {
-      el.innerHTML = '<div class="empty-state">No political feedback logged yet — captured from "Log Grievance" entries the AI reads as non-actionable.</div>';
-      return;
-    }
-    const sentimentCounts = {};
-    items.forEach(v => { const s = v.sentiment || 'Unrated'; sentimentCounts[s] = (sentimentCounts[s] || 0) + 1; });
-    const order = ['Positive', 'Neutral', 'Mixed', 'Negative', 'Unrated'];
-    const cls = { Positive: 'pos', Neutral: 'neu', Mixed: 'neu', Negative: 'neg', Unrated: 'neu' };
-    const chips = order.filter(s => sentimentCounts[s]).map(s => `
-      <div class="sentiment-chip">
-        <div class="sentiment-chip-name">${s}</div>
-        <div class="sentiment-chip-label ${cls[s]}">${sentimentCounts[s]}</div>
-      </div>`).join('');
-    el.innerHTML = `<div class="sentiment-map-grid">${chips}</div>
-      <div class="pillar-caption" style="margin-top:10px">${items.length} feedback entries in the register.</div>`;
-  } catch (e) {
-    el.innerHTML = '<div class="empty-state">Failed to load feedback.</div>';
+  if (!items || !items.length) {
+    el.innerHTML = '<div class="empty-state">No political feedback logged yet — captured from "Log Grievance" entries the AI reads as non-actionable.</div>';
+    return;
   }
+  const sentimentCounts = {};
+  items.forEach(v => { const s = v.sentiment || 'Unrated'; sentimentCounts[s] = (sentimentCounts[s] || 0) + 1; });
+  const order = ['Positive', 'Neutral', 'Mixed', 'Negative', 'Unrated'];
+  const cls = { Positive: 'pos', Neutral: 'neu', Mixed: 'neu', Negative: 'neg', Unrated: 'neu' };
+  const chips = order.filter(s => sentimentCounts[s]).map(s => `
+    <div class="sentiment-chip">
+      <div class="sentiment-chip-name">${s}</div>
+      <div class="sentiment-chip-label ${cls[s]}">${sentimentCounts[s]}</div>
+    </div>`).join('');
+  el.innerHTML = `<div class="sentiment-map-grid">${chips}</div>
+    <div class="pillar-caption" style="margin-top:10px">${items.length} feedback entries in the register.</div>`;
 }
 
 // ── Ready-to-Post Social Media ───────────────────────────────────────────
@@ -1698,9 +1743,9 @@ document.getElementById('chat-input').addEventListener('keydown', e => {
 initChat();
 loadStats();
 loadTodaysSchedule();
+loadFilterOptions();
 loadIntelligenceData();
 loadCoverageReport();
-loadFeedbackPulse();
 loadSocialPosts();
 renderHealthScoreGauge();
 renderVoterSentimentMap();
