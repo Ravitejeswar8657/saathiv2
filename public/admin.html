@@ -317,16 +317,98 @@
 @media (max-width: 600px) {
   .container { padding: 16px; }
 }
+
+/* ── Daily briefing masthead ──────────────────────────────────────────────
+   The letterhead rule itself (.page-header/.page-title) is shared chrome from
+   saathi.css and stays untouched — this only adds the eyebrow line and legend
+   inside it, framing the page as the screen counterpart of the office's own
+   Daily Brief PDF rather than a generic dashboard. */
+.brief-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--stone-500);
+  margin-bottom: 6px;
+}
+.brief-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: var(--accent);
+  margin-right: 1px;
+}
+.legend-dot.illustrative {
+  background: transparent;
+  border: 1px dashed var(--stone-400);
+}
+
+/* ── Pillar section numbering ── — the four pillars are a fixed, real taxonomy
+   (see CLAUDE.md), so numbering them reflects a genuine structure rather than
+   decorating an arbitrary list. */
+.pillar-eyebrow {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--stone-400);
+  margin-right: 2px;
+}
+.pillar-rule {
+  height: 1px;
+  background: var(--border);
+  margin: -10px 0 18px;
+}
+
+/* ── Real vs. illustrative as a card-level trait, not just a pill ──────────
+   Ambient reinforcement of the existing .illustrative-tag pill: a real-data
+   card keeps the shared .card's solid accent top stripe; a fabricated-data
+   card gets a dashed one, visible at a glance without reading any card. */
+.card.illustrative-card { border-top-style: dashed; border-top-color: var(--stone-400); }
+.sidebar-card { border-top: 3px solid var(--accent); }
+.sidebar-card.illustrative-card { border-top-style: dashed; border-top-color: var(--stone-400); }
+
+/* The card edge now carries the primary at-a-glance signal; the pill can be quieter. */
+.illustrative-tag { font-size: 9px; padding: 2px 7px; border-color: var(--stone-400); }
+
+/* ── Ledger-style figures ── */
+.stat-value, .temp-score, .data-table td { font-variant-numeric: tabular-nums; }
+
+/* ── One load-in moment: masthead + pillars settle into place, staggered.
+   Fully inert under reduced motion — opacity/transform only, nothing is ever
+   hidden by default (start state below is itself gated by the same query). ── */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes brief-rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .page-header, .pillar-block {
+    animation: brief-rise 0.5s ease-out both;
+  }
+  .page-header { animation-delay: 0s; }
+  .pillar-block.pillar-1 { animation-delay: 0.08s; }
+  .pillar-block.pillar-2 { animation-delay: 0.16s; }
+  .pillar-block.pillar-3 { animation-delay: 0.24s; }
+  .pillar-block.pillar-4 { animation-delay: 0.32s; }
+}
 </style>
 </head>
 <body>
 <div class="container">
   <div class="page-header">
     <div>
+      <p class="brief-eyebrow">Daily Briefing &middot; Palnadu Constituency <span id="brief-dateline"></span></p>
       <h1 class="page-title">Chief of Staff</h1>
-      <p class="page-sub-note">
-        <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
-        tagged sections are example placeholder data — everything else on this page is drawn from real records.
+      <p class="page-sub-note brief-legend">
+        <span class="legend-dot"></span> Real record
+        <span class="legend-dot illustrative"></span> Illustrative example
       </p>
     </div>
   </div>
@@ -396,8 +478,9 @@
       </div>
 
       <!-- Governance Intelligence -->
-      <div class="pillar-block">
-        <div class="pillar-heading"><i data-lucide="landmark"></i> Governance Intelligence</div>
+      <div class="pillar-block pillar-1">
+        <div class="pillar-heading"><span class="pillar-eyebrow">01</span><i data-lucide="landmark"></i> Governance Intelligence</div>
+        <div class="pillar-rule"></div>
 
         <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
           <select class="chat-thread-select" id="gov-mandal-filter" style="flex:0 0 auto;min-width:150px" onchange="onSharedFilterChange()">
@@ -485,7 +568,7 @@
             <div class="section-header"><i data-lucide="bar-chart-3"></i> Grievance Category Breakdown</div>
             <div id="category-breakdown-body"><div class="empty-state">Loading…</div></div>
           </div>
-          <div class="card">
+          <div class="card illustrative-card">
             <div class="section-header">
               <i data-lucide="clipboard-list"></i> Government Scheme Progress
               <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
@@ -495,7 +578,7 @@
         </div>
 
         <div class="pillar-grid">
-          <div class="card">
+          <div class="card illustrative-card">
             <div class="section-header">
               <i data-lucide="indian-rupee"></i> Scheme Fund Utilization
               <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
@@ -523,17 +606,18 @@
       </div>
 
       <!-- Personal Intelligence -->
-      <div class="pillar-block">
-        <div class="pillar-heading"><i data-lucide="user-round"></i> Personal Intelligence</div>
+      <div class="pillar-block pillar-2">
+        <div class="pillar-heading"><span class="pillar-eyebrow">02</span><i data-lucide="user-round"></i> Personal Intelligence</div>
+        <div class="pillar-rule"></div>
         <div class="pillar-grid">
-          <div class="card">
+          <div class="card illustrative-card">
             <div class="section-header">
               <i data-lucide="heart-pulse"></i> Constituency Health Score
               <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
             </div>
             <div id="health-score-body"></div>
           </div>
-          <div class="card">
+          <div class="card illustrative-card">
             <div class="section-header">
               <i data-lucide="users"></i> Voter Sentiment Map
               <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
@@ -544,17 +628,18 @@
       </div>
 
       <!-- Political Intelligence -->
-      <div class="pillar-block">
-        <div class="pillar-heading"><i data-lucide="flag"></i> Political Intelligence</div>
+      <div class="pillar-block pillar-3">
+        <div class="pillar-heading"><span class="pillar-eyebrow">03</span><i data-lucide="flag"></i> Political Intelligence</div>
+        <div class="pillar-rule"></div>
         <div class="pillar-grid">
-          <div class="card">
+          <div class="card illustrative-card">
             <div class="section-header">
               <i data-lucide="signal"></i> Media Sentiment
               <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
             </div>
             <div id="sentiment-body"></div>
           </div>
-          <div class="card">
+          <div class="card illustrative-card">
             <div class="section-header">
               <i data-lucide="megaphone"></i> Opposition Activity
               <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
@@ -565,8 +650,9 @@
       </div>
 
       <!-- Media & News Pulse -->
-      <div class="pillar-block">
-        <div class="pillar-heading"><i data-lucide="radio"></i> Media &amp; News Pulse</div>
+      <div class="pillar-block pillar-4">
+        <div class="pillar-heading"><span class="pillar-eyebrow">04</span><i data-lucide="radio"></i> Media &amp; News Pulse</div>
+        <div class="pillar-rule"></div>
 
         <div class="section-block" id="news-dashboard">
           <div class="section-header"><i data-lucide="newspaper"></i> News Dashboard</div>
@@ -606,7 +692,7 @@
       </div>
 
       <!-- AI-Suggested Daily Actions -->
-      <div class="sidebar-card">
+      <div class="sidebar-card illustrative-card">
         <div class="section-header">
           <i data-lucide="sparkles"></i> AI-Suggested Daily Actions
           <span class="illustrative-tag" title="Illustrative example data — not live">Illustrative</span>
@@ -1737,6 +1823,9 @@ document.getElementById('nd-date').addEventListener('change', loadNewsDashboard)
 
 // ── Initialize ────────────────────────────────────────────────────────────
 lucide.createIcons();
+document.getElementById('brief-dateline').textContent = '· ' + new Date().toLocaleDateString('en-IN', {
+  timeZone: 'Asia/Kolkata', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+});
 document.getElementById('chat-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
 });
