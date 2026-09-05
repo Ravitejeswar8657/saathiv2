@@ -624,7 +624,9 @@ app.post('/api/schedule/parse-text', async (req, res) => {
     const items = await gemini.extractScheduleFromText(text, SCHEDULE_EVENT_TYPES, mandals, getISTDateStr());
     res.json({ ok: true, items, count: items.length });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    // One source, so the "all of them failed" test is trivially true — but the status
+    // still has to tell a busy model (retry) apart from a bad key (don't).
+    res.status(extractionFailureStatus([{ ai: true, status: e.status }])).json({ error: e.message });
   }
 });
 
