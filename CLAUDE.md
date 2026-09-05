@@ -285,6 +285,8 @@ booking details are edited nowhere and the wizard owns prep.
 | `CONVERSATION_TRASH_DAYS` | `30` | Retention window before a deleted thread is purged |
 | `EXCEL_PATH` | `./combined_clean.xlsx` | Input file for `setup_db.js` |
 | `GEMINI_API_KEY` | (none) | Google Gemini API key for the extraction paths — form-photo OCR, typed-summary triage and audio transcription, for both the grievance register and the campaign-report intake (`server/gemini.js`). If unset, those endpoints fail fast with a clear error rather than crashing — staff can still use both registers manually. |
+| `GEMINI_MODELS` | `gemini-2.5-flash,gemini-3.5-flash,gemini-flash-latest` | The model fallback chain, tried left to right (see "AI extraction" below) |
+| `GEMINI_RETRY_BASE_MS` | `500` | Backoff base for the retry ladder. Exists so `server/gemini.test.js` doesn't sleep — not worth tuning in production |
 
 ### AI extraction (`server/gemini.js`)
 
@@ -307,6 +309,19 @@ The campaign-report intake has its own trio, same shape but no category taxonomy
 `POST /api/campaign-reports/log` does the same for reports, merging via `mergeReportExtraction` in `server/index.js`. The merge rules are deliberately parallel: scalar fields are first-source-wins in priority order image→audio→text, `description` is concatenated per-source rather than chosen, and staff-typed fields always win outright. `{type, status}` is taken as one coherent bundle from a single richest source and never mixed across sources, because a type from one reading paired with a status from another describes a report that nobody filed.
 
 Each grievance extraction path constrains Gemini with a JSON `responseSchema` including a `category` enum built from `ISSUE_CATEGORIES` in `server/index.js` and an AI-judged `urgency`. The server then computes a deterministic `priority_score` from the category's fixed weight and the urgency, so triage ordering stays auditable. Report extraction is constrained the same way, and additionally judges `confidence`/`sentiment`. Its `type`/`status` enums come from `REPORT_TAXONOMY` in `server/db/campaign_reports.js` — see "The report taxonomy" below.
+
+#### Model fallback and retry
+
+Every call in the module — extraction, the advisory drafts, and streaming chat — goes through `requestGemini`, which walks the `MODELS` chain (`GEMINI_MODELS`) and retries per model with exponential backoff plus jitter:
+
+- Transient failures (429, 408, 5xx, network errors) are retried up to 3× per model, then the next model in the chain is tried.
+- `404` (a model this key can't use) skips straight to the next model without retrying; `400`/`401`/`403` fail immediately on all models, because a malformed request or a rejected key breaks identically everywhere.
+- A fired timeout is never retried — the per-call 30s/45s budget already *is* the ceiling — and a whole walk is capped at `2 × timeoutMs`.
+- A stream is only ever retried before its first frame is read; tokens already sent cannot be unsent.
+
+**`gemini-flash-latest` is deliberately last in the chain.** Google hot-swaps that alias with every release, so it can point at a preview build whose rate limits are far tighter — which is what made "Extract with AI" return `Gemini HTTP 503: the model is overloaded` on nearly every press. It stays in the chain so a retirement of the pinned GA ids can't take extraction down.
+
+Errors thrown are `GeminiError` (carrying `status`/`retriable`) with a message written for the PA reading it; the provider's raw JSON body goes to `console.error` only. That matters because `mergeGrievanceExtraction`/`mergeReportExtraction` splice a failed source's message straight into the record's description. When *every* source of one submission fails, the route returns 503 (429 for a rate limit) via `extractionFailureStatus` in `server/index.js` and the page toasts it, instead of handing staff a preview whose description is nothing but `(extraction failed — …)`.
 
 Source media is persisted to `VOLUME/grievance_media/` and `VOLUME/campaign_media/` for later manual re-verification of low-confidence reads; both directories get the same startup sweep of abandoned `tmp_*` uploads.
 

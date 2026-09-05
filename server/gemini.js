@@ -5,8 +5,14 @@
 // server/index.js so a missing GEMINI_API_KEY never crashes the server — only the
 // specific request fails.
 
-// 'latest' alias so this keeps working as Google retires dated model versions.
-const MODEL = 'gemini-flash-latest';
+// Models are tried in order, the first that answers wins. `gemini-flash-latest` is an
+// alias Google hot-swaps with every release, so it can point at a preview build whose
+// rate limits are far tighter than a GA model's — that is what made "Extract with AI"
+// come back with "the model is overloaded" on nearly every press. Pinned GA ids lead
+// now; the alias stays last so a retirement of those ids still cannot take extraction
+// down. Override the whole chain with GEMINI_MODELS (comma-separated).
+const MODELS = (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-3.5-flash,gemini-flash-latest')
+  .split(',').map(s => s.trim()).filter(Boolean);
 
 const DEFAULT_TIMEOUT_MS = 30000;
 // Voice notes and dictated summaries run much longer than a form photo, and Gemini
@@ -17,12 +23,123 @@ const AUDIO_TIMEOUT_MS = 45000;
 // progress the whole time rather than waiting on a single response.
 const CHAT_TIMEOUT_MS = 90000;
 
-function endpoint(apiKey) {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+// Google's own guidance for 429/5xx is exponential backoff with jitter. The base is
+// env-tunable only so the tests don't have to sleep through it.
+const RETRY_BASE_MS = Number(process.env.GEMINI_RETRY_BASE_MS) || 500;
+const MAX_BACKOFF_MS = 4000;
+const ATTEMPTS_PER_MODEL = 3;
+
+export class GeminiError extends Error {
+  constructor(message, { status = 0, retriable = false } = {}) {
+    super(message);
+    this.name = 'GeminiError';
+    this.status = status;
+    this.retriable = retriable;
+  }
 }
 
-function streamEndpoint(apiKey) {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`;
+// Only 429/408/5xx are worth trying again — a 400 or a rejected key fails identically
+// however many times it is sent.
+function isTransient(status) {
+  return status === 429 || status === 408 || status >= 500;
+}
+
+// What staff actually read. The provider's own body never reaches here: it is a JSON
+// blob, and mergeGrievanceExtraction splices these messages straight into the record's
+// description.
+function friendlyMessage(status, tried) {
+  const chain = tried > 1 ? ` (tried ${tried} models)` : '';
+  if (status === 429) return 'The AI service has hit its rate limit. Wait a minute and try again.';
+  if (status === 404) return `The AI model is unavailable${chain} — ask an admin to check GEMINI_MODELS.`;
+  if (status === 401 || status === 403) return 'The AI key was rejected — contact an admin.';
+  if (status === 408 || status >= 500) return `The AI model is busy right now${chain}. Try again in a moment.`;
+  if (status === 0) return `Could not reach the AI service${chain}. Check the connection and try again.`;
+  return `The AI service refused the request (HTTP ${status}).`;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function backoffMs(attempt) {
+  const base = Math.min(RETRY_BASE_MS * 2 ** attempt, MAX_BACKOFF_MS);
+  return base * (0.75 + Math.random() * 0.5);
+}
+
+function endpoint(model, action, apiKey) {
+  const query = action === 'streamGenerateContent' ? `?alt=sse&key=${apiKey}` : `?key=${apiKey}`;
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}${query}`;
+}
+
+/**
+ * One POST, retried across the model chain, returning the first OK response and the
+ * model that gave it. Every caller in this file goes through here, so extraction,
+ * the advisory drafts and chat all get the same fallback behaviour.
+ *
+ * The response body is deliberately left unread — streamChat needs the raw stream.
+ */
+async function requestGemini(action, body, { timeoutMs = DEFAULT_TIMEOUT_MS, signal } = {}) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new GeminiError('GEMINI_API_KEY not set', { status: 0 });
+
+  // A hard ceiling on the whole walk, so no amount of retrying can hold a request
+  // open past twice what the caller budgeted for a single attempt.
+  const deadline = Date.now() + timeoutMs * 2;
+  let tried = 0;
+  let lastStatus = 0;
+
+  models:
+  for (const model of MODELS) {
+    tried++;
+    for (let attempt = 0; attempt < ATTEMPTS_PER_MODEL; attempt++) {
+      let resp = null;
+      try {
+        resp = await fetch(endpoint(model, action, apiKey), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: signal ?? AbortSignal.timeout(timeoutMs),
+        });
+      } catch (e) {
+        // The timeout IS the ceiling the caller asked for — spending it again on the
+        // same slow model only makes the PA wait longer for the same answer.
+        if (e.name === 'TimeoutError' || e.name === 'AbortError') {
+          throw new GeminiError(
+            `The AI took longer than ${Math.round(timeoutMs / 1000)}s to answer. Try again, or with a shorter recording.`,
+            { status: 408, retriable: true },
+          );
+        }
+        console.error(`Gemini ${model}: ${e.message}`);
+        lastStatus = 0;
+      }
+
+      if (resp?.ok) return { resp, model };
+
+      if (resp) {
+        lastStatus = resp.status;
+        const detail = await resp.text().catch(() => '');
+        console.error(`Gemini ${model} HTTP ${resp.status}: ${detail.slice(0, 300)}`);
+        // Google reports a bad key as 400 API_KEY_INVALID, not 401 — worth naming, or
+        // "refused the request (HTTP 400)" sends staff hunting for a bad photo.
+        if (/API_KEY_INVALID|API key not valid/i.test(detail)) {
+          throw new GeminiError(friendlyMessage(401, tried), { status: 401 });
+        }
+        // A malformed request or a rejected key breaks on every model in the chain.
+        if (lastStatus === 400 || lastStatus === 401 || lastStatus === 403) break models;
+        // Anything else non-transient (typically 404, model unknown to this key) —
+        // no point retrying it, but the next model may well work.
+        if (!isTransient(lastStatus)) continue models;
+      }
+
+      if (attempt + 1 >= ATTEMPTS_PER_MODEL) break;
+      const wait = backoffMs(attempt);
+      if (Date.now() + wait + timeoutMs > deadline) break;
+      await sleep(wait);
+    }
+  }
+
+  throw new GeminiError(friendlyMessage(lastStatus, tried), {
+    status: lastStatus,
+    retriable: isTransient(lastStatus),
+  });
 }
 
 /**
@@ -37,10 +154,7 @@ function streamEndpoint(apiKey) {
  * `messages` is OpenAI-shaped ({role, content}); Gemini wants `contents` with
  * `parts`, and takes the system prompt separately as `systemInstruction`.
  */
-export async function* streamChat(messages, { signal } = {}) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-
+export async function* streamChat(messages, { signal, onModel } = {}) {
   const system = messages.find(m => m.role === 'system');
   const contents = messages
     .filter(m => m.role !== 'system')
@@ -53,17 +167,13 @@ export async function* streamChat(messages, { signal } = {}) {
     generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
   };
 
-  const resp = await fetch(streamEndpoint(apiKey), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: signal ?? AbortSignal.timeout(CHAT_TIMEOUT_MS),
+  // Retries happen inside requestGemini, before a single frame is read — a stream that
+  // fails half way through is never re-issued, because the tokens already sent cannot
+  // be unsent.
+  const { resp, model } = await requestGemini('streamGenerateContent', body, {
+    timeoutMs: CHAT_TIMEOUT_MS, signal,
   });
-
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '');
-    throw new Error(`Gemini HTTP ${resp.status}: ${detail.slice(0, 300)}`);
-  }
+  onModel?.(model);
 
   // Gemini's alt=sse stream is `data: {json}\n\n` frames. The leftover buffer is
   // carried across reads because chunk boundaries fall mid-line and mid-JSON —
@@ -101,33 +211,29 @@ export async function* streamChat(messages, { signal } = {}) {
   }
 }
 
-// Shared request/timeout/parse path for every call in this module.
+// Shared request/parse path for every non-streaming call in this module.
 async function callGemini(parts, responseSchema, timeoutMs = DEFAULT_TIMEOUT_MS) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-
   const body = {
     contents: [{ parts }],
     generationConfig: { responseMimeType: 'application/json', responseSchema },
   };
 
-  const resp = await fetch(endpoint(apiKey), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '');
-    throw new Error(`Gemini HTTP ${resp.status}: ${detail.slice(0, 300)}`);
-  }
+  const { resp } = await requestGemini('generateContent', body, { timeoutMs });
 
   const data = await resp.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini returned no content (response may have been blocked)');
+  if (!text) {
+    throw new GeminiError(
+      'The AI returned nothing usable — the content may have been blocked. Try again, or fill the form in manually.',
+      { status: 0 },
+    );
+  }
 
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new GeminiError('The AI returned a malformed answer. Try again.', { status: 0 });
+  }
 }
 
 function categoryLines(categories) {

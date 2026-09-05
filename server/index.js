@@ -1350,6 +1350,20 @@ const GRIEVANCE_AUDIO_MIMES = {
 const AI_UNCONFIGURED_ERROR =
   'AI extraction is not configured (GEMINI_API_KEY missing) — contact admin, or enter forms manually.';
 
+// Every source failing at once is a service problem, not a reading problem, so the
+// page gets one clear reason to toast instead of a preview whose whole description is
+// "(extraction failed — ...)". Failures the caller can fix (an unsupported file type)
+// keep a 4xx; server/gemini.js already retries and falls back across models before it
+// gives up, so anything tagged `ai` here means the whole chain was exhausted.
+function extractionFailureStatus(failures) {
+  if (!failures.every(f => f.ai)) return 400;
+  if (failures.some(f => f.status === 429)) return 429;
+  // A key or a model id Google rejects outright is our misconfiguration rather than a
+  // busy model — the same 500 the missing-key check returns, not a "try again" 503.
+  if (failures.every(f => f.status >= 400 && f.status < 500)) return 500;
+  return 503;
+}
+
 // NOTE ON ROUTE ORDER: every fixed-segment route below (/categories, /upload,
 // /log-text, /log-audio, /export.xlsx, /export-pdf) must stay registered ahead of the
 // /:id routes, or Express will match the literal segment as an id.
@@ -1398,9 +1412,17 @@ app.post('/api/grievances/upload', uploadGrievanceMedia.array('images', 20), asy
         image_mime: file.mimetype,
       };
     } catch (e) {
-      return { tmp_id, filename: file.originalname, channel: 'walk_in', intake_mode: 'ocr', error: e.message };
+      return {
+        tmp_id, filename: file.originalname, channel: 'walk_in', intake_mode: 'ocr',
+        error: e.message, ai: true, status: e.status,
+      };
     }
   }));
+
+  const failed = results.filter(r => r.error);
+  if (failed.length === results.length) {
+    return res.status(extractionFailureStatus(failed)).json({ error: failed[0].error });
+  }
 
   res.json({ ok: true, items: results, count: results.length });
 });
@@ -1529,20 +1551,26 @@ app.post('/api/grievances/log', logGrievanceMedia, async (req, res) => {
         const extracted = await gemini.extractGrievanceFromImage(f.buffer, f.mimetype, ISSUE_CATEGORIES);
         return { ok: true, idx: i, file: f.originalname, extracted };
       } catch (e) {
-        return { ok: false, idx: i, file: f.originalname, error: e.message };
+        return { ok: false, idx: i, file: f.originalname, error: e.message, ai: true, status: e.status };
       }
     })),
     audioFile
       ? gemini.extractGrievanceFromAudio(audioFile.buffer, audioFile.mimetype, ISSUE_CATEGORIES)
           .then(extracted => ({ ok: true, extracted }))
-          .catch(e => ({ ok: false, error: e.message }))
+          .catch(e => ({ ok: false, error: e.message, ai: true, status: e.status }))
       : null,
     text
       ? gemini.extractGrievanceFromText(text, ISSUE_CATEGORIES)
           .then(extracted => ({ ok: true, extracted }))
-          .catch(e => ({ ok: false, error: e.message }))
+          .catch(e => ({ ok: false, error: e.message, ai: true, status: e.status }))
       : null,
   ]);
+
+  const attempted = [...imageResults, audioResult, textResult].filter(Boolean);
+  const failures = attempted.filter(r => !r.ok);
+  if (failures.length === attempted.length) {
+    return res.status(extractionFailureStatus(failures)).json({ error: failures[0].error });
+  }
 
   const merged = mergeGrievanceExtraction({ imageResults, audioResult, textResult, typedText: text, known });
   const tmp_id = `tmp${Date.now()}_0`;
@@ -2186,20 +2214,26 @@ app.post('/api/campaign-reports/log', logCampaignReportMedia, async (req, res) =
         const extracted = await gemini.extractReportFromImage(f.buffer, f.mimetype, REPORT_TAXONOMY);
         return { ok: true, idx: i, file: f.originalname, extracted };
       } catch (e) {
-        return { ok: false, idx: i, file: f.originalname, error: e.message };
+        return { ok: false, idx: i, file: f.originalname, error: e.message, ai: true, status: e.status };
       }
     })),
     audioFile
       ? gemini.extractReportFromAudio(audioFile.buffer, audioFile.mimetype, REPORT_TAXONOMY)
           .then(extracted => ({ ok: true, extracted }))
-          .catch(e => ({ ok: false, error: e.message }))
+          .catch(e => ({ ok: false, error: e.message, ai: true, status: e.status }))
       : null,
     text
       ? gemini.extractReportFromText(text, REPORT_TAXONOMY)
           .then(extracted => ({ ok: true, extracted }))
-          .catch(e => ({ ok: false, error: e.message }))
+          .catch(e => ({ ok: false, error: e.message, ai: true, status: e.status }))
       : null,
   ]);
+
+  const attempted = [...imageResults, audioResult, textResult].filter(Boolean);
+  const failures = attempted.filter(r => !r.ok);
+  if (failures.length === attempted.length) {
+    return res.status(extractionFailureStatus(failures)).json({ error: failures[0].error });
+  }
 
   const merged = mergeReportExtraction({ imageResults, audioResult, textResult, typedText: text, known });
   const tmp_id = `tmp${Date.now()}_0`;
@@ -2437,6 +2471,9 @@ app.post('/api/chat', async (req, res) => {
 
   const parts = [];
   let grounding = [];
+  // Which model answered is only known once requestGemini has walked the fallback
+  // chain, so the history row records what actually replied rather than a guess.
+  let servingModel = null;
   let clientGone = false;
   let settled = false;
   // Bound before the first await, so a client that disconnects during context
@@ -2449,7 +2486,7 @@ app.post('/api/chat', async (req, res) => {
       const partial = parts.join('').trim();
       if (partial) {
         persistDetached(() => appendMessage(conversation.id, {
-          role: 'assistant', body: partial, model: 'gemini-flash-latest', grounding,
+          role: 'assistant', body: partial, model: servingModel, grounding,
         }));
       }
     }
@@ -2462,7 +2499,7 @@ app.post('/api/chat', async (req, res) => {
     if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
     const gemini = await import('./gemini.js');
 
-    for await (const chunk of gemini.streamChat(context.messages)) {
+    for await (const chunk of gemini.streamChat(context.messages, { onModel: m => { servingModel = m; } })) {
       if (clientGone) break;
       parts.push(chunk);
       sse(res, 'token', { text: chunk });
@@ -2471,12 +2508,12 @@ app.post('/api/chat', async (req, res) => {
     const body = parts.join('').trim() || FALLBACK_REPLY;
     settled = true;
     const reply = appendMessage(conversation.id, {
-      role: 'assistant', body, model: 'gemini-flash-latest', grounding,
+      role: 'assistant', body, model: servingModel, grounding,
     });
     if (!clientGone) {
       sse(res, 'done', {
         conversation_id: conversation.id, message_id: reply.id,
-        model: 'gemini-flash-latest', degraded: false, grounding,
+        model: servingModel, degraded: false, grounding,
       });
       res.end();
     }
