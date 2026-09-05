@@ -59,6 +59,24 @@
   </div>
 
   <div class="card">
+    <div class="section-title">Paste MP's schedule message</div>
+    <p class="page-subtitle" style="margin-bottom:10px">Paste the broadcast text (Telugu/English) and let AI split it into individual events for review.</p>
+    <div class="form-group"><textarea id="paste-schedule-text" placeholder="Paste the schedule broadcast message here..." style="min-height:120px"></textarea></div>
+    <button class="btn btn-primary" id="parse-schedule-btn" onclick="parseScheduleText()">
+      <i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract events with AI
+    </button>
+  </div>
+
+  <div id="event-review-section" style="display:none" class="card">
+    <div class="section-title" id="event-review-banner"></div>
+    <div id="event-preview-cards"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-primary" onclick="saveAllEventPreview()">Save all</button>
+      <button class="btn" onclick="discardEventPreview()">Discard</button>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="section-title">Add new event</div>
     <div class="form-row">
       <div class="form-group"><label>Event name *</label><input id="sch-name" placeholder="e.g. Public Meeting"></div>
@@ -154,9 +172,14 @@
 
 <script>
 let villagesByMandal = {};
+let mandalList = [];
 let allSchedule = [];
 let selectedDateFilter = null;
 let cohortLabelByKey = {};
+let previewEvents = [];
+// Same 7 values as the "Add new event" form's #sch-event-type <select>.
+const SCHEDULE_EVENT_TYPES = ['Public Meeting', 'Grievance Camp', 'Inauguration',
+  'Condolence Visit', 'Party Cadre Meeting', 'Festival', 'Other'];
 
 function getTodayIST() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -214,6 +237,7 @@ async function loadFilterOptions() {
     const r = await fetch('/api/filter-options');
     const data = await r.json();
     villagesByMandal = data.villagesByMandal || {};
+    mandalList = data.mandals || [];
     const mandalSel = document.getElementById('sch-mandal');
     (data.mandals || []).forEach(m => {
       const opt = document.createElement('option');
@@ -255,6 +279,158 @@ document.addEventListener('change', e => {
       e.target.value === '__other__' ? 'block' : 'none';
   }
 });
+
+// ── Paste-schedule-text → AI extraction → review → bulk save ────────────────
+
+async function parseScheduleText() {
+  const text = document.getElementById('paste-schedule-text').value.trim();
+  if (!text) { SaathiUI.toast('Paste the schedule message first.', 'danger'); return; }
+
+  const btn = document.getElementById('parse-schedule-btn');
+  btn.disabled = true; btn.textContent = 'Extracting...';
+  try {
+    const r = await fetch('/api/schedule/parse-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    if (!data.items.length) { SaathiUI.toast('No events found in that text.', 'danger'); return; }
+    previewEvents = data.items.map((it, i) => ({ ...it, _i: i }));
+    renderEventPreview();
+  } catch(e) {
+    SaathiUI.toast(e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract events with AI';
+    lucide.createIcons();
+  }
+}
+
+function mandalOptionsForRow(current) {
+  const known = mandalList.includes(current);
+  let html = '<option value="">Select Mandal</option>';
+  mandalList.forEach(m => { html += `<option ${m === current ? 'selected' : ''}>${esc(m)}</option>`; });
+  html += `<option value="__other__" ${current && !known ? 'selected' : ''}>Others</option>`;
+  return html;
+}
+
+function villageOptionsForRow(mandal, current) {
+  const villages = villagesByMandal[mandal] || [];
+  let html = '<option value="">Select village (optional)</option>';
+  villages.forEach(v => { html += `<option ${v === current ? 'selected' : ''}>${esc(v)}</option>`; });
+  html += `<option value="__other__" ${current && !villages.includes(current) ? 'selected' : ''}>Others</option>`;
+  return html;
+}
+
+function renderEventPreview() {
+  const section = document.getElementById('event-review-section');
+  if (!previewEvents.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  document.getElementById('event-review-banner').textContent =
+    `${previewEvents.length} event${previewEvents.length > 1 ? 's' : ''} found — review before saving`;
+
+  document.getElementById('event-preview-cards').innerHTML = previewEvents.map(it => { const i = it._i;
+    const mandalKnown = mandalList.includes(it.mandal);
+    return `
+    <div class="preview-event-card" style="border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:12px;background:#fafafa">
+      <div class="form-row">
+        <div class="form-group"><label>Event name *</label><input id="pev-name-${i}" value="${esc(it.event_name)}"></div>
+        <div class="form-group"><label>Date *</label><input type="date" id="pev-date-${i}" value="${esc(it.date)}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Time</label><input type="time" id="pev-time-${i}" value="${esc(it.time)}"></div>
+        <div class="form-group"><label>Mandal *</label>
+          <select id="pev-mandal-${i}" onchange="onPreviewMandalChange(${i})">${mandalOptionsForRow(it.mandal)}</select>
+          <input id="pev-mandal-custom-${i}" type="text" placeholder="Enter mandal name" value="${!mandalKnown ? esc(it.mandal) : ''}" style="display:${it.mandal && !mandalKnown ? 'block' : 'none'};margin-top:6px">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Village</label>
+          <select id="pev-village-${i}">${villageOptionsForRow(mandalKnown ? it.mandal : '', it.village)}</select>
+          <input id="pev-village-custom-${i}" type="text" placeholder="Enter village name" value="${mandalKnown && it.village && !(villagesByMandal[it.mandal] || []).includes(it.village) ? esc(it.village) : ''}" style="display:${mandalKnown && it.village && !(villagesByMandal[it.mandal] || []).includes(it.village) ? 'block' : 'none'};margin-top:6px">
+        </div>
+        <div class="form-group"><label>Event type</label>
+          <select id="pev-type-${i}">${SCHEDULE_EVENT_TYPES.map(t => `<option ${t === it.event_type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="form-group"><label>Address / venue</label><input id="pev-address-${i}" value="${esc(it.address)}"></div>
+      <div class="form-group"><label>Description</label><textarea id="pev-desc-${i}">${esc(it.description)}</textarea></div>
+      <button class="btn btn-sm" onclick="removePreviewEvent(${i})">Remove this event</button>
+    </div>`;
+  }).join('');
+}
+
+function onPreviewMandalChange(i) {
+  const sel = document.getElementById(`pev-mandal-${i}`);
+  const custom = document.getElementById(`pev-mandal-custom-${i}`);
+  custom.style.display = sel.value === '__other__' ? 'block' : 'none';
+  const mandal = sel.value === '__other__' ? '' : sel.value;
+  document.getElementById(`pev-village-${i}`).innerHTML = villageOptionsForRow(mandal, '');
+  document.getElementById(`pev-village-custom-${i}`).style.display = 'none';
+}
+
+document.addEventListener('change', e => {
+  const m = e.target.id.match(/^pev-village-(\d+)$/);
+  if (m) {
+    document.getElementById(`pev-village-custom-${m[1]}`).style.display =
+      e.target.value === '__other__' ? 'block' : 'none';
+  }
+});
+
+function removePreviewEvent(i) {
+  previewEvents = previewEvents.filter(it => it._i !== i);
+  renderEventPreview();
+}
+
+async function discardEventPreview() {
+  if (!(await SaathiUI.confirm('Discard these parsed events? Nothing has been saved yet.'))) return;
+  previewEvents = [];
+  document.getElementById('paste-schedule-text').value = '';
+  renderEventPreview();
+}
+
+async function saveAllEventPreview() {
+  const items = [];
+  for (const it of previewEvents) {
+    const i = it._i;
+    const event_name = document.getElementById(`pev-name-${i}`).value.trim();
+    const date = document.getElementById(`pev-date-${i}`).value;
+    const mandalSel = document.getElementById(`pev-mandal-${i}`).value;
+    const mandal = mandalSel === '__other__' ? document.getElementById(`pev-mandal-custom-${i}`).value.trim() : mandalSel;
+    if (!event_name || !date || !mandal) {
+      SaathiUI.toast('Every event needs a name, date and mandal — fill in the highlighted rows.', 'danger');
+      return;
+    }
+    const villageSel = document.getElementById(`pev-village-${i}`).value;
+    const village = villageSel === '__other__' ? document.getElementById(`pev-village-custom-${i}`).value.trim() : villageSel;
+    items.push({
+      event_name, date, mandal, village,
+      time: document.getElementById(`pev-time-${i}`).value,
+      address: document.getElementById(`pev-address-${i}`).value,
+      description: document.getElementById(`pev-desc-${i}`).value,
+      event_type: document.getElementById(`pev-type-${i}`).value,
+    });
+  }
+
+  try {
+    const r = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    SaathiUI.toast(`Saved ${data.count} event${data.count > 1 ? 's' : ''}.`, 'success');
+    previewEvents = [];
+    document.getElementById('paste-schedule-text').value = '';
+    renderEventPreview();
+    loadSchedule();
+  } catch(e) {
+    SaathiUI.toast(e.message, 'danger');
+  }
+}
 
 function downloadBriefPdf() {
   const date = document.getElementById('pdf-date').value;
